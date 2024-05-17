@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:latest
+    container_name: signer-db
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: signer
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: signer
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
