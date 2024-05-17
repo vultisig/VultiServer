@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"vultisigner/internal/database"
 	"vultisigner/internal/logging"
+	"vultisigner/internal/policy"
 	"vultisigner/pkg/models"
 
 	"github.com/go-playground/validator/v10"
@@ -41,13 +41,7 @@ func SetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := database.DB.Create(&tp).Error; err != nil {
-		// Policy is not found
-		if err.Error() == "record not found" {
-			http.Error(w, "Policy not found", http.StatusNotFound)
-			return
-		}
-
+	if err := policy.SavePolicy(&tp); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"error":  err,
 			"policy": tp,
@@ -61,7 +55,7 @@ func SetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 		"policy": tp,
 	}).Info("Transaction policy saved successfully")
 
-	//  Return the new data
+	// Return the new data
 	if err := json.NewEncoder(w).Encode(tp); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"error":  err,
@@ -76,9 +70,8 @@ func GetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
 
-	var tp models.TransactionPolicy
-	if err := database.DB.Where("id = ?", id).First(&tp).Error; err != nil {
-		// Policy is not found
+	tp, err := policy.GetPolicyByID(id)
+	if err != nil {
 		if err.Error() == "record not found" {
 			http.Error(w, "Policy not found", http.StatusNotFound)
 			return
@@ -106,5 +99,5 @@ func GetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 }
 
 func CheckTransaction(w http.ResponseWriter, r *http.Request) {
-	// check if a transaction meets the policy, for example: tx value policy
+	// Implement the logic for checking a transaction against the policy
 }
