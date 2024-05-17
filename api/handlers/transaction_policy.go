@@ -72,7 +72,7 @@ func GetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 
 	tp, err := policy.GetPolicyByID(id)
 	if err != nil {
-		if err.Error() == "record not found" {
+		if err.Error() == "policy not found" {
 			http.Error(w, "Policy not found", http.StatusNotFound)
 			return
 		}
