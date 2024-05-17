@@ -1,13 +1,10 @@
 package models
 
-import (
-	"github.com/jinzhu/gorm"
-)
-
 type TransactionPolicy struct {
-	gorm.Model
-	Limit         float64 `json:"limit"`
-	Delay         int     `json:"delay"`
-	EmailApproval string  `json:"email_approval"`
-	Password      string  `json:"password"`
+	Base
+
+	Limit         float64 `json:"limit" validate:"required,gte=0"`
+	Delay         int     `json:"delay" validate:"required,gte=0"`
+	EmailApproval string  `json:"email_approval" validate:"required,email"`
+	Password      string  `json:"password" validate:"required,min=8"`
 }
