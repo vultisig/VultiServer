@@ -27,6 +27,8 @@ func main() {
 	r.HandleFunc("/policy", handlers.SetTransactionPolicy).Methods("POST")
 	r.HandleFunc("/policy/{id}", handlers.GetTransactionPolicy).Methods("GET")
 
+	r.HandleFunc("/keygen", handlers.KeyGeneration).Methods("POST")
+
 	r.HandleFunc("/check", handlers.CheckTransaction).Methods("POST")
 
 	port := viper.GetString("server.port")

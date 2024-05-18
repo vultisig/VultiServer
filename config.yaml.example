@@ -8,3 +8,6 @@ database:
   password: "password"
   dbname: "signer"
   sslmode: "disable"
+
+director:
+  server: "http://localhost:8080"
