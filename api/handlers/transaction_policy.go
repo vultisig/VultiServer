@@ -7,16 +7,9 @@ import (
 	"vultisigner/internal/policy"
 	"vultisigner/pkg/models"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 )
-
-var validate *validator.Validate
-
-func init() {
-	validate = validator.New()
-}
 
 func SetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 	var tp models.TransactionPolicy
@@ -30,23 +23,13 @@ func SetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate the transaction policy
-	err = validate.Struct(tp)
-	if err != nil {
-		logging.Logger.WithFields(logrus.Fields{
-			"error":  err,
-			"policy": tp,
-		}).Error("Validation failed for transaction policy")
-		http.Error(w, "Invalid transaction policy data: "+err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	if err := policy.SavePolicy(&tp); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"error":  err,
 			"policy": tp,
 		}).Error("Failed to save transaction policy")
-		http.Error(w, "Failed to save policy", http.StatusInternalServerError)
+		// sending error here in case it has to do with validation
+		http.Error(w, "Failed to save policy: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -55,7 +38,7 @@ func SetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 		"policy": tp,
 	}).Info("Transaction policy saved successfully")
 
-	// Return the new data
+	// return the saved policy
 	if err := json.NewEncoder(w).Encode(tp); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"error":  err,
@@ -80,7 +63,7 @@ func GetTransactionPolicy(w http.ResponseWriter, r *http.Request) {
 		logging.Logger.WithFields(logrus.Fields{
 			"error": err,
 		}).Error("Failed to get transaction policy")
-		http.Error(w, "Failed to get policy", http.StatusInternalServerError)
+		http.Error(w, "Failed to get policy: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

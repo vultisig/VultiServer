@@ -42,6 +42,8 @@ type EddsaLocalData struct {
 }
 
 type VaultShare struct {
+	Base
+
 	PubKey              string         `json:"pub_key" validate:"required,len=66,hexadecimal"`
 	EcdsaLocalData      EcdsaLocalData `json:"ecdsa_local_data" validate:"required"`
 	EddsaLocalData      EddsaLocalData `json:"eddsa_local_data"`

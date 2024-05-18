@@ -3,19 +3,29 @@ package policy
 import (
 	"errors"
 	"vultisigner/internal/database"
+	"vultisigner/internal/validation"
 	"vultisigner/pkg/models"
 
 	"github.com/google/uuid"
 )
 
 func SavePolicy(tp *models.TransactionPolicy) error {
+	if err := validation.Validate.Struct(tp); err != nil {
+		return errors.New("validation failed: " + err.Error())
+		// var validationErrors string
+		// for _, err := range err.(validator.ValidationErrors) {
+		// 	validationErrors += err.Namespace() + ": " + err.Tag() + ", "
+		// }
+		// return errors.New("validation failed: " + validationErrors)
+	}
+
 	tp.ID = uuid.New()
 
 	if err := database.DB.Create(tp).Error; err != nil {
 		if err.Error() == "record not found" {
 			return errors.New("policy not found")
 		}
-		return err
+		return errors.New("failed to save policy" + err.Error())
 	}
 	return nil
 }

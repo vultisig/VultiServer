@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+
 	"github.com/spf13/viper"
 )
 
@@ -16,6 +17,9 @@ type Config struct {
 		Password string
 		DBName   string
 		SSLMode  string
+	}
+	Encryption struct {
+		PrivateKey string
 	}
 }
 
