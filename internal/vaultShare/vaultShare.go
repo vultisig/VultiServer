@@ -4,8 +4,8 @@ import (
 	"errors"
 	"vultisigner/internal/crypto"
 	"vultisigner/internal/database"
+	"vultisigner/internal/models"
 	"vultisigner/internal/validation"
-	"vultisigner/pkg/models"
 
 	"github.com/google/uuid"
 )

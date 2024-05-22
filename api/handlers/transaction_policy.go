@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"vultisigner/internal/logging"
+	"vultisigner/internal/models"
 	"vultisigner/internal/policy"
-	"vultisigner/pkg/models"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"

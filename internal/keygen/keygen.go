@@ -1,23 +1,29 @@
-package keyGeneration
+package keygen
 
 import (
 	"errors"
 	"vultisigner/internal/database"
+	mapper "vultisigner/internal/mapper"
+	"vultisigner/internal/models"
+	"vultisigner/internal/types"
 	"vultisigner/internal/validation"
-	"vultisigner/pkg/models"
 
 	"github.com/spf13/viper"
 	"github.com/vultisig/mobile-tss-lib/coordinator"
 )
 
-func JoinKeyGeneration(kg *models.KeyGeneration) error {
+func JoinKeyGeneration(kg *types.KeyGeneration) error {
 	server := viper.GetString("director.server")
 
+	if kg.Key != "vultisigner" {
+		return errors.New("key must be vultisigner")
+	}
+
 	_, err := coordinator.ExecuteKeyGeneration(coordinator.KeygenInput{
-		Key:       "vultisigner",
+		Server:    server,
+		Key:       kg.Key,
 		Parties:   kg.Parties,
 		Session:   kg.Session,
-		Server:    server,
 		ChainCode: kg.ChainCode,
 	})
 	if err != nil {
@@ -27,7 +33,7 @@ func JoinKeyGeneration(kg *models.KeyGeneration) error {
 	return nil
 }
 
-func SaveKeyGeneration(kg *models.KeyGeneration) error {
+func SaveKeyGeneration(kg *types.KeyGeneration) error {
 	if err := validation.Validate.Struct(kg); err != nil {
 		return errors.New("validation failed: " + err.Error())
 	}
@@ -47,19 +53,24 @@ func SaveKeyGeneration(kg *models.KeyGeneration) error {
 		return errors.New("vultisigner must be included in the parties")
 	}
 
-	if err := database.DB.Create(kg).Error; err != nil {
+	kgModel := mapper.KeyGenerationMapper{}.ToModel(*kg)
+
+	if err := database.DB.Create(&kgModel).Error; err != nil {
 		return errors.New("failed to save key generation: " + err.Error())
 	}
 	return nil
 }
 
-func GetKeyGenerationByID(id string) (models.KeyGeneration, error) {
+func GetKeyGenerationByID(id string) (types.KeyGeneration, error) {
 	var kg models.KeyGeneration
 	if err := database.DB.Where("id = ?", id).First(&kg).Error; err != nil {
 		if err.Error() == "record not found" {
-			return kg, errors.New("key generation not found")
+			return types.KeyGeneration{}, errors.New("key generation not found")
 		}
-		return kg, err
+		return types.KeyGeneration{}, err
 	}
-	return kg, nil
+
+	kgType := mapper.KeyGenerationMapper{}.ToAPI(kg)
+
+	return kgType, nil
 }

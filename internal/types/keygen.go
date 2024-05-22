@@ -1,8 +1,6 @@
-package models
+package types
 
 type KeyGeneration struct {
-	// Base
-
 	Key       string   `json:"key" validate:"required"` // should always be vultisigner
 	Parties   []string `json:"parties" validate:"required,dive,required"`
 	Session   string   `json:"session" validate:"required"`

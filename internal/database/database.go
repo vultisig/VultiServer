@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"vultisigner/config"
-	"vultisigner/pkg/models"
+	"vultisigner/internal/models"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"

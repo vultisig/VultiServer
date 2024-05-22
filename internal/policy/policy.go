@@ -3,8 +3,8 @@ package policy
 import (
 	"errors"
 	"vultisigner/internal/database"
+	"vultisigner/internal/models"
 	"vultisigner/internal/validation"
-	"vultisigner/pkg/models"
 
 	"github.com/google/uuid"
 )
