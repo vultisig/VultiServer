@@ -8,6 +8,8 @@
 
 Create a new vault with specified parties. Once the vault is created, the key generation process will start, spinning up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator keygen session. During this process, the keygen status will be `pending`, and upon completion, it will change to `completed` with public keys available.
 
+A vault can never be updated to have new signers, a vault is always considered valid, if participants change, we consider that a new vault, as the old vault can technically still be used to sign.
+
 **Request:**
 ```js
 {
@@ -37,6 +39,27 @@ Create a new vault with specified parties. Once the vault is created, the key ge
 }
 ```
 
+#### [GET] /vaults/{vault_id}
+
+**Response (after creation):**
+```js
+{
+  "vault_id": "unique_vault_id",
+  "name": "My Vault",
+  "description": "Description of the vault",
+  "parties": [
+    "party_1_id",
+    "party_2_id",
+    "Vultisigner"
+  ],
+  "keygen_status": "pending", // TBD if it will actually be in here
+  "policy": {},
+  "shares": {},
+  "created_at": "timestamp",
+  "updated_at": "timestamp"
+}
+```
+
 **Response (after keygen completion):**
 ```js
 {
@@ -48,7 +71,45 @@ Create a new vault with specified parties. Once the vault is created, the key ge
     "party_2_id",
     "Vultisigner"
   ],
-  "keygen_status": "completed",
+  "keygen_status": "completed", // TBD if it will actually be in here
+  "policy": {},
+  "shares": {
+    "ecdsa": [
+      {"party_id": "party_1_id", "public_key": "public_key_data_1"},
+      {"party_id": "party_2_id", "public_key": "public_key_data_2"},
+      {"party_id": "Vultisigner", "public_key": "public_key_data_vultisigner"}
+    ],
+    "eddsa": [
+      {"party_id": "party_1_id", "public_key": "public_key_data_1"},
+      {"party_id": "party_2_id", "public_key": "public_key_data_2"},
+      {"party_id": "Vultisigner", "public_key": "public_key_data_vultisigner"}
+    ]
+  },
+  "created_at": "timestamp",
+  "updated_at": "timestamp"
+}
+```
+
+**Response (after keygen completion and has active transaction policy configured):**
+```js
+{
+  "vault_id": "unique_vault_id",
+  "name": "My Vault",
+  "description": "Description of the vault",
+  "parties": [
+    "party_1_id",
+    "party_2_id",
+    "Vultisigner"
+  ],
+  "keygen_status": "completed", // TBD if it will actually be in here
+  "policy": {
+    "policy_id": "unique_policy_id",
+    "rules": [
+      {"condition": "wait_time", "value": "24 hours"},
+      {"condition": "pin_required", "value": true},
+      {"condition": "max_value", "value": "1000"}
+    ]
+  },
   "shares": {
     "ecdsa": [
       {"party_id": "party_1_id", "public_key": "public_key_data_1"},
@@ -68,13 +129,13 @@ Create a new vault with specified parties. Once the vault is created, the key ge
 
 #### [GET] /vaults/{vault_id}/keygen/status
 
-View the status of the key generation job for a specific vault.
+View detailed status of the key generation job for a specific vault. Possibly will contain some logs.
 
 **Response:**
 ```js
 {
   "vault_id": "unique_vault_id",
-  "keygen_status": "pending", // or "in_progress", "completed", "failed"
+  "keygen_status": "pending", // or "in_progress", "completed", "failed", "prime-generating"
   "session_id": "unique_session_id",
   "updated_at": "timestamp"
 }
@@ -117,9 +178,30 @@ Request an update to the transaction policy for a specific vault. This generates
 }
 ```
 
+#### [GET] /vaults/{vault_id}/transaction_policies/{update_request_id}
+
+Retrieve the details of a transaction policy update request. This allows the wallet to display the details of the request to the user and prompt them to sign it.
+
+**Response:**
+```js
+{
+  "update_request_id": "unique_request_id",
+  "status": "pending",
+  "new_policy": {
+    "policy_id": "unique_policy_id",
+    "rules": [
+      {"condition": "wait_time", "value": "24 hours"},
+      {"condition": "pin_required", "value": true},
+      {"condition": "max_value", "value": "1000"}
+    ]
+  },
+  "requested_at": "timestamp"
+}
+```
+
 #### [POST] /vaults/{vault_id}/transaction_policies/{update_request_id}/approve
 
-Submit signatures to approve a transaction policy update request. The update will only take effect if all parties of the vault have signed the request.
+Submit signatures to approve a transaction policy update request. The update will only take effect if a vault minimum threshold of signatures is reached. We will never be one of the signers.
 
 **Request:**
 ```js
@@ -181,6 +263,25 @@ Retrieve the history of transaction policies for a specific vault. This allows t
 }
 ```
 
+#### [GET] /vaults/{vault_id}/transaction_policies/{policy_id}
+
+Retrieve a specific transaction policy for a specific vault.
+
+**Response:**
+```js
+{
+      "policy_id": "policy_id_1",
+      "rules": [
+        {"condition": "wait_time", "value": "24 hours"},
+        {"condition": "pin_required", "value": true},
+        {"condition": "max_value", "value": "1000"}
+      ],
+      "status": "inactive", // or "active"
+      "created_at": "timestamp",
+      "modified_at": "timestamp"
+}
+```
+
 ### Transaction Signing
 
 #### [POST] /vaults/{vault_id}/transactions
@@ -197,7 +298,7 @@ Request the signing of a transaction. This spins up a background job (using `cmd
   },
   "policy_id": "unique_policy_id",
   "session_id": "unique_session_id",
-  "pin_code": "user_provided_pin_code"
+  "pin_code": "user_provided_pin_code" // optional
 }
 ```
 
@@ -206,6 +307,21 @@ Request the signing of a transaction. This spins up a background job (using `cmd
 {
   "transaction_id": "unique_transaction_id",
   "status": "pending",
+  "required_signatures": [
+    {"party_id": "party_1_id", "status": "waiting"},
+    {"party_id": "party_2_id", "status": "waiting"},
+    {"party_id": "Vultisigner", "status": "waiting"}
+  ],
+  "created_at": "timestamp"
+}
+```
+
+**Response (not allowed):**
+```js
+{
+  "transaction_id": "unique_transaction_id",
+  "status": "unauthorized",
+  "unauthorized_reason": "timelock_active", // or "pin_required", "max_value_exceeded"
   "required_signatures": [
     {"party_id": "party_1_id", "status": "waiting"},
     {"party_id": "party_2_id", "status": "waiting"},
