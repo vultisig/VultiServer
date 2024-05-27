@@ -9,7 +9,7 @@
 Create a new vault with specified parties. Once the vault is created, the key generation process will start, spinning up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator keygen session. During this process, the keygen status will be `pending`, and upon completion, it will change to `completed` with public keys available.
 
 **Request:**
-\```json
+```json
 {
   "name": "My Vault",
   "description": "Description of the vault",
@@ -19,10 +19,10 @@ Create a new vault with specified parties. Once the vault is created, the key ge
     "Vultisigner"
   ]
 }
-\```
+```
 
 **Response (initial):**
-\```json
+```json
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
@@ -35,10 +35,10 @@ Create a new vault with specified parties. Once the vault is created, the key ge
   "keygen_status": "pending",
   "created_at": "timestamp"
 }
-\```
+```
 
 **Response (after keygen completion):**
-\```json
+```json
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
@@ -64,21 +64,21 @@ Create a new vault with specified parties. Once the vault is created, the key ge
   "created_at": "timestamp",
   "updated_at": "timestamp"
 }
-\```
+```
 
 #### [GET] /vaults/{vault_id}/keygen/status
 
 View the status of the key generation job for a specific vault.
 
 **Response:**
-\```json
+```json
 {
   "vault_id": "unique_vault_id",
   "keygen_status": "pending", // or "in_progress", "completed", "failed"
   "session_id": "unique_session_id",
   "updated_at": "timestamp"
 }
-\```
+```
 
 ### Transaction Policy Management
 
@@ -87,7 +87,7 @@ View the status of the key generation job for a specific vault.
 Request an update to the transaction policy for a specific vault. This generates data that other parties must sign to approve the update. They should sign the contents of `new_policy` and send the signatures to the `/vaults/{vault_id}/transaction_policies/{update_request_id}/approve` endpoint for it to take effect.
 
 **Request:**
-\```json
+```json
 {
   "new_policy": {
     "policy_id": "unique_policy_id",
@@ -98,10 +98,10 @@ Request an update to the transaction policy for a specific vault. This generates
     ]
   }
 }
-\```
+```
 
 **Response:**
-\```json
+```json
 {
   "update_request_id": "unique_request_id",
   "status": "pending",
@@ -115,24 +115,24 @@ Request an update to the transaction policy for a specific vault. This generates
   },
   "requested_at": "timestamp"
 }
-\```
+```
 
 #### [POST] /vaults/{vault_id}/transaction_policies/{update_request_id}/approve
 
 Submit signatures to approve a transaction policy update request. The update will only take effect if all parties of the vault have signed the request.
 
 **Request:**
-\```json
+```json
 {
   "signatures": [
     {"party_id": "party_1_id", "signature": "signature_data"},
     {"party_id": "party_2_id", "signature": "signature_data"}
   ]
 }
-\```
+```
 
 **Response:**
-\```json
+```json
 {
   "status": "approved",
   "new_policy": {
@@ -145,14 +145,14 @@ Submit signatures to approve a transaction policy update request. The update wil
   },
   "approved_at": "timestamp"
 }
-\```
+```
 
 #### [GET] /vaults/{vault_id}/transaction_policies/history
 
 Retrieve the history of transaction policies for a specific vault. This allows the wallet to notify if the policy has changed. Wallets can store the policy locally and compare it with the latest policy to determine if it has changed.
 
 **Response:**
-\```json
+```json
 {
   "policies": [
     {
@@ -179,7 +179,7 @@ Retrieve the history of transaction policies for a specific vault. This allows t
     }
   ]
 }
-\```
+```
 
 ### Transaction Signing
 
@@ -188,7 +188,7 @@ Retrieve the history of transaction policies for a specific vault. This allows t
 Request the signing of a transaction. This spins up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator if the transaction policy allows it; otherwise, it will throw an error.
 
 **Request:**
-\```json
+```json
 {
   "transaction_id": "unique_transaction_id",
   "transaction_details": {
@@ -199,10 +199,10 @@ Request the signing of a transaction. This spins up a background job (using `cmd
   "session_id": "unique_session_id",
   "pin_code": "user_provided_pin_code"
 }
-\```
+```
 
 **Response (initial):**
-\```json
+```json
 {
   "transaction_id": "unique_transaction_id",
   "status": "pending",
@@ -213,14 +213,14 @@ Request the signing of a transaction. This spins up a background job (using `cmd
   ],
   "created_at": "timestamp"
 }
-\```
+```
 
 #### [GET] /vaults/{vault_id}/transactions/{transaction_id}
 
 View the status of a transaction signing job.
 
 **Response:**
-\```json
+```json
 {
   "transaction_id": "unique_transaction_id",
   "status": "in_progress", // or "completed", "failed" (TBD)
@@ -231,10 +231,10 @@ View the status of a transaction signing job.
   ],
   "updated_at": "timestamp"
 }
-\```
+```
 
 **Response (after keysign completion):**
-\```json
+```json
 {
   "transaction_id": "unique_transaction_id",
   "status": "completed",
@@ -250,7 +250,7 @@ View the status of a transaction signing job.
   "created_at": "timestamp",
   "updated_at": "timestamp"
 }
-\```
+```
 
 ## cmd/worker
 
