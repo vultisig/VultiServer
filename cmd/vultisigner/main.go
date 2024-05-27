@@ -31,7 +31,8 @@ func main() {
 	r.HandleFunc("/policy", handlers.SetTransactionPolicy).Methods("POST")
 	r.HandleFunc("/policy/{id}", handlers.GetTransactionPolicy).Methods("GET")
 
-	r.HandleFunc("/keygen", handlers.KeyGeneration).Methods("POST")
+	r.HandleFunc("/keygen", handlers.SaveKeyGeneration).Methods("POST")
+	r.HandleFunc("/keygen/join", handlers.JoinKeyGeneration).Methods("POST")
 
 	r.HandleFunc("/check", handlers.CheckTransaction).Methods("POST")
 

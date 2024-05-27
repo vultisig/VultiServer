@@ -41,14 +41,14 @@ func SaveKeyGeneration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Now we attempt to join the key generation
-	if err := keyGeneration.JoinKeyGeneration(&kg); err != nil {
-		logging.Logger.WithFields(logrus.Fields{
-			"error":          err,
-			"key-generation": kg,
-		}).Error("Failed to join key generation")
-		http.Error(w, "Failed to join key generation: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// if err := keyGeneration.JoinKeyGeneration(&kg); err != nil {
+	// 	logging.Logger.WithFields(logrus.Fields{
+	// 		"error":          err,
+	// 		"key-generation": kg,
+	// 	}).Error("Failed to join key generation")
+	// 	http.Error(w, "Failed to join key generation: "+err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
 
 	w.WriteHeader(http.StatusOK)
 	logging.Logger.WithFields(logrus.Fields{
