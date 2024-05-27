@@ -291,10 +291,8 @@ Request the signing of a transaction. This spins up a background job (using `cmd
 **Request:**
 ```js
 {
-  "transaction_id": "unique_transaction_id",
   "transaction_details": {
-    "amount": 100,
-    "recipient": "recipient_address"
+    "body": "transaction_body",
   },
   "policy_id": "unique_policy_id",
   "session_id": "unique_session_id",
