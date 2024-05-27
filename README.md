@@ -9,7 +9,7 @@
 Create a new vault with specified parties. Once the vault is created, the key generation process will start, spinning up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator keygen session. During this process, the keygen status will be `pending`, and upon completion, it will change to `completed` with public keys available.
 
 **Request:**
-```json
+```js
 {
   "name": "My Vault",
   "description": "Description of the vault",
@@ -22,7 +22,7 @@ Create a new vault with specified parties. Once the vault is created, the key ge
 ```
 
 **Response (initial):**
-```json
+```js
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
@@ -38,7 +38,7 @@ Create a new vault with specified parties. Once the vault is created, the key ge
 ```
 
 **Response (after keygen completion):**
-```json
+```js
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
@@ -71,7 +71,7 @@ Create a new vault with specified parties. Once the vault is created, the key ge
 View the status of the key generation job for a specific vault.
 
 **Response:**
-```json
+```js
 {
   "vault_id": "unique_vault_id",
   "keygen_status": "pending", // or "in_progress", "completed", "failed"
@@ -87,7 +87,7 @@ View the status of the key generation job for a specific vault.
 Request an update to the transaction policy for a specific vault. This generates data that other parties must sign to approve the update. They should sign the contents of `new_policy` and send the signatures to the `/vaults/{vault_id}/transaction_policies/{update_request_id}/approve` endpoint for it to take effect.
 
 **Request:**
-```json
+```js
 {
   "new_policy": {
     "policy_id": "unique_policy_id",
@@ -101,7 +101,7 @@ Request an update to the transaction policy for a specific vault. This generates
 ```
 
 **Response:**
-```json
+```js
 {
   "update_request_id": "unique_request_id",
   "status": "pending",
@@ -122,7 +122,7 @@ Request an update to the transaction policy for a specific vault. This generates
 Submit signatures to approve a transaction policy update request. The update will only take effect if all parties of the vault have signed the request.
 
 **Request:**
-```json
+```js
 {
   "signatures": [
     {"party_id": "party_1_id", "signature": "signature_data"},
@@ -132,7 +132,7 @@ Submit signatures to approve a transaction policy update request. The update wil
 ```
 
 **Response:**
-```json
+```js
 {
   "status": "approved",
   "new_policy": {
@@ -152,7 +152,7 @@ Submit signatures to approve a transaction policy update request. The update wil
 Retrieve the history of transaction policies for a specific vault. This allows the wallet to notify if the policy has changed. Wallets can store the policy locally and compare it with the latest policy to determine if it has changed.
 
 **Response:**
-```json
+```js
 {
   "policies": [
     {
@@ -188,7 +188,7 @@ Retrieve the history of transaction policies for a specific vault. This allows t
 Request the signing of a transaction. This spins up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator if the transaction policy allows it; otherwise, it will throw an error.
 
 **Request:**
-```json
+```js
 {
   "transaction_id": "unique_transaction_id",
   "transaction_details": {
@@ -202,7 +202,7 @@ Request the signing of a transaction. This spins up a background job (using `cmd
 ```
 
 **Response (initial):**
-```json
+```js
 {
   "transaction_id": "unique_transaction_id",
   "status": "pending",
@@ -220,7 +220,7 @@ Request the signing of a transaction. This spins up a background job (using `cmd
 View the status of a transaction signing job.
 
 **Response:**
-```json
+```js
 {
   "transaction_id": "unique_transaction_id",
   "status": "in_progress", // or "completed", "failed" (TBD)
@@ -234,7 +234,7 @@ View the status of a transaction signing job.
 ```
 
 **Response (after keysign completion):**
-```json
+```js
 {
   "transaction_id": "unique_transaction_id",
   "status": "completed",
