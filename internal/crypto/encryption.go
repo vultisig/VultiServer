@@ -12,6 +12,7 @@ import (
 )
 
 // meant to encrypt the Xi fields in EcdsaLocalData and EddsaLocalData
+// but can be used for anything really
 func Encrypt(plaintext string) (string, error) {
 	password := viper.GetString("encryption.password")
 	if password == "" {

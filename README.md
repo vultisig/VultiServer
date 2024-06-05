@@ -4,9 +4,9 @@
 
 ### Vault Management
 
-#### [POST] /vaults
+#### [POST] /vault
 
-Create a new vault with specified parties. Once the vault is created, the key generation process will start, spinning up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator keygen session. During this process, the keygen status will be `pending`, and upon completion, it will change to `completed` with public keys available.
+Create a new vault with specified parties. This does not join a key generation yet. Only creates it.
 
 A vault can never be updated to have new signers, a vault is always considered valid, if participants change, we consider that a new vault, as the old vault can technically still be used to sign.
 
@@ -14,7 +14,7 @@ A vault can never be updated to have new signers, a vault is always considered v
 ```js
 {
   "name": "My Vault",
-  "description": "Description of the vault",
+  "hex_chain_code": "80871c0f885f953e5206e461630a9222148797e66276a83224c7b9b0f75b3ec0",
   "parties": [
     "party_1_id",
     "party_2_id",
@@ -28,31 +28,58 @@ A vault can never be updated to have new signers, a vault is always considered v
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
-  "description": "Description of the vault",
+  "hexChainCode": "80871c0f885f953e5206e461630a9222148797e66276a83224c7b9b0f75b3ec0",
   "parties": [
     "party_1_id",
     "party_2_id",
     "Vultisigner"
   ],
-  "keygen_status": "pending",
   "created_at": "timestamp"
 }
 ```
 
-#### [GET] /vaults/{vault_id}
+#### [POST] /vault/{vault_id}/keygen
+After the vault is created, you can call this endpoint, this will start the key generation process, spinning up a background job (using `cmd/worker` with `asynq`) to join relay keygen session.
+
+This endpoint is meant to return the session_id, which allows the other parties to join the keygen session.
+
+**Request:**
+```js
+// nothing
+```
+
+**Response:**
+```js
+{
+  "vault_id": "unique_vault_id",
+  "session_id": "unique_session_id",
+}
+```
+
+#### [GET] /vault/{vault_id}/keygen
+You can retrieve the status of a keygen session here
+
+**Response:**
+```js
+{
+  "vault_id": "unique_vault_id",
+  "session_id": "unique_session_id",
+  "status": "pending", // or "in_progress", "completed", "failed", "prime-generating"
+}
+```
+
+#### [GET] /vault/{vault_id}
 
 **Response (after creation):**
 ```js
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
-  "description": "Description of the vault",
   "parties": [
     "party_1_id",
     "party_2_id",
     "Vultisigner"
   ],
-  "keygen_status": "pending", // TBD if it will actually be in here
   "policy": {},
   "shares": {},
   "created_at": "timestamp",
@@ -65,24 +92,22 @@ A vault can never be updated to have new signers, a vault is always considered v
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
-  "description": "Description of the vault",
   "parties": [
     "party_1_id",
     "party_2_id",
     "Vultisigner"
   ],
-  "keygen_status": "completed", // TBD if it will actually be in here
   "policy": {},
   "shares": {
     "ecdsa": [
-      {"party_id": "party_1_id", "public_key": "public_key_data_1"},
-      {"party_id": "party_2_id", "public_key": "public_key_data_2"},
-      {"party_id": "Vultisigner", "public_key": "public_key_data_vultisigner"}
+      {"party_id": "party_1_id"},
+      {"party_id": "party_2_id"},
+      {"party_id": "Vultisigner"
     ],
     "eddsa": [
-      {"party_id": "party_1_id", "public_key": "public_key_data_1"},
-      {"party_id": "party_2_id", "public_key": "public_key_data_2"},
-      {"party_id": "Vultisigner", "public_key": "public_key_data_vultisigner"}
+      {"party_id": "party_1_id"},
+      {"party_id": "party_2_id"},
+      {"party_id": "Vultisigner"}
     ]
   },
   "created_at": "timestamp",
@@ -95,13 +120,11 @@ A vault can never be updated to have new signers, a vault is always considered v
 {
   "vault_id": "unique_vault_id",
   "name": "My Vault",
-  "description": "Description of the vault",
   "parties": [
     "party_1_id",
     "party_2_id",
     "Vultisigner"
   ],
-  "keygen_status": "completed", // TBD if it will actually be in here
   "policy": {
     "policy_id": "unique_policy_id",
     "rules": [
@@ -112,9 +135,9 @@ A vault can never be updated to have new signers, a vault is always considered v
   },
   "shares": {
     "ecdsa": [
-      {"party_id": "party_1_id", "public_key": "public_key_data_1"},
-      {"party_id": "party_2_id", "public_key": "public_key_data_2"},
-      {"party_id": "Vultisigner", "public_key": "public_key_data_vultisigner"}
+      {"party_id": "party_1_id" },
+      {"party_id": "party_2_id" },
+      {"party_id": "Vultisigner" }
     ],
     "eddsa": [
       {"party_id": "party_1_id", "public_key": "public_key_data_1"},
@@ -127,25 +150,11 @@ A vault can never be updated to have new signers, a vault is always considered v
 }
 ```
 
-#### [GET] /vaults/{vault_id}/keygen/status
-
-View detailed status of the key generation job for a specific vault. Possibly will contain some logs.
-
-**Response:**
-```js
-{
-  "vault_id": "unique_vault_id",
-  "keygen_status": "pending", // or "in_progress", "completed", "failed", "prime-generating"
-  "session_id": "unique_session_id",
-  "updated_at": "timestamp"
-}
-```
-
 ### Transaction Policy Management
 
-#### [POST] /vaults/{vault_id}/transaction_policies/request_update
+#### [POST] /vault/{vault_id}/transaction_policies/request_update
 
-Request an update to the transaction policy for a specific vault. This generates data that other parties must sign to approve the update. They should sign the contents of `new_policy` and send the signatures to the `/vaults/{vault_id}/transaction_policies/{update_request_id}/approve` endpoint for it to take effect.
+Request an update to the transaction policy for a specific vault. This generates data that other parties must sign to approve the update. They should sign the contents of `new_policy` and send the signatures to the `/vault/{vault_id}/transaction_policies/{update_request_id}/approve` endpoint for it to take effect.
 
 **Request:**
 ```js
@@ -178,7 +187,7 @@ Request an update to the transaction policy for a specific vault. This generates
 }
 ```
 
-#### [GET] /vaults/{vault_id}/transaction_policies/{update_request_id}
+#### [GET] /vault/{vault_id}/transaction_policies/{update_request_id}
 
 Retrieve the details of a transaction policy update request. This allows the wallet to display the details of the request to the user and prompt them to sign it.
 
@@ -199,7 +208,7 @@ Retrieve the details of a transaction policy update request. This allows the wal
 }
 ```
 
-#### [POST] /vaults/{vault_id}/transaction_policies/{update_request_id}/approve
+#### [POST] /vault/{vault_id}/transaction_policies/{update_request_id}/approve
 
 Submit signatures to approve a transaction policy update request. The update will only take effect if a vault minimum threshold of signatures is reached. We will never be one of the signers.
 
@@ -229,7 +238,7 @@ Submit signatures to approve a transaction policy update request. The update wil
 }
 ```
 
-#### [GET] /vaults/{vault_id}/transaction_policies/history
+#### [GET] /vault/{vault_id}/transaction_policies/history
 
 Retrieve the history of transaction policies for a specific vault. This allows the wallet to notify if the policy has changed. Wallets can store the policy locally and compare it with the latest policy to determine if it has changed.
 
@@ -263,7 +272,7 @@ Retrieve the history of transaction policies for a specific vault. This allows t
 }
 ```
 
-#### [GET] /vaults/{vault_id}/transaction_policies/{policy_id}
+#### [GET] /vault/{vault_id}/transaction_policies/{policy_id}
 
 Retrieve a specific transaction policy for a specific vault.
 
@@ -284,7 +293,7 @@ Retrieve a specific transaction policy for a specific vault.
 
 ### Transaction Signing
 
-#### [POST] /vaults/{vault_id}/transactions
+#### [POST] /vault/{vault_id}/transactions
 
 Request the signing of a transaction. This spins up a background job (using `cmd/worker` with `asynq`) to join the TSS-coordinator if the transaction policy allows it; otherwise, it will throw an error.
 
@@ -329,7 +338,7 @@ Request the signing of a transaction. This spins up a background job (using `cmd
 }
 ```
 
-#### [GET] /vaults/{vault_id}/transactions/{transaction_id}
+#### [GET] /vault/{vault_id}/transactions/{transaction_id}
 
 View the status of a transaction signing job.
 

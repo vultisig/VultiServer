@@ -66,8 +66,6 @@ func SaveKeyGeneration(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// this is called after the key generation has been saved
-// this will attempt to join the key generation
 func JoinKeyGeneration(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
