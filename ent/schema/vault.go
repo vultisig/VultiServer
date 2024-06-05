@@ -17,8 +17,10 @@ type Vault struct {
 func (Vault) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty(),
-		field.String("pub_key").NotEmpty().Match(regexp.MustCompile(`^[0-9a-fA-F]{66}$`)),
-		field.JSON("keygen_committee_keys", []string{}), //.NotEmpty(),
+		// field.String("pub_key").NotEmpty().Match(regexp.MustCompile(`^[0-9a-fA-F]{66}$`)),
+		field.String("pub_key").Optional().Match(regexp.MustCompile(`^[0-9a-fA-F]{66}$`)),
+		// field.JSON("keygen_committee_keys", []string{}), //.NotEmpty(),
+		field.JSON("keygen_committee_keys", []string{}).Optional(), //.NotEmpty(),
 		field.String("local_party_key").NotEmpty(),
 		field.String("chain_code_hex").NotEmpty().Match(regexp.MustCompile(`^[0-9a-fA-F]{64}$`)),
 		field.String("reshare_prefix").Optional(),
@@ -27,6 +29,7 @@ func (Vault) Fields() []ent.Field {
 
 // Edges of the Vault.
 func (Vault) Edges() []ent.Edge {
+	// return nil
 	return []ent.Edge{
 		edge.From("paillier_sk", PaillierSK.Type).Ref("vault").Unique(),
 		edge.From("ecdsa_local_data", EcdsaLocalData.Type).Ref("vault").Unique(),

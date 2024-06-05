@@ -7,7 +7,6 @@ import (
 	"vultisigner/api/handlers"
 	"vultisigner/api/middleware"
 	"vultisigner/internal/database"
-	"vultisigner/internal/models"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/viper"
@@ -15,10 +14,6 @@ import (
 
 func main() {
 	database.Init()
-	defer database.Close()
-
-	// Auto migrate
-	database.DB.AutoMigrate(&models.KeyGeneration{}, &models.TransactionPolicy{})
 
 	r := mux.NewRouter()
 	r.Use(middleware.AuthMiddleware)

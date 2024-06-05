@@ -103,21 +103,7 @@ func init() {
 	// vaultDescPubKey is the schema descriptor for pub_key field.
 	vaultDescPubKey := vaultFields[1].Descriptor()
 	// vault.PubKeyValidator is a validator for the "pub_key" field. It is called by the builders before save.
-	vault.PubKeyValidator = func() func(string) error {
-		validators := vaultDescPubKey.Validators
-		fns := [...]func(string) error{
-			validators[0].(func(string) error),
-			validators[1].(func(string) error),
-		}
-		return func(pub_key string) error {
-			for _, fn := range fns {
-				if err := fn(pub_key); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}()
+	vault.PubKeyValidator = vaultDescPubKey.Validators[0].(func(string) error)
 	// vaultDescLocalPartyKey is the schema descriptor for local_party_key field.
 	vaultDescLocalPartyKey := vaultFields[3].Descriptor()
 	// vault.LocalPartyKeyValidator is a validator for the "local_party_key" field. It is called by the builders before save.

@@ -3249,9 +3249,22 @@ func (m *VaultMutation) OldPubKey(ctx context.Context) (v string, err error) {
 	return oldValue.PubKey, nil
 }
 
+// ClearPubKey clears the value of the "pub_key" field.
+func (m *VaultMutation) ClearPubKey() {
+	m.pub_key = nil
+	m.clearedFields[vault.FieldPubKey] = struct{}{}
+}
+
+// PubKeyCleared returns if the "pub_key" field was cleared in this mutation.
+func (m *VaultMutation) PubKeyCleared() bool {
+	_, ok := m.clearedFields[vault.FieldPubKey]
+	return ok
+}
+
 // ResetPubKey resets all changes to the "pub_key" field.
 func (m *VaultMutation) ResetPubKey() {
 	m.pub_key = nil
+	delete(m.clearedFields, vault.FieldPubKey)
 }
 
 // SetKeygenCommitteeKeys sets the "keygen_committee_keys" field.
@@ -3299,10 +3312,24 @@ func (m *VaultMutation) AppendedKeygenCommitteeKeys() ([]string, bool) {
 	return m.appendkeygen_committee_keys, true
 }
 
+// ClearKeygenCommitteeKeys clears the value of the "keygen_committee_keys" field.
+func (m *VaultMutation) ClearKeygenCommitteeKeys() {
+	m.keygen_committee_keys = nil
+	m.appendkeygen_committee_keys = nil
+	m.clearedFields[vault.FieldKeygenCommitteeKeys] = struct{}{}
+}
+
+// KeygenCommitteeKeysCleared returns if the "keygen_committee_keys" field was cleared in this mutation.
+func (m *VaultMutation) KeygenCommitteeKeysCleared() bool {
+	_, ok := m.clearedFields[vault.FieldKeygenCommitteeKeys]
+	return ok
+}
+
 // ResetKeygenCommitteeKeys resets all changes to the "keygen_committee_keys" field.
 func (m *VaultMutation) ResetKeygenCommitteeKeys() {
 	m.keygen_committee_keys = nil
 	m.appendkeygen_committee_keys = nil
+	delete(m.clearedFields, vault.FieldKeygenCommitteeKeys)
 }
 
 // SetLocalPartyKey sets the "local_party_key" field.
@@ -3718,6 +3745,12 @@ func (m *VaultMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *VaultMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(vault.FieldPubKey) {
+		fields = append(fields, vault.FieldPubKey)
+	}
+	if m.FieldCleared(vault.FieldKeygenCommitteeKeys) {
+		fields = append(fields, vault.FieldKeygenCommitteeKeys)
+	}
 	if m.FieldCleared(vault.FieldResharePrefix) {
 		fields = append(fields, vault.FieldResharePrefix)
 	}
@@ -3735,6 +3768,12 @@ func (m *VaultMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *VaultMutation) ClearField(name string) error {
 	switch name {
+	case vault.FieldPubKey:
+		m.ClearPubKey()
+		return nil
+	case vault.FieldKeygenCommitteeKeys:
+		m.ClearKeygenCommitteeKeys()
+		return nil
 	case vault.FieldResharePrefix:
 		m.ClearResharePrefix()
 		return nil

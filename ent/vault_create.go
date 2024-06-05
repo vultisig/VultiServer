@@ -34,6 +34,14 @@ func (vc *VaultCreate) SetPubKey(s string) *VaultCreate {
 	return vc
 }
 
+// SetNillablePubKey sets the "pub_key" field if the given value is not nil.
+func (vc *VaultCreate) SetNillablePubKey(s *string) *VaultCreate {
+	if s != nil {
+		vc.SetPubKey(*s)
+	}
+	return vc
+}
+
 // SetKeygenCommitteeKeys sets the "keygen_committee_keys" field.
 func (vc *VaultCreate) SetKeygenCommitteeKeys(s []string) *VaultCreate {
 	vc.mutation.SetKeygenCommitteeKeys(s)
@@ -165,16 +173,10 @@ func (vc *VaultCreate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Vault.name": %w`, err)}
 		}
 	}
-	if _, ok := vc.mutation.PubKey(); !ok {
-		return &ValidationError{Name: "pub_key", err: errors.New(`ent: missing required field "Vault.pub_key"`)}
-	}
 	if v, ok := vc.mutation.PubKey(); ok {
 		if err := vault.PubKeyValidator(v); err != nil {
 			return &ValidationError{Name: "pub_key", err: fmt.Errorf(`ent: validator failed for field "Vault.pub_key": %w`, err)}
 		}
-	}
-	if _, ok := vc.mutation.KeygenCommitteeKeys(); !ok {
-		return &ValidationError{Name: "keygen_committee_keys", err: errors.New(`ent: missing required field "Vault.keygen_committee_keys"`)}
 	}
 	if _, ok := vc.mutation.LocalPartyKey(); !ok {
 		return &ValidationError{Name: "local_party_key", err: errors.New(`ent: missing required field "Vault.local_party_key"`)}

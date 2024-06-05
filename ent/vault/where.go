@@ -199,6 +199,16 @@ func PubKeyHasSuffix(v string) predicate.Vault {
 	return predicate.Vault(sql.FieldHasSuffix(FieldPubKey, v))
 }
 
+// PubKeyIsNil applies the IsNil predicate on the "pub_key" field.
+func PubKeyIsNil() predicate.Vault {
+	return predicate.Vault(sql.FieldIsNull(FieldPubKey))
+}
+
+// PubKeyNotNil applies the NotNil predicate on the "pub_key" field.
+func PubKeyNotNil() predicate.Vault {
+	return predicate.Vault(sql.FieldNotNull(FieldPubKey))
+}
+
 // PubKeyEqualFold applies the EqualFold predicate on the "pub_key" field.
 func PubKeyEqualFold(v string) predicate.Vault {
 	return predicate.Vault(sql.FieldEqualFold(FieldPubKey, v))
@@ -207,6 +217,16 @@ func PubKeyEqualFold(v string) predicate.Vault {
 // PubKeyContainsFold applies the ContainsFold predicate on the "pub_key" field.
 func PubKeyContainsFold(v string) predicate.Vault {
 	return predicate.Vault(sql.FieldContainsFold(FieldPubKey, v))
+}
+
+// KeygenCommitteeKeysIsNil applies the IsNil predicate on the "keygen_committee_keys" field.
+func KeygenCommitteeKeysIsNil() predicate.Vault {
+	return predicate.Vault(sql.FieldIsNull(FieldKeygenCommitteeKeys))
+}
+
+// KeygenCommitteeKeysNotNil applies the NotNil predicate on the "keygen_committee_keys" field.
+func KeygenCommitteeKeysNotNil() predicate.Vault {
+	return predicate.Vault(sql.FieldNotNull(FieldKeygenCommitteeKeys))
 }
 
 // LocalPartyKeyEQ applies the EQ predicate on the "local_party_key" field.

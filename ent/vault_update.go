@@ -59,6 +59,12 @@ func (vu *VaultUpdate) SetNillablePubKey(s *string) *VaultUpdate {
 	return vu
 }
 
+// ClearPubKey clears the value of the "pub_key" field.
+func (vu *VaultUpdate) ClearPubKey() *VaultUpdate {
+	vu.mutation.ClearPubKey()
+	return vu
+}
+
 // SetKeygenCommitteeKeys sets the "keygen_committee_keys" field.
 func (vu *VaultUpdate) SetKeygenCommitteeKeys(s []string) *VaultUpdate {
 	vu.mutation.SetKeygenCommitteeKeys(s)
@@ -68,6 +74,12 @@ func (vu *VaultUpdate) SetKeygenCommitteeKeys(s []string) *VaultUpdate {
 // AppendKeygenCommitteeKeys appends s to the "keygen_committee_keys" field.
 func (vu *VaultUpdate) AppendKeygenCommitteeKeys(s []string) *VaultUpdate {
 	vu.mutation.AppendKeygenCommitteeKeys(s)
+	return vu
+}
+
+// ClearKeygenCommitteeKeys clears the value of the "keygen_committee_keys" field.
+func (vu *VaultUpdate) ClearKeygenCommitteeKeys() *VaultUpdate {
+	vu.mutation.ClearKeygenCommitteeKeys()
 	return vu
 }
 
@@ -269,6 +281,9 @@ func (vu *VaultUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := vu.mutation.PubKey(); ok {
 		_spec.SetField(vault.FieldPubKey, field.TypeString, value)
 	}
+	if vu.mutation.PubKeyCleared() {
+		_spec.ClearField(vault.FieldPubKey, field.TypeString)
+	}
 	if value, ok := vu.mutation.KeygenCommitteeKeys(); ok {
 		_spec.SetField(vault.FieldKeygenCommitteeKeys, field.TypeJSON, value)
 	}
@@ -276,6 +291,9 @@ func (vu *VaultUpdate) sqlSave(ctx context.Context) (n int, err error) {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, vault.FieldKeygenCommitteeKeys, value)
 		})
+	}
+	if vu.mutation.KeygenCommitteeKeysCleared() {
+		_spec.ClearField(vault.FieldKeygenCommitteeKeys, field.TypeJSON)
 	}
 	if value, ok := vu.mutation.LocalPartyKey(); ok {
 		_spec.SetField(vault.FieldLocalPartyKey, field.TypeString, value)
@@ -424,6 +442,12 @@ func (vuo *VaultUpdateOne) SetNillablePubKey(s *string) *VaultUpdateOne {
 	return vuo
 }
 
+// ClearPubKey clears the value of the "pub_key" field.
+func (vuo *VaultUpdateOne) ClearPubKey() *VaultUpdateOne {
+	vuo.mutation.ClearPubKey()
+	return vuo
+}
+
 // SetKeygenCommitteeKeys sets the "keygen_committee_keys" field.
 func (vuo *VaultUpdateOne) SetKeygenCommitteeKeys(s []string) *VaultUpdateOne {
 	vuo.mutation.SetKeygenCommitteeKeys(s)
@@ -433,6 +457,12 @@ func (vuo *VaultUpdateOne) SetKeygenCommitteeKeys(s []string) *VaultUpdateOne {
 // AppendKeygenCommitteeKeys appends s to the "keygen_committee_keys" field.
 func (vuo *VaultUpdateOne) AppendKeygenCommitteeKeys(s []string) *VaultUpdateOne {
 	vuo.mutation.AppendKeygenCommitteeKeys(s)
+	return vuo
+}
+
+// ClearKeygenCommitteeKeys clears the value of the "keygen_committee_keys" field.
+func (vuo *VaultUpdateOne) ClearKeygenCommitteeKeys() *VaultUpdateOne {
+	vuo.mutation.ClearKeygenCommitteeKeys()
 	return vuo
 }
 
@@ -664,6 +694,9 @@ func (vuo *VaultUpdateOne) sqlSave(ctx context.Context) (_node *Vault, err error
 	if value, ok := vuo.mutation.PubKey(); ok {
 		_spec.SetField(vault.FieldPubKey, field.TypeString, value)
 	}
+	if vuo.mutation.PubKeyCleared() {
+		_spec.ClearField(vault.FieldPubKey, field.TypeString)
+	}
 	if value, ok := vuo.mutation.KeygenCommitteeKeys(); ok {
 		_spec.SetField(vault.FieldKeygenCommitteeKeys, field.TypeJSON, value)
 	}
@@ -671,6 +704,9 @@ func (vuo *VaultUpdateOne) sqlSave(ctx context.Context) (_node *Vault, err error
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, vault.FieldKeygenCommitteeKeys, value)
 		})
+	}
+	if vuo.mutation.KeygenCommitteeKeysCleared() {
+		_spec.ClearField(vault.FieldKeygenCommitteeKeys, field.TypeJSON)
 	}
 	if value, ok := vuo.mutation.LocalPartyKey(); ok {
 		_spec.SetField(vault.FieldLocalPartyKey, field.TypeString, value)

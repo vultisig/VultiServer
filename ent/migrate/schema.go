@@ -88,8 +88,8 @@ var (
 	VaultsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "name", Type: field.TypeString},
-		{Name: "pub_key", Type: field.TypeString},
-		{Name: "keygen_committee_keys", Type: field.TypeJSON},
+		{Name: "pub_key", Type: field.TypeString, Nullable: true},
+		{Name: "keygen_committee_keys", Type: field.TypeJSON, Nullable: true},
 		{Name: "local_party_key", Type: field.TypeString},
 		{Name: "chain_code_hex", Type: field.TypeString},
 		{Name: "reshare_prefix", Type: field.TypeString, Nullable: true},

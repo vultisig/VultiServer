@@ -1,27 +1,38 @@
-// internal/database/database.go
-
 package database
 
 import (
 	"context"
+	"fmt"
 	"log"
 
-	"entgo.io/ent/dialect/sql"
-	_ "github.com/lib/pq" // Postgres driver
+	_ "github.com/lib/pq"
 
+	"vultisigner/config"
 	"vultisigner/ent"
 )
 
 var Client *ent.Client
 
 func Init() {
-	// Open a connection to the database
-	drv, err := sql.Open("postgres", "your_database_url")
+	dbConfig := config.AppConfig.Database
+	dsn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=%s",
+		dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.DBName, dbConfig.Password, dbConfig.SSLMode)
+
+	client, err := ent.Open("postgres", dsn)
 	if err != nil {
 		log.Fatalf("failed opening connection to postgres: %v", err)
 	}
-	Client = ent.NewClient(ent.Driver(drv))
+	Client = client
+	// defer client.Close()
+
+	fmt.Println("Connected to database")
+
+	// Run the auto migration tool.
 	if err := Client.Schema.Create(context.Background()); err != nil {
 		log.Fatalf("failed creating schema resources: %v", err)
 	}
+
+	fmt.Println("Migration completed")
+
+	// return client
 }
