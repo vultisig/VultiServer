@@ -3,7 +3,6 @@ package vault
 import (
 	"errors"
 	"vultisigner/internal/database"
-	mapper "vultisigner/internal/mapper"
 	"vultisigner/internal/models"
 	"vultisigner/internal/types"
 	"vultisigner/internal/validation"

@@ -1,30 +1,27 @@
+// internal/database/database.go
+
 package database
 
 import (
-	"fmt"
+	"context"
 	"log"
-	"vultisigner/config"
-	"vultisigner/internal/models"
 
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"entgo.io/ent/dialect/sql"
+	_ "github.com/lib/pq" // Postgres driver
+
+	"vultisigner/ent"
 )
 
-var DB *gorm.DB
+var Client *ent.Client
 
 func Init() {
-	var err error
-	dbConfig := config.AppConfig.Database
-	dsn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=%s",
-		dbConfig.Host, dbConfig.Port, dbConfig.User, dbConfig.DBName, dbConfig.Password, dbConfig.SSLMode)
-	DB, err = gorm.Open("postgres", dsn)
+	// Open a connection to the database
+	drv, err := sql.Open("postgres", "your_database_url")
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("failed opening connection to postgres: %v", err)
 	}
-
-	DB.AutoMigrate(&models.TransactionPolicy{})
-}
-
-func Close() {
-	DB.Close()
+	Client = ent.NewClient(ent.Driver(drv))
+	if err := Client.Schema.Create(context.Background()); err != nil {
+		log.Fatalf("failed creating schema resources: %v", err)
+	}
 }
