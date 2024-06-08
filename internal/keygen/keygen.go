@@ -1,26 +1,29 @@
 package keygen
 
 import (
+	"vultisigner/config"
 	"vultisigner/internal/types"
+
+	"github.com/vultisig/mobile-tss-lib/coordinator"
 )
 
 func JoinKeyGeneration(kg *types.KeyGeneration) error {
-	// server := viper.GetString("director.server")
+	relayServer := config.AppConfig.Relay.Server
 
 	// if kg.Key != "vultisigner" {
 	// 	return errors.New("key must be vultisigner")
 	// }
 
-	// _, err := coordinator.ExecuteKeyGeneration(coordinator.KeygenInput{
-	// 	Server:    server,
-	// 	Key:       kg.Key,
-	// 	Parties:   kg.Parties,
-	// 	Session:   kg.Session,
-	// 	ChainCode: kg.ChainCode,
-	// })
-	// if err != nil {
-	// 	return err
-	// }
+	_, err := coordinator.ExecuteKeyGeneration(coordinator.KeygenInput{
+		Server:    relayServer,
+		Key:       kg.Key,
+		Parties:   kg.Parties,
+		Session:   kg.Session,
+		ChainCode: kg.ChainCode,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

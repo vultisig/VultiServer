@@ -6,15 +6,12 @@ import (
 	"net/http"
 	"vultisigner/api/handlers"
 	"vultisigner/api/middleware"
-	"vultisigner/internal/database"
+	"vultisigner/config"
 
 	"github.com/gorilla/mux"
-	"github.com/spf13/viper"
 )
 
 func main() {
-	database.Init()
-
 	r := mux.NewRouter()
 	r.Use(middleware.AuthMiddleware)
 	r.Use(middleware.ContentTypeApplicationJsonMiddleware)
@@ -26,7 +23,7 @@ func main() {
 	// r.HandleFunc("/policy", handlers.SetTransactionPolicy).Methods("POST")
 	// r.HandleFunc("/policy/{id}", handlers.GetTransactionPolicy).Methods("GET")
 
-	r.HandleFunc("/vault", handlers.SaveVault).Methods("POST")
+	// r.HandleFunc("/vault", handlers.SaveVault).Methods("POST")
 	r.HandleFunc("/vault/{id}", handlers.GetVault).Methods("GET")
 
 	// r.HandleFunc("/vault/{id}/keygen", handlers.StartKeyGeneration).Methods("POST")
@@ -34,7 +31,7 @@ func main() {
 
 	// r.HandleFunc("/check", handlers.CheckTransaction).Methods("POST")
 
-	port := viper.GetString("server.port")
+	port := config.AppConfig.Server.Port
 
 	fmt.Println("Server is running on http://localhost:" + port)
 

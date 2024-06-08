@@ -1,17 +1,27 @@
-version: "3.8"
-
 services:
-  db:
-    image: postgres:latest
-    container_name: signer-db
-    ports:
-      - "${DB_PORT:-5432}:5432"
-    environment:
-      POSTGRES_USER: signer
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: signer
-    volumes:
-      - db_data:/var/lib/postgresql/data
+  # s3:
+  #   image: minio/minio:latest
+  #   container_name: signer-s3
+  #   ports:
+  #     - "${S3_PORT:-9000}:9000"
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: minioadmin
+  #   command: server /data
+  #   volumes:
+  #     - s3_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+  #     interval: 30s
+  #     timeout: 20s
+  #     retries: 3
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #     minio server /data && \
+  #     (while ! curl -s http://localhost:9000/minio/health/live; do sleep 1; done) && \
+  #     mc alias set myminio http://localhost:9000 minioadmin minioadmin && \
+  #     mc mb myminio/signer-bucket
+  #     "
 
   redis:
     image: redis:latest
@@ -30,5 +40,5 @@ services:
       REDIS_URL: redis://signer-redis:6379/0
 
 volumes:
-  db_data:
+  # s3_data:
   redis_data:

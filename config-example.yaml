@@ -1,13 +1,13 @@
 server:
   port: "8181"
 
-database:
-  host: "localhost"
-  port: "5432"
-  user: "signer"
-  password: "password"
-  dbname: "signer"
-  sslmode: "disable"
+# database:
+#   host: "localhost"
+#   port: "5432"
+#   user: "signer"
+#   password: "password"
+#   dbname: "signer"
+#   sslmode: "disable"
 
 redis:
   host: "localhost"
@@ -17,5 +17,5 @@ redis:
 encryption:
   privatekey: "test"
 
-director:
+relay:
   server: "http://localhost:8080"

@@ -10,16 +10,24 @@ type Config struct {
 	Server struct {
 		Port string
 	}
-	Database struct {
+	Redis struct {
 		Host     string
 		Port     string
-		User     string
 		Password string
-		DBName   string
-		SSLMode  string
 	}
+	// Database struct {
+	// 	Host     string
+	// 	Port     string
+	// 	User     string
+	// 	Password string
+	// 	DBName   string
+	// 	SSLMode  string
+	// }
 	Encryption struct {
 		PrivateKey string
+	}
+	Relay struct {
+		Server string
 	}
 }
 

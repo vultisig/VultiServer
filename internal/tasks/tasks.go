@@ -9,4 +9,5 @@ type KeyGenerationPayload struct {
 	LocalKey  string
 	SessionID string
 	ChainCode string
+	Parties   []string
 }

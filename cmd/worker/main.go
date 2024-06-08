@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 	"vultisigner/internal/keygen"
+	"vultisigner/internal/tasks"
 	"vultisigner/internal/types"
-	"vultisigner/pkg/tasks"
 
 	"github.com/hibiken/asynq"
 )
@@ -48,14 +48,18 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	log.Printf("Joining keygen for local key: local_key=%d, session_id=%s, chain_code=%s", p.LocalKey, p.SessionID, p.ChainCode)
+	log.Printf("Joining keygen for local key: local_key=%d, session_id=%s, chain_code=%s, parties=%s", p.LocalKey, p.SessionID, p.ChainCode, p.Parties)
 
 	// Join keygen
-	keygen.JoinKeyGeneration(&types.KeyGeneration{
+	err := keygen.JoinKeyGeneration(&types.KeyGeneration{
 		Key:       p.LocalKey,
+		Parties:   p.Parties,
 		Session:   p.SessionID,
 		ChainCode: p.ChainCode,
 	})
+	if err != nil {
+		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
+	}
 
 	log.Printf("Key generation completed")
 
