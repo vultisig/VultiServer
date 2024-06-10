@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"vultisigner/internal/tasks"
+	"github.com/vultisig/vultisigner/internal/tasks"
 
 	"github.com/hibiken/asynq"
 )
