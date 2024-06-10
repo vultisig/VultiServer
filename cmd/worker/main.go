@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"vultisigner/internal/keygen"
-	"vultisigner/internal/tasks"
-	"vultisigner/internal/types"
+
+	"github.com/vultisig/vultisigner/internal/keygen"
+	"github.com/vultisig/vultisigner/internal/tasks"
+	"github.com/vultisig/vultisigner/internal/types"
 
 	"github.com/hibiken/asynq"
 )
