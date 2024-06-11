@@ -28,7 +28,10 @@ func main() {
 			fmt.Println("fail to close asynq client,", err)
 		}
 	}()
-	server := api.NewServer(port, redisStorage, client)
+	if config.AppConfig.Server.VaultsFilePath == "" {
+		panic("vaults file path is empty")
+	}
+	server := api.NewServer(port, redisStorage, client, config.AppConfig.Server.VaultsFilePath)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}
