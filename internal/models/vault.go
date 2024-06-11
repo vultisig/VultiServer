@@ -18,3 +18,8 @@ type Vault struct {
 	Signers       []string   `json:"signers"`
 	Keyshares     []KeyShare `json:"keyshares"`
 }
+
+type VaultBackup struct {
+	Version string `json:"version"`
+	Vault   Vault  `json:"vault"`
+}

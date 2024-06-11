@@ -3,8 +3,11 @@ package api
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,22 +16,28 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 
+	"github.com/vultisig/vultisigner/internal/models"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
 
 type Server struct {
-	port   int64
-	s      *storage.RedisStorage
-	client *asynq.Client
+	port          int64
+	s             *storage.RedisStorage
+	client        *asynq.Client
+	vaultFilePath string
 }
 
 // NewServer returns a new server.
-func NewServer(port int64, s *storage.RedisStorage, client *asynq.Client) *Server {
+func NewServer(port int64,
+	s *storage.RedisStorage,
+	client *asynq.Client,
+	vaultFilePath string) *Server {
 	return &Server{
-		port:   port,
-		s:      s,
-		client: client,
+		port:          port,
+		s:             s,
+		client:        client,
+		vaultFilePath: vaultFilePath,
 	}
 }
 
@@ -42,6 +51,8 @@ func (s *Server) StartServer() error {
 	e.GET("/ping", s.Ping)
 	grp := e.Group("/vault")
 	grp.POST("/create", s.CreateVault)
+	grp.POST("/upload", s.UploadVault)
+	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
 	return e.Start(fmt.Sprintf(":%d", s.port))
 
 }
@@ -101,4 +112,43 @@ func (s *Server) CreateVault(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resp)
+}
+
+// UploadVault is a handler that receives a vault file from integration.
+func (s *Server) UploadVault(c echo.Context) error {
+	var vaultBackup models.VaultBackup
+	if err := c.Bind(&vaultBackup); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+	filePathName := filepath.Join(s.vaultFilePath, vaultBackup.Vault.PubKeyECDSA+".dat")
+	file, err := os.Create(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to create file, err: %w", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			c.Logger().Errorf("fail to close file, err: %v", err)
+		}
+	}()
+	buf, err := json.Marshal(vaultBackup)
+	if err != nil {
+		return fmt.Errorf("fail to serialize vault backup, err: %w", err)
+	}
+	if _, err := file.Write(buf); err != nil {
+		return fmt.Errorf("fail to write file, err: %w", err)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+func (s *Server) DownloadVault(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return fmt.Errorf("public key is required")
+	}
+	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".dat")
+	_, err := os.Stat(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to get file info, err: %w", err)
+	}
+	return c.File(filePathName)
 }

@@ -8,7 +8,8 @@ import (
 
 type Config struct {
 	Server struct {
-		Port int64
+		Port           int64
+		VaultsFilePath string
 	}
 
 	Redis struct {
