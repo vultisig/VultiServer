@@ -14,7 +14,9 @@ type Config struct {
 	Redis struct {
 		Host     string
 		Port     string
+		User     string
 		Password string
+		DB       int
 	}
 
 	Relay struct {
