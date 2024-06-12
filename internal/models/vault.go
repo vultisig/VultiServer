@@ -21,5 +21,5 @@ type Vault struct {
 
 type VaultBackup struct {
 	Version string `json:"version"`
-	Vault   Vault  `json:"vault"`
+	Vault   string `json:"vault"` // base64(encrypted(json(vault)))
 }

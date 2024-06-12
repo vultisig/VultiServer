@@ -16,6 +16,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 
+	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/internal/models"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
@@ -23,19 +24,19 @@ import (
 
 type Server struct {
 	port          int64
-	s             *storage.RedisStorage
+	redis         *storage.RedisStorage
 	client        *asynq.Client
 	vaultFilePath string
 }
 
 // NewServer returns a new server.
 func NewServer(port int64,
-	s *storage.RedisStorage,
+	redis *storage.RedisStorage,
 	client *asynq.Client,
 	vaultFilePath string) *Server {
 	return &Server{
 		port:          port,
-		s:             s,
+		redis:         redis,
 		client:        client,
 		vaultFilePath: vaultFilePath,
 	}
@@ -48,6 +49,9 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
+	e.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
+		Validator: s.AuthenticationValidator,
+	}))
 	e.GET("/ping", s.Ping)
 	grp := e.Group("/vault")
 	grp.POST("/create", s.CreateVault)
@@ -55,6 +59,23 @@ func (s *Server) StartServer() error {
 	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
 	return e.Start(fmt.Sprintf(":%d", s.port))
 
+}
+
+// AuthenticationValidator is a middleware that validates the basic auth credentials.
+func (s *Server) AuthenticationValidator(username string, password string, c echo.Context) (bool, error) {
+	if username == "" || password == "" {
+		return false, nil
+	}
+	// save the user/password in redis, it is not idea , but vultisigner mostly run by integration partners
+	// they can add db support later
+	passwd, err := s.redis.GetUser(c.Request().Context(), username)
+	if err != nil {
+		return false, fmt.Errorf("fail to get user, err: %w", err)
+	}
+	if passwd == password {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s *Server) Ping(c echo.Context) error {
@@ -92,7 +113,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		EncryptionPassword: req.EncryptionPassword,
 	}
 	// Save the item into cache, so work can retrieve it
-	if err := s.s.SetVaultCacheItem(c.Request().Context(), &cacheItem); err != nil {
+	if err := s.redis.SetVaultCacheItem(c.Request().Context(), &cacheItem); err != nil {
 		return fmt.Errorf("fail to set vault cache item, err: %w", err)
 	}
 
@@ -120,7 +141,19 @@ func (s *Server) UploadVault(c echo.Context) error {
 	if err := c.Bind(&vaultBackup); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-	filePathName := filepath.Join(s.vaultFilePath, vaultBackup.Vault.PubKeyECDSA+".dat")
+	passwd := c.Request().Header.Get("x-password")
+	if passwd == "" {
+		return fmt.Errorf("vault backup password is required")
+	}
+	result, err := common.Decrypt(passwd, vaultBackup.Vault)
+	if err != nil {
+		return fmt.Errorf("fail to decrypt vault, err: %w", err)
+	}
+	var vault models.Vault
+	if err := json.Unmarshal([]byte(result), &vault); err != nil {
+		return fmt.Errorf("fail to decode vault, err: %w", err)
+	}
+	filePathName := filepath.Join(s.vaultFilePath, vault.PubKeyECDSA+".dat")
 	file, err := os.Create(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to create file, err: %w", err)
@@ -145,10 +178,33 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	if publicKeyECDSA == "" {
 		return fmt.Errorf("public key is required")
 	}
+
 	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".dat")
 	_, err := os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
 	}
+	passwd := c.Request().Header.Get("x-password")
+	if passwd == "" {
+		return fmt.Errorf("vault backup password is required")
+	}
+	content, err := os.ReadFile(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to read file, err: %w", err)
+	}
+	var vaultBackup models.VaultBackup
+	if err := json.Unmarshal(content, &vaultBackup); err != nil {
+		return fmt.Errorf("fail to unmarshal vault backup, err: %w", err)
+	}
+
+	result, err := common.Decrypt(passwd, vaultBackup.Vault)
+	if err != nil {
+		return fmt.Errorf("fail to decrypt vault, err: %w", err)
+	}
+	var vault models.Vault
+	if err := json.Unmarshal([]byte(result), &vault); err != nil {
+		return fmt.Errorf("fail to decode vault, err: %w", err)
+	}
+
 	return c.File(filePathName)
 }

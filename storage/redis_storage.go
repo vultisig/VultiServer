@@ -62,6 +62,13 @@ func (r *RedisStorage) GetVaultCacheItem(ctx context.Context, key string) (*type
 	return &vault, nil
 }
 
+func (r *RedisStorage) GetUser(ctx context.Context, name string) (string, error) {
+	if contexthelper.CheckCancellation(ctx) != nil {
+		return "", ctx.Err()
+	}
+	return r.client.Get(ctx, name).Result()
+}
+
 func (r *RedisStorage) Close() error {
 	return r.client.Close()
 }
