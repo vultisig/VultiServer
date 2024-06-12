@@ -5,12 +5,13 @@ go 1.22.2
 require (
 	github.com/go-playground/validator/v10 v10.20.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/mux v1.8.1
 	github.com/hibiken/asynq v0.24.1
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/labstack/gommon v0.4.2
+	github.com/redis/go-redis/v9 v9.5.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
+	github.com/stretchr/testify v1.8.4
 	github.com/vultisig/mobile-tss-lib v0.0.0-20240518124308-39bf00d1ee1e
 )
 
@@ -22,6 +23,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0 // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -46,7 +48,7 @@ require (
 	github.com/otiai10/primes v0.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/redis/go-redis/v9 v9.5.2 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
