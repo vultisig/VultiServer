@@ -49,12 +49,12 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	log.Printf("Joining keygen for local key: local_key=%s, session_id=%s, chain_code=%s, parties=%s", p.LocalKey, p.SessionID, p.ChainCode, p.Parties)
+	log.Printf("Joining keygen for local key: local_key=%s, session_id=%s, chain_code=%s", p.LocalKey, p.SessionID, p.ChainCode)
 
 	// Join keygen
-	err := keygen.JoinKeyGeneration(&types.KeyGeneration{
-		Key:       p.LocalKey,
-		Parties:   p.Parties,
+	key, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
+		Key: p.LocalKey,
+		// Parties:   p.Parties,
 		Session:   p.SessionID,
 		ChainCode: p.ChainCode,
 	})
@@ -62,7 +62,7 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	log.Printf("Key generation completed")
+	log.Printf("Key generation completed key = %s", key)
 
 	return nil
 }

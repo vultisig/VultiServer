@@ -57,7 +57,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
-	return e.Start(fmt.Sprintf(":%d", s.port))
+	return e.Start(fmt.Sprintf("localhost:%d", s.port))
 
 }
 
