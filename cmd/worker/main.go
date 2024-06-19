@@ -56,8 +56,7 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 
 	// Join keygen
 	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
-		Key: p.LocalKey,
-		// Parties:   p.Parties,
+		Key:       p.LocalKey,
 		Session:   p.SessionID,
 		ChainCode: p.ChainCode,
 	})

@@ -10,5 +10,4 @@ type KeyGenerationPayload struct {
 	SessionID        string
 	ChainCode        string
 	HexEncryptionKey string
-	// Parties   []string
 }
