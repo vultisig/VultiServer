@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/keygen"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
@@ -13,21 +14,18 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-const redisAddr = "127.0.0.1:6371"
-
 func main() {
+	redisAddr := config.AppConfig.Redis.Host + ":" + config.AppConfig.Redis.Port
+
 	srv := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: redisAddr},
 		asynq.Config{
-			// Specify how many concurrent workers to use
 			Concurrency: 10,
-			// Optionally specify multiple queues with different priority.
 			Queues: map[string]int{
 				"critical": 6,
 				"default":  3,
 				"low":      1,
 			},
-			// See the godoc for other configuration options
 		},
 	)
 
@@ -44,6 +42,11 @@ func main() {
 	}
 }
 
+type KeyGenerationTaskResult struct {
+	EDDSAPublicKey string
+	ECDSAPublicKey string
+}
+
 func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	var p tasks.KeyGenerationPayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
@@ -52,7 +55,7 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	log.Printf("Joining keygen for local key: local_key=%s, session_id=%s, chain_code=%s", p.LocalKey, p.SessionID, p.ChainCode)
 
 	// Join keygen
-	key, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
+	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
 		Key: p.LocalKey,
 		// Parties:   p.Parties,
 		Session:   p.SessionID,
@@ -62,7 +65,18 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	log.Printf("Key generation completed key = %s", key)
+	log.Printf("Key generation completed keys: keyECDSA=%s, keyEDDSA=%s", keyECDSA, keyEDDSA)
+
+	result := KeyGenerationTaskResult{
+		EDDSAPublicKey: keyEDDSA,
+		ECDSAPublicKey: keyECDSA,
+	}
+
+	resultBytes, err := json.Marshal(result)
+
+	if _, err := t.ResultWriter().Write([]byte(resultBytes)); err != nil {
+		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
+	}
 
 	return nil
 }

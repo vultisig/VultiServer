@@ -77,14 +77,14 @@ func TestExecuteKeyGeneration(t *testing.T) {
 			Session:   vaultResponse.SessionID,
 			ChainCode: vaultResponse.HexChainCode,
 			Key:       "iPhone",
-			KeyFolder: "../keys",
+			KeyFolder: "../keys/IPhone",
 		},
 		"iPad": {
 			Server:    server,
 			Session:   vaultResponse.SessionID,
 			ChainCode: vaultResponse.HexChainCode,
 			Key:       "iPad",
-			KeyFolder: "../keys",
+			KeyFolder: "../keys/IPad",
 		},
 	}
 
@@ -96,8 +96,6 @@ func TestExecuteKeyGeneration(t *testing.T) {
 			defer wg.Done()
 			fmt.Println("Joining gen party as", partyConfig.Key)
 
-			// We join the
-
 			publicKey, err := coordinator.ExecuteKeyGeneration(partyConfig)
 			if err != nil {
 				t.Errorf("Execution for %s failed with %q", partyConfig.Key, err)
@@ -107,7 +105,9 @@ func TestExecuteKeyGeneration(t *testing.T) {
 	}
 
 	// Wait 3 seconds to start to simulate someone not instantly pressing the button
+	fmt.Println("Waiting 3 seconds to start the session")
 	time.Sleep(3 * time.Second)
+	fmt.Println("Starting the session")
 
 	// We start the session (one of the devices will do this in real life)
 	coordinator.StartSession(server, vaultResponse.SessionID, []string{"iPhone", "iPad", "Vultisigner"})

@@ -17,6 +17,7 @@ import (
 	"github.com/labstack/gommon/log"
 
 	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/models"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
@@ -57,7 +58,8 @@ func (s *Server) StartServer() error {
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
-	return e.Start(fmt.Sprintf("localhost:%d", s.port))
+	host := config.AppConfig.Server.Host
+	return e.Start(fmt.Sprintf("%s:%d", host, s.port))
 
 }
 
@@ -127,7 +129,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to create task, err: %w", err)
 	}
-	_, err = s.client.Enqueue(task, asynq.MaxRetry(1), asynq.Timeout(1*time.Minute), asynq.Unique(time.Hour))
+	_, err = s.client.Enqueue(task, asynq.MaxRetry(2), asynq.Timeout(30*time.Minute), asynq.Unique(time.Hour), asynq.Retention(24*time.Hour))
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}

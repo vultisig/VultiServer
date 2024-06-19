@@ -66,8 +66,7 @@ func (r *RedisStorage) GetUser(ctx context.Context, name string) (string, error)
 	if contexthelper.CheckCancellation(ctx) != nil {
 		return "", ctx.Err()
 	}
-	result, error := r.client.Get(ctx, name).Result()
-	return result, error
+	return r.client.Get(ctx, name).Result()
 }
 
 func (r *RedisStorage) Close() error {
