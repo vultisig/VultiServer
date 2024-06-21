@@ -12,7 +12,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.8.4
-	github.com/vultisig/mobile-tss-lib v0.0.0-20240518124308-39bf00d1ee1e
+	github.com/vultisig/mobile-tss-lib v0.0.0-20240621002938-ee58dda07286
 )
 
 require (
@@ -75,6 +75,4 @@ require (
 replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
-	// DEVELOPMENT
-	github.com/vultisig/mobile-tss-lib => ../mobile-tss-lib
 )

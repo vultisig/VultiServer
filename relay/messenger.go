@@ -73,8 +73,7 @@ func (m *MessengerImp) Send(from, to, body string) error {
 		"from": from,
 		"to":   to,
 		"hash": hashStr,
-		// "body": body,
-	}).Info("message sent")
+	}).Info("Message sent")
 
 	return nil
 }
@@ -91,14 +90,15 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 				logging.Logger.WithFields(logrus.Fields{
 					"session": session,
 					"key":     key,
-				}).Error("fail to get data from server")
+					"error":   err,
+				}).Error("Failed to get data from server")
 				continue
 			}
 			if resp.StatusCode != http.StatusOK {
 				logging.Logger.WithFields(logrus.Fields{
 					"session": session,
 					"key":     key,
-				}).Error("fail to get data from server")
+				}).Error("Failed to get data from server, status code is not 200 OK")
 				continue
 			}
 			decoder := json.NewDecoder(resp.Body)
@@ -114,7 +114,8 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 					logging.Logger.WithFields(logrus.Fields{
 						"session": session,
 						"key":     key,
-					}).Error("fail to decode messages")
+						"error":   err,
+					}).Error("Failed to decode data")
 				}
 				continue
 			}
@@ -123,40 +124,43 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 					continue
 				}
 
+				if err := tssServerImp.ApplyData(message.Body); err != nil {
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+						"error":   err,
+					}).Error("Failed to apply data")
+				}
+
 				// @TODO: decode message.Body when encrypted
 				client := http.Client{}
 				req, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+key+"/"+message.Hash, nil)
 				if err != nil {
-					// log.Println("fail to delete message:", err)
 					logging.Logger.WithFields(logrus.Fields{
 						"session": session,
 						"key":     key,
-					}).Error("fail to delete message")
+						"error":   err,
+					}).Error("Failed to delete message")
 					continue
 				}
+
 				resp, err := client.Do(req)
 				if err != nil {
 					logging.Logger.WithFields(logrus.Fields{
 						"session": session,
 						"key":     key,
-					}).Error("fail to delete message")
+						"error":   err,
+					}).Error("Failed to delete message")
 					continue
 				}
+
 				if resp.StatusCode != http.StatusOK {
 					logging.Logger.WithFields(logrus.Fields{
 						"session": session,
 						"key":     key,
-					}).Error("fail to delete message")
+					}).Error("Failed to delete message, status code is not 200 OK")
 					continue
 				}
-
-				if err := tssServerImp.ApplyData(message.Body); err != nil {
-					logging.Logger.WithFields(logrus.Fields{
-						"session": session,
-						"key":     key,
-					}).Error("fail to apply data")
-				}
-
 			}
 		}
 	}

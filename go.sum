@@ -220,6 +220,8 @@ github.com/valyala/fasttemplate v1.2.2 h1:lxLXG0uE3Qnshl9QyaK6XJxMXlQZELvChBOCmQ
 github.com/valyala/fasttemplate v1.2.2/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=
 github.com/vultisig/mobile-tss-lib v0.0.0-20240518124308-39bf00d1ee1e h1:v0RYYfFKabi3Ia9tc/TTW/58Gk4lARUmuAAMZO09vQ4=
 github.com/vultisig/mobile-tss-lib v0.0.0-20240518124308-39bf00d1ee1e/go.mod h1:0fSJ0evW+p18BvHHeIii/daRU0DMMPqgj+ht+aX1oho=
+github.com/vultisig/mobile-tss-lib v0.0.0-20240621002938-ee58dda07286 h1:yKmDyLn/CLwvdYYisxjn93oUdyftioZ4kl7PqTJpcMU=
+github.com/vultisig/mobile-tss-lib v0.0.0-20240621002938-ee58dda07286/go.mod h1:0fSJ0evW+p18BvHHeIii/daRU0DMMPqgj+ht+aX1oho=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
