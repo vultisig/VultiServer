@@ -45,7 +45,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
 
-	endCh, wg := startMessageDownload(serverURL, kg.Session, kg.Key, tssServerImp)
+	endCh, wg := startMessageDownload(serverURL, kg.Session, kg.Key, kg.HexEncryptionKey, tssServerImp)
 
 	resp, err := generateECDSAKey(tssServerImp, kg, partiesJoined)
 	if err != nil {
@@ -85,7 +85,7 @@ func createTSSService(serverURL, keyFolder string, kg *types.KeyGeneration) (tss
 	return tssService, nil
 }
 
-func startMessageDownload(serverURL, session, key string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
+func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
 	logging.Logger.WithFields(logrus.Fields{
 		"session": session,
 		"key":     key,
@@ -94,7 +94,7 @@ func startMessageDownload(serverURL, session, key string, tssService tss.Service
 	endCh := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go relay.DownloadMessage(serverURL, session, key, tssService, endCh, wg)
+	go relay.DownloadMessage(serverURL, session, key, hexEncryptionKey, tssService, endCh, wg)
 	return endCh, wg
 }
 

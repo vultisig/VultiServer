@@ -2,7 +2,10 @@ package relay
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/md5"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,13 +20,27 @@ import (
 )
 
 type MessengerImp struct {
-	Server    string
-	SessionID string
+	Server           string
+	SessionID        string
+	hexEncryptionKey string
 }
 
 var messageCache sync.Map
 
+func (m *MessengerImp) SetHexEncryptionKey(key string) {
+	m.hexEncryptionKey = key
+}
+
 func (m *MessengerImp) Send(from, to, body string) error {
+	if m.hexEncryptionKey != "" {
+		encryptedBody, err := encrypt(body, m.hexEncryptionKey)
+		fmt.Println("!!!!!!!!!!!!!!!!!encryptedBody", encryptedBody)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt body: %w", err)
+		}
+		body = encryptedBody
+	}
+
 	hash := md5.New()
 	hash.Write([]byte(body))
 	hashStr := hex.EncodeToString(hash.Sum(nil))
@@ -80,7 +97,7 @@ func (m *MessengerImp) Send(from, to, body string) error {
 	return nil
 }
 
-func DownloadMessage(server, session, key string, tssServerImp tss.Service, endCh chan struct{}, wg *sync.WaitGroup) {
+func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp tss.Service, endCh chan struct{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		select {
@@ -136,7 +153,82 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 					continue
 				}
 
-				if err := tssServerImp.ApplyData(message.Body); err != nil {
+				decryptedBody := message.Body
+				if hexEncryptionKey != "" {
+					// The entire body we get is base64 encoded
+					decodedBody, err := base64.StdEncoding.DecodeString(message.Body)
+					if err != nil {
+						logging.Logger.WithFields(logrus.Fields{
+							"session": session,
+							"key":     key,
+							"hash":    message.Hash,
+							// "body":    message.Body,
+							"error": err,
+						}).Error("Failed to decode data")
+						continue
+					}
+
+					// The decoded body contains wire_bytes which is also base64 encoded
+					var decodedBodyMap map[string]interface{}
+					err = json.Unmarshal(decodedBody, &decodedBodyMap)
+					if err != nil {
+						logging.Logger.WithFields(logrus.Fields{
+							"session": session,
+							"key":     key,
+							"hash":    message.Hash,
+							// "body":    message.Body,
+							"error": err,
+						}).Error("Failed to unmarshal data")
+						continue
+					}
+
+					// Checks if the wire_bytes is present in the decoded body
+					wireBytes, ok := decodedBodyMap["wire_bytes"].(string)
+					if !ok {
+						logging.Logger.WithFields(logrus.Fields{
+							"session": session,
+							"key":     key,
+							"hash":    message.Hash,
+							// "body":    message.Body,
+							"error": err,
+						}).Error("Failed to get wire_bytes")
+						continue
+					}
+
+					// Decodes the wire_bytes which is base64 encoded
+					decodedBody, err = base64.StdEncoding.DecodeString(wireBytes)
+					if err != nil {
+						logging.Logger.WithFields(logrus.Fields{
+							"session": session,
+							"key":     key,
+							"hash":    message.Hash,
+							// "body":    message.Body,
+							"error": err,
+						}).Error("Failed to decode wire_bytes")
+						continue
+					}
+					_ = string(decodedBody)
+
+					// Check if it is a valid encrypted message
+					// If it is not a valid encrypted message, we will just continue and treat it as a normal message, it should be aes encrypted
+					// does aes have a prefix?
+
+					// Decrypts the wire_bytes using the encryption key
+					// decryptedBody, err = decrypt(decodedBodyStr, hexEncryptionKey)
+					// if err != nil {
+					// 	logging.Logger.WithFields(logrus.Fields{
+					// 		"session": session,
+					// 		"key":     key,
+					// 		"hash":    message.Hash,
+					// 		// "wireBytes": wireBytes,
+					// 		// "body":    message.Body,
+					// 		"error": err,
+					// 	}).Error("Failed to decrypt data, possibly not encrypted (or wrong key)")
+					// 	continue
+					// }
+				}
+
+				if err := tssServerImp.ApplyData(decryptedBody); err != nil {
 					logging.Logger.WithFields(logrus.Fields{
 						"session": session,
 						"key":     key,
@@ -177,4 +269,51 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 			}
 		}
 	}
+}
+
+func encrypt(plainText, hexKey string) (string, error) {
+	key, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return "", fmt.Errorf("invalid hex key: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+	nonce := make([]byte, aesGCM.NonceSize())
+	cipherText := aesGCM.Seal(nonce, nonce, []byte(plainText), nil)
+	return hex.EncodeToString(cipherText), nil
+}
+
+func decrypt(cipherText, hexKey string) (string, error) {
+	key, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return "", fmt.Errorf("invalid hex key: %w", err)
+	}
+	cipherTextBytes, err := hex.DecodeString(cipherText)
+	if err != nil {
+		return "", fmt.Errorf("invalid cipher text: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cipher: %w", err)
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("failed to create GCM: %w", err)
+	}
+	nonceSize := aesGCM.NonceSize()
+	if len(cipherTextBytes) < nonceSize {
+		return "", fmt.Errorf("cipher text too short")
+	}
+	nonce, cipherTextBytes := cipherTextBytes[:nonceSize], cipherTextBytes[nonceSize:]
+	plainText, err := aesGCM.Open(nil, nonce, cipherTextBytes, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt: %w", err)
+	}
+	return string(plainText), nil
 }

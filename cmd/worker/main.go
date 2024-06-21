@@ -63,9 +63,10 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	}).Info("Joining keygen")
 
 	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
-		Key:       p.LocalKey,
-		Session:   p.SessionID,
-		ChainCode: p.ChainCode,
+		Key:              p.LocalKey,
+		Session:          p.SessionID,
+		ChainCode:        p.ChainCode,
+		HexEncryptionKey: p.HexEncryptionKey,
 	})
 	if err != nil {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
