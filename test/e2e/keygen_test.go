@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"sync"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/vultisig/mobile-tss-lib/coordinator"
+	"github.com/vultisig/vultisigner/relay"
 )
 
 type VaultCreateResponse struct {
@@ -28,7 +29,6 @@ func TestExecuteKeyGeneration(t *testing.T) {
 	// 	t.Errorf("Failed to clean up the keys folder: %q", err)
 	// }
 
-	// Make HTTP call to create vault
 	vaultCreateURL := "http://localhost:8181/vault/create"
 	payload := []byte(`{"name": "test", "encryption_password": "abc"}`)
 	req, err := http.NewRequest("POST", vaultCreateURL, bytes.NewBuffer(payload))
@@ -36,8 +36,7 @@ func TestExecuteKeyGeneration(t *testing.T) {
 		t.Fatalf("Failed to create request: %q", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	// bearer of user name password
-	req.Header.Set("Authorization", "Basic dGVzdDoxMjM=")
+	req.Header.Set("Authorization", "Basic dGVzdDoxMjM=") // test:123, you will have to add this user to your Redis instance
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -47,15 +46,13 @@ func TestExecuteKeyGeneration(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// log the body
-		body, _ := ioutil.ReadAll(resp.Body)
-
+		body, _ := io.ReadAll(resp.Body)
 		t.Fatalf("Received non-OK response: %d, %s", resp.StatusCode, body)
 	}
 
 	t.Logf("Requested Vault creation successfully")
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("Failed to read response body: %q", err)
 	}
@@ -104,13 +101,29 @@ func TestExecuteKeyGeneration(t *testing.T) {
 		}(partyConfig)
 	}
 
+	time.Sleep(3 * time.Second)
+
+	relayServer := relay.NewServer(server)
+
+	partiesInSession, err := relayServer.GetSession(vaultResponse.SessionID)
+	if err != nil {
+		t.Fatalf("Failed to start session: %q", err)
+	}
+	if len(partiesInSession) < 3 {
+		t.Fatalf("Expected 3 parties to join, got %d", len(partiesInSession))
+	}
+
 	// Wait 3 seconds to start to simulate someone not instantly pressing the button
 	fmt.Println("Waiting 3 seconds to start the session")
 	time.Sleep(3 * time.Second)
 	fmt.Println("Starting the session")
 
 	// We start the session (one of the devices will do this in real life)
-	coordinator.StartSession(server, vaultResponse.SessionID, []string{"iPhone", "iPad", "Vultisigner"})
+	err = relayServer.StartSession(vaultResponse.SessionID, partiesInSession)
+	if err != nil {
+		t.Fatalf("Failed to start session: %q", err)
+	}
+	// expectedParties = []string{"iPhone", "iPad", "Vultisigner"}
 
 	wg.Wait()
 }

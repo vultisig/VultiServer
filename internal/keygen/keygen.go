@@ -1,14 +1,16 @@
 package keygen
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
 )
@@ -22,9 +24,19 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to register session: %w", err)
 	}
 
-	partiesJoined, err := server.WaitForSessionStart(kg.Session)
-	fmt.Println("Parties joined: ", partiesJoined)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	partiesJoined, err := server.WaitForSessionStart(ctx, kg.Session)
+	logging.Logger.WithFields(logrus.Fields{
+		"session":        kg.Session,
+		"parties_joined": partiesJoined,
+	}).Info("Session started")
+
 	if err != nil {
+		if err == context.DeadlineExceeded {
+			return "", "", fmt.Errorf("timed out waiting for session to start: %w", err)
+		}
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
@@ -46,7 +58,10 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}
 
 	if err := server.EndSession(kg.Session); err != nil {
-		log.Printf("Failed to end session: %s\n", err)
+		logging.Logger.WithFields(logrus.Fields{
+			"session": kg.Session,
+			"error":   err,
+		}).Error("Failed to end session")
 	}
 
 	close(endCh)
@@ -71,7 +86,11 @@ func createTSSService(serverURL, keyFolder string, kg *types.KeyGeneration) (tss
 }
 
 func startMessageDownload(serverURL, session, key string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
-	log.Println("Start downloading messages...")
+	logging.Logger.WithFields(logrus.Fields{
+		"session": session,
+		"key":     key,
+	}).Info("Start downloading messages")
+
 	endCh := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -80,7 +99,11 @@ func startMessageDownload(serverURL, session, key string, tssService tss.Service
 }
 
 func generateECDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJoined []string) (*tss.KeygenResponse, error) {
-	log.Println("Start ECDSA keygen...")
+	logging.Logger.WithFields(logrus.Fields{
+		"key":            kg.Key,
+		"chain_code":     kg.ChainCode,
+		"parties_joined": partiesJoined,
+	}).Info("Start ECDSA keygen...")
 	resp, err := tssService.KeygenECDSA(&tss.KeygenRequest{
 		LocalPartyID: kg.Key,
 		AllParties:   strings.Join(partiesJoined, ","),
@@ -89,13 +112,20 @@ func generateECDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJo
 	if err != nil {
 		return nil, fmt.Errorf("generate ECDSA key: %w", err)
 	}
-	log.Printf("ECDSA keygen response: %+v\n", resp)
+	logging.Logger.WithFields(logrus.Fields{
+		"key":     kg.Key,
+		"pub_key": resp.PubKey,
+	}).Info("ECDSA keygen response")
 	time.Sleep(time.Second)
 	return resp, nil
 }
 
 func generateEDDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJoined []string) (*tss.KeygenResponse, error) {
-	log.Println("Start EDDSA keygen...")
+	logging.Logger.WithFields(logrus.Fields{
+		"key":            kg.Key,
+		"chain_code":     kg.ChainCode,
+		"parties_joined": partiesJoined,
+	}).Info("Start EDDSA keygen...")
 	resp, err := tssService.KeygenEdDSA(&tss.KeygenRequest{
 		LocalPartyID: kg.Key,
 		AllParties:   strings.Join(partiesJoined, ","),
@@ -104,7 +134,10 @@ func generateEDDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJo
 	if err != nil {
 		return nil, fmt.Errorf("generate EDDSA key: %w", err)
 	}
-	log.Printf("EDDSA keygen response: %+v\n", resp)
+	logging.Logger.WithFields(logrus.Fields{
+		"key":     kg.Key,
+		"pub_key": resp.PubKey,
+	}).Info("EDDSA keygen response")
 	time.Sleep(time.Second)
 	return resp, nil
 }

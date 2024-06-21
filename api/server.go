@@ -60,7 +60,6 @@ func (s *Server) StartServer() error {
 	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
 	host := config.AppConfig.Server.Host
 	return e.Start(fmt.Sprintf("%s:%d", host, s.port))
-
 }
 
 // AuthenticationValidator is a middleware that validates the basic auth credentials.
@@ -83,6 +82,7 @@ func (s *Server) AuthenticationValidator(username string, password string, c ech
 func (s *Server) Ping(c echo.Context) error {
 	return c.String(http.StatusOK, "Vultisigner is running")
 }
+
 func (s *Server) getHexEncodedRandomBytes() (string, error) {
 	bytes := make([]byte, 32)
 	_, err := rand.Read(bytes)
@@ -91,6 +91,7 @@ func (s *Server) getHexEncodedRandomBytes() (string, error) {
 	}
 	return hex.EncodeToString(bytes), nil
 }
+
 func (s *Server) CreateVault(c echo.Context) error {
 	var req types.VaultCreateRequest
 	if err := c.Bind(&req); err != nil {
@@ -98,15 +99,17 @@ func (s *Server) CreateVault(c echo.Context) error {
 	}
 
 	sessionID := uuid.New().String()
+
 	encryptionKey, err := s.getHexEncodedRandomBytes()
 	if err != nil {
 		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
 	}
+
 	hexChainCode, err := s.getHexEncodedRandomBytes()
 	if err != nil {
 		return fmt.Errorf("fail to generate hex chain code, err: %w", err)
-
 	}
+
 	cacheItem := types.VaultCacheItem{
 		Name:               req.Name,
 		SessionID:          sessionID,
@@ -114,6 +117,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		HexChainCode:       hexChainCode,
 		EncryptionPassword: req.EncryptionPassword,
 	}
+
 	// Save the item into cache, so work can retrieve it
 	if err := s.redis.SetVaultCacheItem(c.Request().Context(), &cacheItem); err != nil {
 		return fmt.Errorf("fail to set vault cache item, err: %w", err)
@@ -129,6 +133,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to create task, err: %w", err)
 	}
+
 	_, err = s.client.Enqueue(task, asynq.MaxRetry(2), asynq.Timeout(30*time.Minute), asynq.Unique(time.Hour), asynq.Retention(24*time.Hour))
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
@@ -143,35 +148,43 @@ func (s *Server) UploadVault(c echo.Context) error {
 	if err := c.Bind(&vaultBackup); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
+
 	passwd := c.Request().Header.Get("x-password")
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
+
 	result, err := common.Decrypt(passwd, vaultBackup.Vault)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault, err: %w", err)
 	}
+
 	var vault models.Vault
 	if err := json.Unmarshal([]byte(result), &vault); err != nil {
 		return fmt.Errorf("fail to decode vault, err: %w", err)
 	}
+
 	filePathName := filepath.Join(s.vaultFilePath, vault.PubKeyECDSA+".dat")
 	file, err := os.Create(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to create file, err: %w", err)
 	}
+
 	defer func() {
 		if err := file.Close(); err != nil {
 			c.Logger().Errorf("fail to close file, err: %v", err)
 		}
 	}()
+
 	buf, err := json.Marshal(vaultBackup)
 	if err != nil {
 		return fmt.Errorf("fail to serialize vault backup, err: %w", err)
 	}
+
 	if _, err := file.Write(buf); err != nil {
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
+
 	return c.NoContent(http.StatusOK)
 }
 
@@ -186,14 +199,17 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
 	}
+
 	passwd := c.Request().Header.Get("x-password")
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
+
 	content, err := os.ReadFile(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
+
 	var vaultBackup models.VaultBackup
 	if err := json.Unmarshal(content, &vaultBackup); err != nil {
 		return fmt.Errorf("fail to unmarshal vault backup, err: %w", err)
@@ -203,6 +219,7 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault, err: %w", err)
 	}
+
 	var vault models.Vault
 	if err := json.Unmarshal([]byte(result), &vault); err != nil {
 		return fmt.Errorf("fail to decode vault, err: %w", err)

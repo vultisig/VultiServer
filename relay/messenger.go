@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/vultisigner/internal/logging"
 )
 
 type MessengerImp struct {
@@ -68,7 +69,12 @@ func (m *MessengerImp) Send(from, to, body string) error {
 		return fmt.Errorf("fail to send message, response code is not 202 Accepted: %s", resp.Status)
 	}
 
-	fmt.Println("message sent")
+	logging.Logger.WithFields(logrus.Fields{
+		"from": from,
+		"to":   to,
+		"hash": hashStr,
+		// "body": body,
+	}).Info("message sent")
 
 	return nil
 }
@@ -82,11 +88,17 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 		case <-time.After(time.Second):
 			resp, err := http.Get(server + "/message/" + session + "/" + key)
 			if err != nil {
-				log.Println("fail to get data from server:", err)
+				logging.Logger.WithFields(logrus.Fields{
+					"session": session,
+					"key":     key,
+				}).Error("fail to get data from server")
 				continue
 			}
 			if resp.StatusCode != http.StatusOK {
-				log.Println("fail to get data from server:", resp.Status)
+				logging.Logger.WithFields(logrus.Fields{
+					"session": session,
+					"key":     key,
+				}).Error("fail to get data from server")
 				continue
 			}
 			decoder := json.NewDecoder(resp.Body)
@@ -95,10 +107,14 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 				From      string   `json:"from,omitempty"`
 				To        []string `json:"to,omitempty"`
 				Body      string   `json:"body,omitempty"`
+				Hash      string   `json:"hash,omitempty"`
 			}
 			if err := decoder.Decode(&messages); err != nil {
 				if err != io.EOF {
-					log.Println("fail to decode messages:", err)
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+					}).Error("fail to decode messages")
 				}
 				continue
 			}
@@ -107,27 +123,38 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 					continue
 				}
 
-				hash := md5.Sum([]byte(message.Body))
-				hashStr := hex.EncodeToString(hash[:])
-
+				// @TODO: decode message.Body when encrypted
 				client := http.Client{}
-				req, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+key+"/"+hashStr, nil)
+				req, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+key+"/"+message.Hash, nil)
 				if err != nil {
-					log.Println("fail to delete message:", err)
+					// log.Println("fail to delete message:", err)
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+					}).Error("fail to delete message")
 					continue
 				}
 				resp, err := client.Do(req)
 				if err != nil {
-					log.Println("fail to delete message:", err)
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+					}).Error("fail to delete message")
 					continue
 				}
 				if resp.StatusCode != http.StatusOK {
-					log.Println("fail to delete message:", resp.Status)
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+					}).Error("fail to delete message")
 					continue
 				}
 
 				if err := tssServerImp.ApplyData(message.Body); err != nil {
-					log.Println("fail to apply data:", err)
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+					}).Error("fail to apply data")
 				}
 
 			}

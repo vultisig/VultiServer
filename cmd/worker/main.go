@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/keygen"
+	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 
@@ -29,7 +31,9 @@ func main() {
 		},
 	)
 
-	fmt.Println("Worker is running...")
+	logging.Logger.WithFields(logrus.Fields{
+		"redis": redisAddr,
+	}).Info("Starting server")
 
 	// mux maps a type to a handler
 	mux := asynq.NewServeMux()
@@ -52,9 +56,12 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	log.Printf("Joining keygen for local key: local_key=%s, session_id=%s, chain_code=%s", p.LocalKey, p.SessionID, p.ChainCode)
+	logging.Logger.WithFields(logrus.Fields{
+		"session":    p.SessionID,
+		"local_key":  p.LocalKey,
+		"chain_code": p.ChainCode,
+	}).Info("Joining keygen")
 
-	// Join keygen
 	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
 		Key:       p.LocalKey,
 		Session:   p.SessionID,
@@ -64,7 +71,10 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	log.Printf("Key generation completed keys: keyECDSA=%s, keyEDDSA=%s", keyECDSA, keyEDDSA)
+	logging.Logger.WithFields(logrus.Fields{
+		"keyECDSA": keyECDSA,
+		"keyEDDSA": keyEDDSA,
+	}).Info("Key generation completed")
 
 	result := KeyGenerationTaskResult{
 		EDDSAPublicKey: keyEDDSA,
