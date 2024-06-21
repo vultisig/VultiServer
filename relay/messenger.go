@@ -21,6 +21,8 @@ type MessengerImp struct {
 	SessionID string
 }
 
+var messageCache sync.Map
+
 func (m *MessengerImp) Send(from, to, body string) error {
 	hash := md5.New()
 	hash.Write([]byte(body))
@@ -124,15 +126,26 @@ func DownloadMessage(server, session, key string, tssServerImp tss.Service, endC
 					continue
 				}
 
+				cacheKey := fmt.Sprintf("%s-%s-%s", session, key, message.Hash)
+				if _, found := messageCache.Load(cacheKey); found {
+					logging.Logger.WithFields(logrus.Fields{
+						"session": session,
+						"key":     key,
+						"hash":    message.Hash,
+					}).Info("Message already applied, skipping")
+					continue
+				}
+
 				if err := tssServerImp.ApplyData(message.Body); err != nil {
 					logging.Logger.WithFields(logrus.Fields{
 						"session": session,
 						"key":     key,
 						"error":   err,
 					}).Error("Failed to apply data")
+					continue
 				}
 
-				// @TODO: decode message.Body when encrypted
+				messageCache.Store(cacheKey, true)
 				client := http.Client{}
 				req, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+key+"/"+message.Hash, nil)
 				if err != nil {
