@@ -2,3 +2,5 @@ config.yaml
 vultisigner
 spawner
 .idea/
+demo/app/node_modules
+*.DS_Store
