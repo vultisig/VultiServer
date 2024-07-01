@@ -53,7 +53,16 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
 		Validator: s.AuthenticationValidator,
 	}))
+	e.Use(middleware.CORS())
 	e.GET("/ping", s.Ping)
+	//serve demo/generated/img folder as img
+	e.Static("/img", "./demo/generated/img")
+	//serve demo/generated/static folder as static
+	e.Static("/static", "./demo/generated/static")
+	e.GET("/demo", func(c echo.Context) error {
+		//server index.html file in demo folder
+		return c.File("./demo/generated/index.html")
+	})
 	grp := e.Group("/vault")
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
