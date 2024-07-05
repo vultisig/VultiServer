@@ -8,21 +8,21 @@ import (
 
 type Config struct {
 	Server struct {
-		Port           int64
-		VaultsFilePath string
-	}
+		Port           int64  `mapstructure:"port"`
+		VaultsFilePath string `mapstructure:"vaults_file_path"`
+	} `mapstructure:"server"`
 
 	Redis struct {
-		Host     string
-		Port     string
-		User     string
-		Password string
-		DB       int
-	}
+		Host     string `mapstructure:"host"`
+		Port     string `mapstructure:"port"`
+		User     string `mapstructure:"user"`
+		Password string `mapstructure:"password"`
+		DB       int    `mapstructure:"db"`
+	} `mapstructure:"redis"`
 
 	Relay struct {
-		Server string
-	}
+		Server string `mapstructure:"server"`
+	} `mapstructure:"relay"`
 }
 
 var AppConfig Config
