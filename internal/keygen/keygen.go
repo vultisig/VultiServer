@@ -20,9 +20,9 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	serverURL := config.AppConfig.Relay.Server
 
 	server := relay.NewServer(serverURL)
-	if err := server.RegisterSession(kg.Session, kg.Key); err != nil {
+	/*	if err := server.RegisterSession(kg.Session, kg.Key); err != nil {
 		return "", "", fmt.Errorf("failed to register session: %w", err)
-	}
+	}*/
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -57,6 +57,13 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to generate EDDSA key: %w", err)
 	}
 
+	if err := server.CompleteSession(kg.Session); err != nil {
+		logging.Logger.WithFields(logrus.Fields{
+			"session": kg.Session,
+			"error":   err,
+		}).Error("Failed to complete session")
+	}
+
 	if err := server.EndSession(kg.Session); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"session": kg.Session,
@@ -71,8 +78,9 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 
 func createTSSService(serverURL, keyFolder string, kg *types.KeyGeneration) (tss.Service, error) {
 	messenger := &relay.MessengerImp{
-		Server:    serverURL,
-		SessionID: kg.Session,
+		Server:           serverURL,
+		SessionID:        kg.Session,
+		HexEncryptionKey: kg.HexEncryptionKey,
 	}
 	localStateAccessor := &relay.LocalStateAccessorImp{
 		Key:    kg.Key,
