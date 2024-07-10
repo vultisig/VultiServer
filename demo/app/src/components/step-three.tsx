@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { QRCode } from 'react-qrcode-logo';
-import { route, routeStart } from "../api/router/router";
+import { postRoute, getRoute, routeStart } from "../api/router/router";
 interface StepThreeProps {
     qrCodeString?: string;
     session_id?: string,
@@ -30,7 +30,7 @@ export default function StepThree({ qrCodeString = '', session_id = '', uniqueSt
     // const sendSessionId = async (id: string) => {
     //     const res = await fetch(`${process.env.API_URL}router/${id}`, {
     //         method: 'POST',
-    //         headers: {
+    //         headers: 
     //             'Content-Type': 'application/json',
     //         },
     //         body: JSON.stringify(["VultiSignerApp"])
@@ -39,13 +39,14 @@ export default function StepThree({ qrCodeString = '', session_id = '', uniqueSt
     const getDevices = async () => {
         if (!session_id) return;
         try {
-            const res = await route(session_id);
+            await postRoute(session_id, "VultiSignerApp")
+            const res = await getRoute(session_id);
             if (res.ok) {
                 const data = await res.json();
                 const uniqueSet = new Set(data);
                 const uniqueArray: any = Array.from(uniqueSet);
                 setUniqueStrings(uniqueArray); // Update state with unique strings
-                if (uniqueArray.length > 0) {
+                if (uniqueArray.length > 1) {
                     setLoading(false);
                     setResDevices(data); // Update devices state with fetched data
                     uniqueArray.length >= process.env.NEXT_PUBLIC_MINIMUM_DEVICES! ? setCanContinue(true) : setCanContinue(false)

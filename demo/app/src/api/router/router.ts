@@ -1,7 +1,16 @@
 import { endPoints } from "../endpoints";
 
+export function postRoute(id: string, device: string): Promise<Response> {
+    return fetch(`${endPoints.router}/${id}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([device])
+    });
+}
 
-export function route(id: string): Promise<Response> {
+export function getRoute(id: string): Promise<Response> {
     return fetch(`${endPoints.router}/${id}`, {
         method: 'GET',
         headers: {
