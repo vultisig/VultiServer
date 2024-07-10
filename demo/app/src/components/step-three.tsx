@@ -22,8 +22,11 @@ export default function StepThree({ qrCodeString = '', session_id = '', uniqueSt
             //  sendSessionId(session_id);
         }
     }, [qrCodeString, session_id]);
-    useEffect(() => {
-        const intervalId = setInterval(getDevices, 3000);
+    useEffect(  ()  =>  {
+        let intervalId: string | number | NodeJS.Timeout | undefined ;
+         postRoute(session_id, "VultiSignerApp").then(() => {
+              intervalId = setInterval(getDevices, 3000);
+         });
         return () => clearInterval(intervalId);
     }, [session_id]);
     // Since VultiSig does not support keygen, we ignored this peer id
@@ -39,7 +42,6 @@ export default function StepThree({ qrCodeString = '', session_id = '', uniqueSt
     const getDevices = async () => {
         if (!session_id) return;
         try {
-            await postRoute(session_id, "VultiSignerApp")
             const res = await getRoute(session_id);
             if (res.ok) {
                 const data = await res.json();
@@ -49,7 +51,7 @@ export default function StepThree({ qrCodeString = '', session_id = '', uniqueSt
                 if (uniqueArray.length > 1) {
                     setLoading(false);
                     setResDevices(data); // Update devices state with fetched data
-                    uniqueArray.length >= process.env.NEXT_PUBLIC_MINIMUM_DEVICES! ? setCanContinue(true) : setCanContinue(false)
+                    uniqueArray.length >= process.env.REACT_APP_MINIMUM_DEVICES! ? setCanContinue(true) : setCanContinue(false)
                 }
             } else {
                 console.error('Failed to fetch data from the API');
@@ -64,7 +66,7 @@ export default function StepThree({ qrCodeString = '', session_id = '', uniqueSt
 
     const sendStartApi = async () => {
         const res = await routeStart(session_id, uniqueStrings);
-        if (res.status == 201) {
+        if (res.status == 200) {
             setStatus('pending');
             goToStep(4);
         }
