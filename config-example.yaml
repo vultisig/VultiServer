@@ -12,4 +12,4 @@ encryption:
   privatekey: "test"
 
 relay:
-  server: "http://localhost:8080"
+  server: "http://localhost:8080/router"
