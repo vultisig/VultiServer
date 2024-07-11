@@ -5,9 +5,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,23 +24,18 @@ import (
 type MessengerImp struct {
 	Server           string
 	SessionID        string
-	hexEncryptionKey string
+	HexEncryptionKey string
 }
 
 var messageCache sync.Map
 
-func (m *MessengerImp) SetHexEncryptionKey(key string) {
-	m.hexEncryptionKey = key
-}
-
 func (m *MessengerImp) Send(from, to, body string) error {
-	if m.hexEncryptionKey != "" {
-		encryptedBody, err := encrypt(body, m.hexEncryptionKey)
-		fmt.Println("!!!!!!!!!!!!!!!!!encryptedBody", encryptedBody)
+	if m.HexEncryptionKey != "" {
+		encryptedBody, err := encrypt(body, m.HexEncryptionKey)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt body: %w", err)
 		}
-		body = encryptedBody
+		body = base64.StdEncoding.EncodeToString([]byte(encryptedBody))
 	}
 
 	hash := md5.New()
@@ -155,7 +152,6 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 
 				decryptedBody := message.Body
 				if hexEncryptionKey != "" {
-					// The entire body we get is base64 encoded
 					decodedBody, err := base64.StdEncoding.DecodeString(message.Body)
 					if err != nil {
 						logging.Logger.WithFields(logrus.Fields{
@@ -168,9 +164,7 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 						continue
 					}
 
-					// The decoded body contains wire_bytes which is also base64 encoded
-					var decodedBodyMap map[string]interface{}
-					err = json.Unmarshal(decodedBody, &decodedBodyMap)
+					decryptedBody, err = decrypt(string(decodedBody), hexEncryptionKey)
 					if err != nil {
 						logging.Logger.WithFields(logrus.Fields{
 							"session": session,
@@ -178,54 +172,9 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 							"hash":    message.Hash,
 							// "body":    message.Body,
 							"error": err,
-						}).Error("Failed to unmarshal data")
+						}).Error("Failed to decrypt data")
 						continue
 					}
-
-					// Checks if the wire_bytes is present in the decoded body
-					wireBytes, ok := decodedBodyMap["wire_bytes"].(string)
-					if !ok {
-						logging.Logger.WithFields(logrus.Fields{
-							"session": session,
-							"key":     key,
-							"hash":    message.Hash,
-							// "body":    message.Body,
-							"error": err,
-						}).Error("Failed to get wire_bytes")
-						continue
-					}
-
-					// Decodes the wire_bytes which is base64 encoded
-					decodedBody, err = base64.StdEncoding.DecodeString(wireBytes)
-					if err != nil {
-						logging.Logger.WithFields(logrus.Fields{
-							"session": session,
-							"key":     key,
-							"hash":    message.Hash,
-							// "body":    message.Body,
-							"error": err,
-						}).Error("Failed to decode wire_bytes")
-						continue
-					}
-					_ = string(decodedBody)
-
-					// Check if it is a valid encrypted message
-					// If it is not a valid encrypted message, we will just continue and treat it as a normal message, it should be aes encrypted
-					// does aes have a prefix?
-
-					// Decrypts the wire_bytes using the encryption key
-					// decryptedBody, err = decrypt(decodedBodyStr, hexEncryptionKey)
-					// if err != nil {
-					// 	logging.Logger.WithFields(logrus.Fields{
-					// 		"session": session,
-					// 		"key":     key,
-					// 		"hash":    message.Hash,
-					// 		// "wireBytes": wireBytes,
-					// 		// "body":    message.Body,
-					// 		"error": err,
-					// 	}).Error("Failed to decrypt data, possibly not encrypted (or wrong key)")
-					// 	continue
-					// }
 				}
 
 				if err := tssServerImp.ApplyData(decryptedBody); err != nil {
@@ -272,48 +221,77 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 }
 
 func encrypt(plainText, hexKey string) (string, error) {
-	key, err := hex.DecodeString(hexKey)
-	if err != nil {
-		return "", fmt.Errorf("invalid hex key: %w", err)
-	}
+	key, _ := hex.DecodeString(hexKey)
+	//stringToEncrypt = base64.StdEncoding.EncodeToString([]byte(stringToEncrypt))
+	plainByte := []byte(plainText)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
+		return "", err
 	}
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
+	plainByte = pad(plainByte, aes.BlockSize)
+	iv := make([]byte, aes.BlockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return "", err
 	}
-	nonce := make([]byte, aesGCM.NonceSize())
-	cipherText := aesGCM.Seal(nonce, nonce, []byte(plainText), nil)
-	return hex.EncodeToString(cipherText), nil
+	mode := cipher.NewCBCEncrypter(block, iv)
+	ciphertext := make([]byte, len(plainByte))
+	mode.CryptBlocks(ciphertext, plainByte)
+	ciphertext = append(iv, ciphertext...)
+	return string(ciphertext), nil
 }
 
+// pad applies PKCS7 padding to the plaintext
+func pad(data []byte, blockSize int) []byte {
+	padding := blockSize - len(data)%blockSize
+	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(data, padtext...)
+}
 func decrypt(cipherText, hexKey string) (string, error) {
-	key, err := hex.DecodeString(hexKey)
+	var block cipher.Block
+	var err error
+	key, err := hex.DecodeString(string(hexKey))
 	if err != nil {
-		return "", fmt.Errorf("invalid hex key: %w", err)
+		return "", err
 	}
-	cipherTextBytes, err := hex.DecodeString(cipherText)
+	cipherByte := []byte(cipherText)
+
+	if block, err = aes.NewCipher(key); err != nil {
+		return "", err
+	}
+
+	if len(cipherByte) < aes.BlockSize {
+		fmt.Printf("ciphertext too short")
+		return "", err
+	}
+
+	iv := cipherByte[:aes.BlockSize]
+	cipherByte = cipherByte[aes.BlockSize:]
+
+	cbc := cipher.NewCBCDecrypter(block, iv)
+	plaintext := make([]byte, len(cipherByte))
+	cbc.CryptBlocks(plaintext, cipherByte)
+	plaintext, err = unpad(plaintext)
 	if err != nil {
-		return "", fmt.Errorf("invalid cipher text: %w", err)
+		return "", err
 	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
+	return string(plaintext), nil
+}
+func unpad(data []byte) ([]byte, error) {
+	length := len(data)
+	if length == 0 {
+		return nil, errors.New("unpad: input data is empty")
 	}
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
+
+	paddingLen := int(data[length-1])
+	if paddingLen > length || paddingLen == 0 {
+		return nil, errors.New("unpad: invalid padding length")
 	}
-	nonceSize := aesGCM.NonceSize()
-	if len(cipherTextBytes) < nonceSize {
-		return "", fmt.Errorf("cipher text too short")
+
+	for i := 0; i < paddingLen; i++ {
+		if data[length-1-i] != byte(paddingLen) {
+			return nil, errors.New("unpad: invalid padding")
+		}
 	}
-	nonce, cipherTextBytes := cipherTextBytes[:nonceSize], cipherTextBytes[nonceSize:]
-	plainText, err := aesGCM.Open(nil, nonce, cipherTextBytes, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt: %w", err)
-	}
-	return string(plainText), nil
+
+	return data[:length-paddingLen], nil
 }

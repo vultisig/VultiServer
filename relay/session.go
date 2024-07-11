@@ -46,6 +46,7 @@ func (s *Server) StartSession(sessionID string, parties []string) error {
 	return nil
 }
 
+// TODO: This should be done on FE => rename the function (join keygen commete)
 func (s *Server) RegisterSession(sessionID string, key string) error {
 	sessionURL := s.vultisigRelay + "/" + sessionID
 	body := []byte("[\"" + key + "\"]")
@@ -93,6 +94,16 @@ func (s *Server) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 			if err := json.Unmarshal(buff, &parties); err != nil {
 				return nil, fmt.Errorf("fail to unmarshal session body: %w", err)
 			}
+			//remove duplicates from parties
+			distinctParties := make(map[string]struct{})
+			for _, party := range parties {
+				distinctParties[party] = struct{}{}
+			}
+			parties = make([]string, 0, len(distinctParties))
+			for party := range distinctParties {
+				parties = append(parties, party)
+			}
+			// We need to hold expected parties to start session
 			if len(parties) > 1 {
 				logging.Logger.WithFields(logrus.Fields{
 					"session": sessionID,
@@ -132,6 +143,30 @@ func (s *Server) GetSession(sessionID string) ([]string, error) {
 		return nil, fmt.Errorf("fail to unmarshal session body: %w", err)
 	}
 	return parties, nil
+}
+
+func (s *Server) CompleteSession(sessionID string) error {
+	sessionURL := s.vultisigRelay + "/complete/" + sessionID
+	parties := []string{"VultiSignerApp"}
+	body, err := json.Marshal(parties)
+	if err != nil {
+		return fmt.Errorf("fail to complete session: %w", err)
+	}
+	bodyReader := bytes.NewReader(body)
+	client := http.Client{}
+	req, err := http.NewRequest(http.MethodPost, sessionURL, bodyReader)
+	req.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return fmt.Errorf("fail to complete session: %w", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("fail to complete session: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("fail to complete session: %s", resp.Status)
+	}
+	return nil
 }
 
 func (s *Server) EndSession(sessionID string) error {
