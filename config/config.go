@@ -41,8 +41,7 @@ func init() {
 	viper.SetDefault("Redis.User", "")
 	viper.SetDefault("Redis.Password", "")
 	viper.SetDefault("Redis.DB", 0)
-	viper.SetDefault("Relay.Server", "http://localhost:8080/router")
-	// viper.SetDefault("Relay.Server", "https://api.vultisig.com/router")
+	viper.SetDefault("Relay.Server", "https://api.vultisig.com/router")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)
