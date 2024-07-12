@@ -221,8 +221,10 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 }
 
 func encrypt(plainText, hexKey string) (string, error) {
-	key, _ := hex.DecodeString(hexKey)
-	//stringToEncrypt = base64.StdEncoding.EncodeToString([]byte(stringToEncrypt))
+	key, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return "", err
+	}
 	plainByte := []byte(plainText)
 	block, err := aes.NewCipher(key)
 	if err != nil {

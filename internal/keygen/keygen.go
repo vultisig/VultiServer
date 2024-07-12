@@ -20,9 +20,6 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	serverURL := config.AppConfig.Relay.Server
 
 	server := relay.NewServer(serverURL)
-	/*	if err := server.RegisterSession(kg.Session, kg.Key); err != nil {
-		return "", "", fmt.Errorf("failed to register session: %w", err)
-	}*/
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -34,9 +31,6 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}).Info("Session started")
 
 	if err != nil {
-		if err == context.DeadlineExceeded {
-			return "", "", fmt.Errorf("timed out waiting for session to start: %w", err)
-		}
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
