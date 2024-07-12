@@ -30,6 +30,7 @@ func main() {
 	}()
 	if config.AppConfig.Server.VaultsFilePath == "" {
 		panic("vaults file path is empty")
+
 	}
 	server := api.NewServer(port, redisStorage, client, config.AppConfig.Server.VaultsFilePath)
 	if err := server.StartServer(); err != nil {

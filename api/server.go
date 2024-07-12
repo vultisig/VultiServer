@@ -50,9 +50,7 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
-	e.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
-		Validator: s.AuthenticationValidator,
-	}))
+
 	e.Use(middleware.CORS())
 	e.GET("/ping", s.Ping)
 	//serve demo/generated/img folder as img
@@ -64,6 +62,9 @@ func (s *Server) StartServer() error {
 		return c.File("./demo/generated/index.html")
 	})
 	grp := e.Group("/vault")
+	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
+		Validator: s.AuthenticationValidator,
+	}))
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
