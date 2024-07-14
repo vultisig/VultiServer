@@ -6,32 +6,34 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/sirupsen/logrus"
+	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/keygen"
+	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 
 	"github.com/hibiken/asynq"
 )
 
-const redisAddr = "127.0.0.1:6371"
-
 func main() {
+	redisAddr := config.AppConfig.Redis.Host + ":" + config.AppConfig.Redis.Port
+
 	srv := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: redisAddr},
 		asynq.Config{
-			// Specify how many concurrent workers to use
 			Concurrency: 10,
-			// Optionally specify multiple queues with different priority.
 			Queues: map[string]int{
 				"critical": 6,
 				"default":  3,
 				"low":      1,
 			},
-			// See the godoc for other configuration options
 		},
 	)
 
-	fmt.Println("Worker is running...")
+	logging.Logger.WithFields(logrus.Fields{
+		"redis": redisAddr,
+	}).Info("Starting server")
 
 	// mux maps a type to a handler
 	mux := asynq.NewServeMux()
@@ -44,25 +46,48 @@ func main() {
 	}
 }
 
+type KeyGenerationTaskResult struct {
+	EDDSAPublicKey string
+	ECDSAPublicKey string
+}
+
 func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	var p tasks.KeyGenerationPayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	log.Printf("Joining keygen for local key: local_key=%s, session_id=%s, chain_code=%s, parties=%s", p.LocalKey, p.SessionID, p.ChainCode, p.Parties)
+	logging.Logger.WithFields(logrus.Fields{
+		"session":    p.SessionID,
+		"local_key":  p.LocalKey,
+		"chain_code": p.ChainCode,
+		"HexEncryptionKey": p.HexEncryptionKey,
+	}).Info("Joining keygen")
 
-	// Join keygen
-	err := keygen.JoinKeyGeneration(&types.KeyGeneration{
-		Key:       p.LocalKey,
-		Parties:   p.Parties,
-		Session:   p.SessionID,
-		ChainCode: p.ChainCode,
+	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
+		Key:              p.LocalKey,
+		Session:          p.SessionID,
+		ChainCode:        p.ChainCode,
+		HexEncryptionKey: p.HexEncryptionKey,
 	})
 	if err != nil {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	log.Printf("Key generation completed")
+	logging.Logger.WithFields(logrus.Fields{
+		"keyECDSA": keyECDSA,
+		"keyEDDSA": keyEDDSA,
+	}).Info("Key generation completed")
+
+	result := KeyGenerationTaskResult{
+		EDDSAPublicKey: keyEDDSA,
+		ECDSAPublicKey: keyECDSA,
+	}
+
+	resultBytes, err := json.Marshal(result)
+
+	if _, err := t.ResultWriter().Write([]byte(resultBytes)); err != nil {
+		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
+	}
 
 	return nil
 }

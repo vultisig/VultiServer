@@ -8,9 +8,10 @@ import (
 
 type Config struct {
 	Server struct {
-		Port           int64  `mapstructure:"port"`
-		VaultsFilePath string `mapstructure:"vaults_file_path"`
-	} `mapstructure:"server"`
+		Port           int64
+		Host           string
+		VaultsFilePath string
+	}
 
 	Redis struct {
 		Host     string `mapstructure:"host"`
@@ -31,6 +32,16 @@ func init() {
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
+
+	viper.SetDefault("Server.Port", 8080)
+	viper.SetDefault("Server.Host", "localhost")
+	viper.SetDefault("Server.VaultsFilePath", "vaults")
+	viper.SetDefault("Redis.Host", "localhost")
+	viper.SetDefault("Redis.Port", "6379")
+	viper.SetDefault("Redis.User", "")
+	viper.SetDefault("Redis.Password", "")
+	viper.SetDefault("Redis.DB", 0)
+	viper.SetDefault("Relay.Server", "https://api.vultisig.com/router")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)

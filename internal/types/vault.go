@@ -1,11 +1,9 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/hibiken/asynq"
-
 	"github.com/vultisig/vultisigner/internal/tasks"
 )
 
@@ -25,11 +23,11 @@ type VaultCreateResponse struct {
 }
 
 func (v *VaultCreateResponse) Task() (*asynq.Task, error) {
-	payload, err := json.Marshal(v)
+	task, err := tasks.NewKeyGeneration("VultiSignerApp", v.SessionID, v.HexChainCode, v.HexEncryptionKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fail to create task, err: %w", err)
 	}
-	return asynq.NewTask(tasks.TypeKeyGeneration, payload), nil
+	return task, nil
 }
 
 // VaultCacheItem is a struct that represents the vault information stored in cache

@@ -51,4 +51,3 @@ This component handles the background jobs for key generation and transaction si
 - Triggered when a transaction signing request is made.
 - Joins the transaction signing session using the provided session ID.
 - Waits for all parties to join and complete the signing process.
-
