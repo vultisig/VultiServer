@@ -84,6 +84,9 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	}
 
 	resultBytes, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
+	}
 
 	if _, err := t.ResultWriter().Write([]byte(resultBytes)); err != nil {
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
