@@ -39,16 +39,16 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
 
-	endCh, wg := startMessageDownload(serverURL, kg.Session, kg.Key, kg.HexEncryptionKey, tssServerImp)
-
-	resp, err := generateECDSAKey(tssServerImp, kg, partiesJoined)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to generate ECDSA key: %w", err)
+	ecdsaPubkey, eddsaPubkey := "", ""
+	for attempt := 0; attempt < 3; attempt++ {
+		ecdsaPubkey, eddsaPubkey , err = keygenWithRetry(serverURL, kg, partiesJoined, tssServerImp)
+		if err == nil {
+			break
+		}
 	}
 
-	respEDDSA, err := generateEDDSAKey(tssServerImp, kg, partiesJoined)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate EDDSA key: %w", err)
+		return "", "", err
 	}
 
 	if err := server.CompleteSession(kg.Session); err != nil {
@@ -65,9 +65,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		}).Error("Failed to end session")
 	}
 
-	close(endCh)
-	wg.Wait()
-	return resp.PubKey, respEDDSA.PubKey, nil
+	return ecdsaPubkey, eddsaPubkey, nil
 }
 
 func createTSSService(serverURL, keyFolder string, kg *types.KeyGeneration) (tss.Service, error) {
@@ -98,6 +96,25 @@ func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssS
 	wg.Add(1)
 	go relay.DownloadMessage(serverURL, session, key, hexEncryptionKey, tssService, endCh, wg)
 	return endCh, wg
+}
+
+func keygenWithRetry(serverURL string, kg *types.KeyGeneration, partiesJoined []string, tssService tss.Service) (string, string, error) {
+	endCh, wg := startMessageDownload(serverURL, kg.Session, kg.Key, kg.HexEncryptionKey, tssService)
+
+	resp, err := generateECDSAKey(tssService, kg, partiesJoined)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate ECDSA key: %w", err)
+	}
+
+	respEDDSA, err := generateEDDSAKey(tssService, kg, partiesJoined)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate EDDSA key: %w", err)
+	}
+
+	close(endCh)
+	wg.Wait()
+
+	return resp.PubKey, respEDDSA.PubKey, nil
 }
 
 func generateECDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJoined []string) (*tss.KeygenResponse, error) {

@@ -83,7 +83,7 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		ECDSAPublicKey: keyECDSA,
 	}
 
-	resultBytes, err := json.Marshal(result)
+	resultBytes, _ := json.Marshal(result)
 
 	if _, err := t.ResultWriter().Write([]byte(resultBytes)); err != nil {
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
