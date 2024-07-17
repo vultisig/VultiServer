@@ -86,7 +86,7 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 
 	err = redis.RemoveVaultCacheItem(ctx, fmt.Sprintf("vault-%s-%s", p.Name, p.SessionID))
 	if err != nil {
-		return fmt.Errorf("redis.RemoveVaultCacheItem failed: %v: %w", err, asynq.SkipRetry)
+		logging.Logger.Errorf("redis.RemoveVaultCacheItem failed: %v", err)
 	}
 
 	result := KeyGenerationTaskResult{
