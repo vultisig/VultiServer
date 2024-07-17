@@ -89,6 +89,11 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		logging.Logger.Errorf("redis.RemoveVaultCacheItem failed: %v", err)
 	}
 
+	err = redis.Close()
+	if err != nil {
+		logging.Logger.Errorf("redis.Close failed: %v", err)
+	}
+
 	result := KeyGenerationTaskResult{
 		EDDSAPublicKey: keyEDDSA,
 		ECDSAPublicKey: keyECDSA,
