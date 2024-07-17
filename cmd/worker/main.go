@@ -12,6 +12,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/storage"
 
 	"github.com/hibiken/asynq"
 )
@@ -77,6 +78,16 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		"keyECDSA": keyECDSA,
 		"keyEDDSA": keyEDDSA,
 	}).Info("Key generation completed")
+
+	redis, err := storage.NewRedisStorage(config.AppConfig)
+	if err != nil {
+		return fmt.Errorf("storage.NewRedisStorage failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	err = redis.RemoveVaultCacheItem(ctx, fmt.Sprintf("vault-%s-%s", p.Name, p.SessionID))
+	if err != nil {
+		return fmt.Errorf("redis.RemoveVaultCacheItem failed: %v: %w", err, asynq.SkipRetry)
+	}
 
 	result := KeyGenerationTaskResult{
 		EDDSAPublicKey: keyEDDSA,

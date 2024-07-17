@@ -62,6 +62,17 @@ func (r *RedisStorage) GetVaultCacheItem(ctx context.Context, key string) (*type
 	return &vault, nil
 }
 
+func (r *RedisStorage) RemoveVaultCacheItem(ctx context.Context, key string) error {
+	if contexthelper.CheckCancellation(ctx) != nil {
+		return ctx.Err()
+	}
+	_, err := r.client.Del(ctx, key).Result()
+	if err != nil {
+		return fmt.Errorf("fail to delete vault cache item, err: %w", err)
+	}
+	return nil
+}
+
 func (r *RedisStorage) GetUser(ctx context.Context, name string) (string, error) {
 	if contexthelper.CheckCancellation(ctx) != nil {
 		return "", ctx.Err()
