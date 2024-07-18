@@ -23,7 +23,7 @@ type VaultCreateResponse struct {
 }
 
 func (v *VaultCreateResponse) Task() (*asynq.Task, error) {
-	task, err := tasks.NewKeyGeneration("VultiSignerApp", v.SessionID, v.HexChainCode, v.HexEncryptionKey)
+	task, err := tasks.NewKeyGeneration("VultiSignerApp", v.Name, v.SessionID, v.HexChainCode, v.HexEncryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create task, err: %w", err)
 	}
