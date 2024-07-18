@@ -7,14 +7,5 @@ services:
     volumes:
       - redis_data:/data
 
-  asynqmon:
-    image: hibiken/asynqmon:latest
-    container_name: signer-asynqmon
-    ports:
-      - "${ASYNQMON_PORT:-8020}:8080"
-    environment:
-      REDIS_URL: redis://signer-redis:6379/0
-
 volumes:
-  # s3_data:
   redis_data:
