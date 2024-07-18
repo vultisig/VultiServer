@@ -58,9 +58,9 @@ func HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	logging.Logger.WithFields(logrus.Fields{
-		"session":    p.SessionID,
-		"local_key":  p.LocalKey,
-		"chain_code": p.ChainCode,
+		"session":          p.SessionID,
+		"local_key":        p.LocalKey,
+		"chain_code":       p.ChainCode,
 		"HexEncryptionKey": p.HexEncryptionKey,
 	}).Info("Joining keygen")
 

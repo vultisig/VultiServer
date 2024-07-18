@@ -41,7 +41,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 
 	ecdsaPubkey, eddsaPubkey := "", ""
 	for attempt := 0; attempt < 3; attempt++ {
-		ecdsaPubkey, eddsaPubkey , err = keygenWithRetry(serverURL, kg, partiesJoined, tssServerImp)
+		ecdsaPubkey, eddsaPubkey, err = keygenWithRetry(serverURL, kg, partiesJoined, tssServerImp)
 		if err == nil {
 			break
 		}
