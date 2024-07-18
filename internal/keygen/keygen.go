@@ -18,6 +18,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -185,7 +186,7 @@ func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, e
 		return fmt.Errorf("failed to get local sate: %w", err)
 	}
 
-	vault := vaultType.Vault{
+	vault := &vaultType.Vault{
 		Name:           kg.Name,
 		PublicKeyEcdsa: ecdsaPubkey,
 		PublicKeyEddsa: eddsaPubkey,
@@ -207,15 +208,19 @@ func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, e
 	}
 
 	isEncrypted := kg.EncryptionPassword != ""
-	vaultData := []byte(vault.String())
+	vaultData, err := proto.Marshal(vault)
+	if err != nil {
+		return fmt.Errorf("failed to Marshal vault: %w", err)
+	}
+
 	if isEncrypted {
 		vaultData, err = common.EncryptVault(kg.EncryptionPassword, vaultData)
 		if err != nil {
 			return fmt.Errorf("common.EncryptVault failed: %w", err)
 		}
 	}
-	vaultBackup := vaultType.VaultContainer{
-		Version:     "1",
+	vaultBackup := &vaultType.VaultContainer{
+		Version:     1,
 		Vault:       base64.StdEncoding.EncodeToString(vaultData),
 		IsEncrypted: isEncrypted,
 	}
@@ -232,7 +237,12 @@ func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, e
 		}
 	}()
 
-	if _, err := file.Write([]byte(vaultBackup.String())); err != nil {
+	vaultBackupData, err := proto.Marshal(vaultBackup)
+	if err != nil {
+		return fmt.Errorf("failed to Marshal vaultBackup: %w", err)
+	}
+
+	if _, err := file.Write([]byte(base64.StdEncoding.EncodeToString(vaultBackupData))); err != nil {
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
 

@@ -39,6 +39,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	logging.Logger.WithFields(logrus.Fields{
+		"name":             p.Name,
 		"session":          p.SessionID,
 		"local_key":        p.LocalKey,
 		"chain_code":       p.ChainCode,
@@ -46,10 +47,12 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 	}).Info("Joining keygen")
 
 	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
-		Key:              p.LocalKey,
-		Session:          p.SessionID,
-		ChainCode:        p.ChainCode,
-		HexEncryptionKey: p.HexEncryptionKey,
+		Name:               p.Name,
+		Key:                p.LocalKey,
+		Session:            p.SessionID,
+		ChainCode:          p.ChainCode,
+		HexEncryptionKey:   p.HexEncryptionKey,
+		EncryptionPassword: p.EncryptionPassword,
 	})
 	if err != nil {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
