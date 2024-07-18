@@ -17,7 +17,7 @@ func main() {
 
 	session := "20"
 
-	task, err := tasks.NewKeyGeneration("vultisigner", session, "80871c0f885f953e5206e461630a9222148797e66276a83224c7b9b0f75b3ec0", "6e2ca8460d140f09f2879335af040af8ec8791f1a5588ea69612b1dbd701bb4b")
+	task, err := tasks.NewKeyGeneration("vultisigner", "test", session, "80871c0f885f953e5206e461630a9222148797e66276a83224c7b9b0f75b3ec0", "6e2ca8460d140f09f2879335af040af8ec8791f1a5588ea69612b1dbd701bb4b")
 	if err != nil {
 		log.Fatalf("could not create task: %v", err)
 	}
@@ -32,7 +32,7 @@ func main() {
 	log.Printf("enqueued task: id=%s queue=%s", info.ID, info.Queue)
 
 	// 2
-	task, err = tasks.NewKeyGeneration("test", session, "80871c0f885f953e5206e461630a9222148797e66276a83224c7b9b0f75b3ec0", "6e2ca8460d140f09f2879335af040af8ec8791f1a5588ea69612b1dbd701bb4b")
+	task, err = tasks.NewKeyGeneration("test", "test", session, "80871c0f885f953e5206e461630a9222148797e66276a83224c7b9b0f75b3ec0", "6e2ca8460d140f09f2879335af040af8ec8791f1a5588ea69612b1dbd701bb4b")
 	if err != nil {
 		log.Fatalf("could not create task: %v", err)
 	}

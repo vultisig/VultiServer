@@ -15,7 +15,7 @@ import (
 	"github.com/vultisig/vultisigner/relay"
 )
 
-func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
+func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, []string, string, string, error) {
 	keyFolder := config.AppConfig.Server.VaultsFilePath
 	serverURL := config.AppConfig.Relay.Server
 
@@ -31,24 +31,28 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}).Info("Session started")
 
 	if err != nil {
-		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
+		return "", "", partiesJoined, "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	tssServerImp, err := createTSSService(serverURL, keyFolder, kg)
+	localStateAccessor := &relay.LocalStateAccessorImp{
+		Key:    kg.Key,
+		Folder: keyFolder,
+	}
+	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
+		return "", "", partiesJoined, "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
 
 	ecdsaPubkey, eddsaPubkey := "", ""
 	for attempt := 0; attempt < 3; attempt++ {
-		ecdsaPubkey, eddsaPubkey , err = keygenWithRetry(serverURL, kg, partiesJoined, tssServerImp)
+		ecdsaPubkey, eddsaPubkey, err = keygenWithRetry(serverURL, kg, partiesJoined, tssServerImp)
 		if err == nil {
 			break
 		}
 	}
 
 	if err != nil {
-		return "", "", err
+		return "", "", partiesJoined, "", "", err
 	}
 
 	if err := server.CompleteSession(kg.Session); err != nil {
@@ -65,19 +69,28 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		}).Error("Failed to end session")
 	}
 
-	return ecdsaPubkey, eddsaPubkey, nil
+	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
+
+	if err != nil {
+		return ecdsaPubkey, eddsaPubkey, partiesJoined, "", "", err
+	}
+
+	eddsaKeyShare, err := localStateAccessor.GetLocalState(eddsaPubkey)
+
+	if err != nil {
+		return ecdsaPubkey, eddsaPubkey, partiesJoined, ecdsaKeyShare, "", err
+	}
+
+	return ecdsaPubkey, eddsaPubkey, partiesJoined, ecdsaKeyShare, eddsaKeyShare, nil
 }
 
-func createTSSService(serverURL, keyFolder string, kg *types.KeyGeneration) (tss.Service, error) {
+func createTSSService(serverURL string, localStateAccessor tss.LocalStateAccessor, kg *types.KeyGeneration) (tss.Service, error) {
 	messenger := &relay.MessengerImp{
 		Server:           serverURL,
 		SessionID:        kg.Session,
 		HexEncryptionKey: kg.HexEncryptionKey,
 	}
-	localStateAccessor := &relay.LocalStateAccessorImp{
-		Key:    kg.Key,
-		Folder: keyFolder,
-	}
+
 	tssService, err := tss.NewService(messenger, localStateAccessor, true)
 	if err != nil {
 		return nil, fmt.Errorf("create TSS service: %w", err)
