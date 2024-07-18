@@ -2,20 +2,26 @@ package keygen
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, []string, string, string, error) {
+func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	keyFolder := config.AppConfig.Server.VaultsFilePath
 	serverURL := config.AppConfig.Relay.Server
 
@@ -31,7 +37,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, []string, strin
 	}).Info("Session started")
 
 	if err != nil {
-		return "", "", partiesJoined, "", "", fmt.Errorf("failed to wait for session start: %w", err)
+		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
 	localStateAccessor := &relay.LocalStateAccessorImp{
@@ -40,7 +46,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, []string, strin
 	}
 	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
 	if err != nil {
-		return "", "", partiesJoined, "", "", fmt.Errorf("failed to create TSS service: %w", err)
+		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
 
 	ecdsaPubkey, eddsaPubkey := "", ""
@@ -52,7 +58,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, []string, strin
 	}
 
 	if err != nil {
-		return "", "", partiesJoined, "", "", err
+		return "", "", err
 	}
 
 	if err := server.CompleteSession(kg.Session); err != nil {
@@ -69,19 +75,13 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, []string, strin
 		}).Error("Failed to end session")
 	}
 
-	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
+	err = BackupVault(kg, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
 
 	if err != nil {
-		return ecdsaPubkey, eddsaPubkey, partiesJoined, "", "", err
+		return "", "", fmt.Errorf("failed to backup vault: %w", err)
 	}
 
-	eddsaKeyShare, err := localStateAccessor.GetLocalState(eddsaPubkey)
-
-	if err != nil {
-		return ecdsaPubkey, eddsaPubkey, partiesJoined, ecdsaKeyShare, "", err
-	}
-
-	return ecdsaPubkey, eddsaPubkey, partiesJoined, ecdsaKeyShare, eddsaKeyShare, nil
+	return ecdsaPubkey, eddsaPubkey, nil
 }
 
 func createTSSService(serverURL string, localStateAccessor tss.LocalStateAccessor, kg *types.KeyGeneration) (tss.Service, error) {
@@ -172,4 +172,69 @@ func generateEDDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJo
 	}).Info("EDDSA keygen response")
 	time.Sleep(time.Second)
 	return resp, nil
+}
+
+func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, eddsaPubkey string, localStateAccessor *relay.LocalStateAccessorImp) error {
+	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
+	if err != nil {
+		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+
+	eddsaKeyShare, err := localStateAccessor.GetLocalState(eddsaPubkey)
+	if err != nil {
+		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+
+	vault := vaultType.Vault{
+		Name:           kg.Name,
+		PublicKeyEcdsa: ecdsaPubkey,
+		PublicKeyEddsa: eddsaPubkey,
+		Signers:        partiesJoined,
+		CreatedAt:      timestamppb.New(time.Now()),
+		HexChainCode:   kg.ChainCode,
+		KeyShares: []*vaultType.Vault_KeyShare{
+			{
+				PublicKey: ecdsaPubkey,
+				Keyshare:  ecdsaKeyShare,
+			},
+			{
+				PublicKey: eddsaPubkey,
+				Keyshare:  eddsaKeyShare,
+			},
+		},
+		LocalPartyId:  kg.Key,
+		ResharePrefix: "",
+	}
+
+	isEncrypted := kg.EncryptionPassword != ""
+	vaultData := []byte(vault.String())
+	if isEncrypted {
+		vaultData, err = common.EncryptVault(kg.EncryptionPassword, vaultData)
+		if err != nil {
+			return fmt.Errorf("common.EncryptVault failed: %w", err)
+		}
+	}
+	vaultBackup := vaultType.VaultContainer{
+		Version:     "1",
+		Vault:       base64.StdEncoding.EncodeToString(vaultData),
+		IsEncrypted: isEncrypted,
+	}
+	filePathName := filepath.Join(config.AppConfig.Server.VaultsFilePath, kg.Name+".bak")
+	file, err := os.Create(filePathName)
+
+	if err != nil {
+		return fmt.Errorf("fail to create file, err: %w", err)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			logging.Logger.Errorf("fail to close file, err: %v", err)
+		}
+	}()
+
+	if _, err := file.Write([]byte(vaultBackup.String())); err != nil {
+		return fmt.Errorf("fail to write file, err: %w", err)
+	}
+
+	return nil
 }

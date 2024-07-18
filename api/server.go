@@ -139,7 +139,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
 	}
-	task, err := resp.Task()
+	task, err := cacheItem.Task()
 	if err != nil {
 		return fmt.Errorf("fail to create task, err: %w", err)
 	}
