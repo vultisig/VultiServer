@@ -6,9 +6,10 @@ const (
 )
 
 type KeyGenerationPayload struct {
-	LocalKey         string
-	Name             string
-	SessionID        string
-	ChainCode        string
-	HexEncryptionKey string
+	LocalKey           string
+	Name               string
+	SessionID          string
+	ChainCode          string
+	HexEncryptionKey   string
+	EncryptionPassword string
 }

@@ -168,7 +168,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		HexChainCode:     hexChainCode,
 		KeygenMsg:        []byte(base64.StdEncoding.EncodeToString(compressedBuffer.Bytes())),
 	}
-	task, err := resp.Task()
+	task, err := cacheItem.Task()
 	if err != nil {
 		return fmt.Errorf("fail to create task, err: %w", err)
 	}
