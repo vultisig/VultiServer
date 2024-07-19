@@ -1,6 +1,6 @@
-import React from 'react';
-import './App.css';
-import Signer from "./pages/singer/page";
+import React from "react";
+import "./App.css";
+import Signer from "./pages/signer/page";
 import Header from "./shared-components/header";
 import Footer from "./shared-components/footer";
 function App() {
