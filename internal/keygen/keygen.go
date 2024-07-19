@@ -224,7 +224,7 @@ func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, e
 		Vault:       base64.StdEncoding.EncodeToString(vaultData),
 		IsEncrypted: isEncrypted,
 	}
-	filePathName := filepath.Join(config.AppConfig.Server.VaultsFilePath, kg.Name+".bak")
+	filePathName := filepath.Join(config.AppConfig.Server.VaultsFilePath, ecdsaPubkey+".bak")
 	file, err := os.Create(filePathName)
 
 	if err != nil {

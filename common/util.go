@@ -106,3 +106,37 @@ func EncryptVault(password string, vault []byte) ([]byte, error) {
 	ciphertext := gcm.Seal(nonce, nonce, vault, nil)
 	return ciphertext, nil
 }
+func DecryptVault(password string, vault []byte) ([]byte, error) {
+	// Hash the password to create a key
+	hash := sha256.Sum256([]byte(password))
+	key := hash[:]
+
+	// Create a new AES cipher using the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check that the encrypted data is at least as long as the nonce
+	nonceSize := gcm.NonceSize()
+	if len(vault) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	// Extract the nonce and ciphertext
+	nonce, ciphertext := vault[:nonceSize], vault[nonceSize:]
+
+	// Decrypt the data
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}
