@@ -166,7 +166,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
-		KeygenMsg:        []byte(base64.StdEncoding.EncodeToString(compressedBuffer.Bytes())),
+		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedBuffer.Bytes()),
 	}
 	task, err := cacheItem.Task()
 	if err != nil {
