@@ -79,3 +79,30 @@ func Decrypt(password string, src string) (string, error) {
 
 	return string(plaintext), nil
 }
+func EncryptVault(password string, vault []byte) ([]byte, error) {
+	// Hash the password to create a key
+	hash := sha256.Sum256([]byte(password))
+	key := hash[:]
+
+	// Create a new AES cipher using the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a nonce. Nonce size is specified by GCM
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+
+	// Seal encrypts and authenticates plaintext
+	ciphertext := gcm.Seal(nonce, nonce, vault, nil)
+	return ciphertext, nil
+}

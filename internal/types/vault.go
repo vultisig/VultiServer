@@ -22,14 +22,6 @@ type VaultCreateResponse struct {
 	HexChainCode     string `json:"hex_chain_code"`
 }
 
-func (v *VaultCreateResponse) Task() (*asynq.Task, error) {
-	task, err := tasks.NewKeyGeneration("VultiSignerApp", v.Name, v.SessionID, v.HexChainCode, v.HexEncryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("fail to create task, err: %w", err)
-	}
-	return task, nil
-}
-
 // VaultCacheItem is a struct that represents the vault information stored in cache
 type VaultCacheItem struct {
 	Name               string `json:"name"`
@@ -41,4 +33,12 @@ type VaultCacheItem struct {
 
 func (v VaultCacheItem) Key() string {
 	return fmt.Sprintf("vault-%s-%s", v.Name, v.SessionID)
+}
+
+func (v *VaultCacheItem) Task() (*asynq.Task, error) {
+	task, err := tasks.NewKeyGeneration("VultiSignerApp", v.Name, v.SessionID, v.HexChainCode, v.HexEncryptionKey, v.EncryptionPassword)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create task, err: %w", err)
+	}
+	return task, nil
 }

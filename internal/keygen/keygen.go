@@ -2,17 +2,24 @@ package keygen
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
@@ -34,7 +41,11 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	tssServerImp, err := createTSSService(serverURL, keyFolder, kg)
+	localStateAccessor := &relay.LocalStateAccessorImp{
+		Key:    kg.Key,
+		Folder: keyFolder,
+	}
+	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
@@ -65,19 +76,22 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		}).Error("Failed to end session")
 	}
 
+	err = BackupVault(kg, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
+
+	if err != nil {
+		return "", "", fmt.Errorf("failed to backup vault: %w", err)
+	}
+
 	return ecdsaPubkey, eddsaPubkey, nil
 }
 
-func createTSSService(serverURL, keyFolder string, kg *types.KeyGeneration) (tss.Service, error) {
+func createTSSService(serverURL string, localStateAccessor tss.LocalStateAccessor, kg *types.KeyGeneration) (tss.Service, error) {
 	messenger := &relay.MessengerImp{
 		Server:           serverURL,
 		SessionID:        kg.Session,
 		HexEncryptionKey: kg.HexEncryptionKey,
 	}
-	localStateAccessor := &relay.LocalStateAccessorImp{
-		Key:    kg.Key,
-		Folder: keyFolder,
-	}
+
 	tssService, err := tss.NewService(messenger, localStateAccessor, true)
 	if err != nil {
 		return nil, fmt.Errorf("create TSS service: %w", err)
@@ -159,4 +173,78 @@ func generateEDDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJo
 	}).Info("EDDSA keygen response")
 	time.Sleep(time.Second)
 	return resp, nil
+}
+
+func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, eddsaPubkey string, localStateAccessor *relay.LocalStateAccessorImp) error {
+	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
+	if err != nil {
+		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+
+	eddsaKeyShare, err := localStateAccessor.GetLocalState(eddsaPubkey)
+	if err != nil {
+		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+
+	vault := &vaultType.Vault{
+		Name:           kg.Name,
+		PublicKeyEcdsa: ecdsaPubkey,
+		PublicKeyEddsa: eddsaPubkey,
+		Signers:        partiesJoined,
+		CreatedAt:      timestamppb.New(time.Now()),
+		HexChainCode:   kg.ChainCode,
+		KeyShares: []*vaultType.Vault_KeyShare{
+			{
+				PublicKey: ecdsaPubkey,
+				Keyshare:  ecdsaKeyShare,
+			},
+			{
+				PublicKey: eddsaPubkey,
+				Keyshare:  eddsaKeyShare,
+			},
+		},
+		LocalPartyId:  kg.Key,
+		ResharePrefix: "",
+	}
+
+	isEncrypted := kg.EncryptionPassword != ""
+	vaultData, err := proto.Marshal(vault)
+	if err != nil {
+		return fmt.Errorf("failed to Marshal vault: %w", err)
+	}
+
+	if isEncrypted {
+		vaultData, err = common.EncryptVault(kg.EncryptionPassword, vaultData)
+		if err != nil {
+			return fmt.Errorf("common.EncryptVault failed: %w", err)
+		}
+	}
+	vaultBackup := &vaultType.VaultContainer{
+		Version:     1,
+		Vault:       base64.StdEncoding.EncodeToString(vaultData),
+		IsEncrypted: isEncrypted,
+	}
+	filePathName := filepath.Join(config.AppConfig.Server.VaultsFilePath, kg.Name+".bak")
+	file, err := os.Create(filePathName)
+
+	if err != nil {
+		return fmt.Errorf("fail to create file, err: %w", err)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			logging.Logger.Errorf("fail to close file, err: %v", err)
+		}
+	}()
+
+	vaultBackupData, err := proto.Marshal(vaultBackup)
+	if err != nil {
+		return fmt.Errorf("failed to Marshal vaultBackup: %w", err)
+	}
+
+	if _, err := file.Write([]byte(base64.StdEncoding.EncodeToString(vaultBackupData))); err != nil {
+		return fmt.Errorf("fail to write file, err: %w", err)
+	}
+
+	return nil
 }

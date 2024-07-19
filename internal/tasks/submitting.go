@@ -12,8 +12,9 @@ func NewKeyGeneration(
 	sessionID string,
 	chainCode string,
 	hexEncryptionKey string,
+	encryptionPassword string,
 ) (*asynq.Task, error) {
-	payload, err := json.Marshal(KeyGenerationPayload{LocalKey: localKey, Name: name, SessionID: sessionID, ChainCode: chainCode, HexEncryptionKey: hexEncryptionKey})
+	payload, err := json.Marshal(KeyGenerationPayload{LocalKey: localKey, Name: name, SessionID: sessionID, ChainCode: chainCode, HexEncryptionKey: hexEncryptionKey, EncryptionPassword: encryptionPassword})
 	if err != nil {
 		return nil, err
 	}
