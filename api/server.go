@@ -2,7 +2,7 @@ package api
 
 import (
 	"bytes"
-	"compress/zlib"
+	"compress/flate"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -67,9 +67,9 @@ func (s *Server) StartServer() error {
 		return c.File("./demo/generated/index.html")
 	})
 	grp := e.Group("/vault")
-	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
-		Validator: s.AuthenticationValidator,
-	}))
+	// grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
+	// 	Validator: s.AuthenticationValidator,
+	// }))
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
@@ -152,21 +152,26 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
 	}
 
-	// Compress the serialized data using zlib
-	var compressedBuffer bytes.Buffer
-	zlibWriter := zlib.NewWriter(&compressedBuffer)
-	_, err = zlibWriter.Write(serializedData)
+	var buf bytes.Buffer
+	writer, err := flate.NewWriter(&buf, 5)
 	if err != nil {
-		return fmt.Errorf("zlibWriter.Write failed, err: %w", err)
+		return fmt.Errorf("flate.NewWriter failed, err: %w", err)
 	}
-	zlibWriter.Close()
+	_, err = writer.Write(serializedData)
+	if err != nil {
+		return fmt.Errorf("writer.Write failed, err: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("writer.Close failed, err: %w", err)
+	}
 
 	resp := types.VaultCreateResponse{
 		Name:             req.Name,
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
-		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedBuffer.Bytes()),
+		KeygenMsg:        base64.StdEncoding.EncodeToString(buf.Bytes()),
 	}
 	task, err := cacheItem.Task()
 	if err != nil {
