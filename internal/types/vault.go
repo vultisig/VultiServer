@@ -20,6 +20,7 @@ type VaultCreateResponse struct {
 	SessionID        string `json:"session_id"`
 	HexEncryptionKey string `json:"hex_encryption_key"`
 	HexChainCode     string `json:"hex_chain_code"`
+	KeygenMsg        []byte `json:"keygen_msg"`
 }
 
 func (v *VaultCreateResponse) Task() (*asynq.Task, error) {

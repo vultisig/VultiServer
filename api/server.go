@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
+	"compress/zlib"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -15,7 +18,9 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"google.golang.org/protobuf/proto"
 
+	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/models"
@@ -133,11 +138,35 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to set vault cache item, err: %w", err)
 	}
 
+	keygenMsg := &keygenTypes.KeygenMessage{
+		SessionId:        sessionID,
+		HexChainCode:     hexChainCode,
+		ServiceName:      "VultiSignerApp",
+		EncryptionKeyHex: encryptionKey,
+		UseVultisigRelay: true,
+		VaultName:        req.Name,
+	}
+
+	serializedData, err := proto.Marshal(keygenMsg)
+	if err != nil {
+		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
+	}
+
+	// Compress the serialized data using zlib
+	var compressedBuffer bytes.Buffer
+	zlibWriter := zlib.NewWriter(&compressedBuffer)
+	_, err = zlibWriter.Write(serializedData)
+	if err != nil {
+		return fmt.Errorf("zlibWriter.Write failed, err: %w", err)
+	}
+	zlibWriter.Close()
+
 	resp := types.VaultCreateResponse{
 		Name:             req.Name,
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
+		KeygenMsg:        []byte(base64.StdEncoding.EncodeToString(compressedBuffer.Bytes())),
 	}
 	task, err := resp.Task()
 	if err != nil {
