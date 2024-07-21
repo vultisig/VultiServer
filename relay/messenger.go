@@ -18,6 +18,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
+
 	"github.com/vultisig/vultisigner/internal/logging"
 )
 
@@ -79,7 +80,11 @@ func (m *MessengerImp) Send(from, to, body string) error {
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logging.Logger.Error("Failed to close response body")
+		}
+	}()
 
 	if resp.Status != "202 Accepted" {
 		return fmt.Errorf("fail to send message, response code is not 202 Accepted: %s", resp.Status)
@@ -251,7 +256,7 @@ func pad(data []byte, blockSize int) []byte {
 func decrypt(cipherText, hexKey string) (string, error) {
 	var block cipher.Block
 	var err error
-	key, err := hex.DecodeString(string(hexKey))
+	key, err := hex.DecodeString(hexKey)
 	if err != nil {
 		return "", err
 	}

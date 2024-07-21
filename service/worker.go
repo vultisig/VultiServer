@@ -7,6 +7,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/keygen"
 	"github.com/vultisig/vultisigner/internal/logging"
@@ -78,7 +79,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	if _, err := t.ResultWriter().Write([]byte(resultBytes)); err != nil {
+	if _, err := t.ResultWriter().Write(resultBytes); err != nil {
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
 	}
 
