@@ -163,8 +163,7 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 							"session": session,
 							"key":     key,
 							"hash":    message.Hash,
-							// "body":    message.Body,
-							"error": err,
+							"error":   err,
 						}).Error("Failed to decode data")
 						continue
 					}
@@ -175,8 +174,7 @@ func DownloadMessage(server, session, key, hexEncryptionKey string, tssServerImp
 							"session": session,
 							"key":     key,
 							"hash":    message.Hash,
-							// "body":    message.Body,
-							"error": err,
+							"error":   err,
 						}).Error("Failed to decrypt data")
 						continue
 					}
@@ -253,6 +251,7 @@ func pad(data []byte, blockSize int) []byte {
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(data, padtext...)
 }
+
 func decrypt(cipherText, hexKey string) (string, error) {
 	var block cipher.Block
 	var err error
