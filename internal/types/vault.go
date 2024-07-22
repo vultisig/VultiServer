@@ -32,7 +32,7 @@ type VaultCacheItem struct {
 	EncryptionPassword string `json:"encryption_password"` // this is the password used to encrypt the vault file
 }
 
-func (v VaultCacheItem) Key() string {
+func (v *VaultCacheItem) Key() string {
 	return fmt.Sprintf("vault-%s-%s", v.Name, v.SessionID)
 }
 

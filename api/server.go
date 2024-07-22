@@ -2,9 +2,10 @@ package api
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,10 +16,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"google.golang.org/protobuf/proto"
+
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/models"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
@@ -165,9 +168,18 @@ func (s *Server) CreateVault(c echo.Context) error {
 
 // UploadVault is a handler that receives a vault file from integration.
 func (s *Server) UploadVault(c echo.Context) error {
-	var vaultBackup models.VaultBackup
-	if err := c.Bind(&vaultBackup); err != nil {
-		return fmt.Errorf("fail to parse request, err: %w", err)
+	bodyReader := http.MaxBytesReader(c.Response(), c.Request().Body, 2<<20) // 2M
+	content, err := io.ReadAll(bodyReader)
+	if err != nil {
+		return fmt.Errorf("fail to read body, err: %w", err)
+	}
+	decodedVaultBackup, err := base64.StdEncoding.DecodeString(string(content))
+	if err != nil {
+		return fmt.Errorf("fail to decode vault backup, err: %w", err)
+	}
+	var vaultContainer vaultType.VaultContainer
+	if err := proto.Unmarshal(decodedVaultBackup, &vaultContainer); err != nil {
+		return fmt.Errorf("fail to unmarshal vault container, err: %w", err)
 	}
 
 	passwd := c.Request().Header.Get("x-password")
@@ -175,17 +187,21 @@ func (s *Server) UploadVault(c echo.Context) error {
 		return fmt.Errorf("vault backup password is required")
 	}
 
-	result, err := common.Decrypt(passwd, vaultBackup.Vault)
+	// decrypt the vault
+	vaultBytes, err := base64.StdEncoding.DecodeString(vaultContainer.Vault)
+	if err != nil {
+		return fmt.Errorf("fail to decode vault, err: %w", err)
+	}
+	result, err := common.DecryptVault(passwd, vaultBytes)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault, err: %w", err)
 	}
-
-	var vault models.Vault
-	if err := json.Unmarshal([]byte(result), &vault); err != nil {
-		return fmt.Errorf("fail to decode vault, err: %w", err)
+	var vaultRaw vaultType.Vault
+	if err := proto.Unmarshal(result, &vaultRaw); err != nil {
+		return fmt.Errorf("fail to unmarshal vault, err: %w", err)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, vault.PubKeyECDSA+".dat")
+	filePathName := filepath.Join(s.vaultFilePath, vaultRaw.PublicKeyEcdsa+".bak")
 	file, err := os.Create(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to create file, err: %w", err)
@@ -197,12 +213,7 @@ func (s *Server) UploadVault(c echo.Context) error {
 		}
 	}()
 
-	buf, err := json.Marshal(vaultBackup)
-	if err != nil {
-		return fmt.Errorf("fail to serialize vault backup, err: %w", err)
-	}
-
-	if _, err := file.Write(buf); err != nil {
+	if _, err := file.Write(content); err != nil {
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
 
@@ -231,21 +242,32 @@ func (s *Server) DownloadVault(c echo.Context) error {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
 
-	var vaultBackup models.VaultBackup
-	if err := json.Unmarshal(content, &vaultBackup); err != nil {
+	var vaultBackup vaultType.VaultContainer
+	base64DecodeVault, err := base64.StdEncoding.DecodeString(string(content))
+	if err != nil {
+		return fmt.Errorf("fail to decode vault, err: %w", err)
+	}
+	if err := proto.Unmarshal(base64DecodeVault, &vaultBackup); err != nil {
 		return fmt.Errorf("fail to unmarshal vault backup, err: %w", err)
 	}
 
-	result, err := common.Decrypt(passwd, vaultBackup.Vault)
-	if err != nil {
-		return fmt.Errorf("fail to decrypt vault, err: %w", err)
+	if vaultBackup.IsEncrypted {
+		// decrypt the vault
+		vaultBytes, err := base64.StdEncoding.DecodeString(vaultBackup.Vault)
+		if err != nil {
+			return fmt.Errorf("fail to decode vault, err: %w", err)
+		}
+		result, err := common.DecryptVault(passwd, vaultBytes)
+		if err != nil {
+			return fmt.Errorf("fail to decrypt vault, err: %w", err)
+		}
+		var vaultRaw vaultType.Vault
+		if err := proto.Unmarshal(result, &vaultRaw); err != nil {
+			return fmt.Errorf("fail to unmarshal vault, err: %w", err)
+		}
 	}
 
-	var vault models.Vault
-	if err := json.Unmarshal([]byte(result), &vault); err != nil {
-		return fmt.Errorf("fail to decode vault, err: %w", err)
-	}
-
+	// when we get to this point, the vault file is valid and can be decoded by the client , so pass it to them
 	return c.File(filePathName)
 }
 

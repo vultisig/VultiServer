@@ -4,3 +4,4 @@ spawner
 .idea/
 demo/app/node_modules
 *.DS_Store
+*.dat
