@@ -16,9 +16,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	"google.golang.org/protobuf/proto"
-
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
