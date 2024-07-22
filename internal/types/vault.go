@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
+
 	"github.com/vultisig/vultisigner/internal/tasks"
 )
 
@@ -32,12 +33,17 @@ type VaultCacheItem struct {
 	EncryptionPassword string `json:"encryption_password"` // this is the password used to encrypt the vault file
 }
 
-func (v VaultCacheItem) Key() string {
+func (v *VaultCacheItem) Key() string {
 	return fmt.Sprintf("vault-%s-%s", v.Name, v.SessionID)
 }
 
 func (v *VaultCacheItem) Task() (*asynq.Task, error) {
-	task, err := tasks.NewKeyGeneration("VultiSignerApp", v.Name, v.SessionID, v.HexChainCode, v.HexEncryptionKey, v.EncryptionPassword)
+	task, err := tasks.NewKeyGeneration("VultiSignerApp",
+		v.Name,
+		v.SessionID,
+		v.HexChainCode,
+		v.HexEncryptionKey,
+		v.EncryptionPassword)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create task, err: %w", err)
 	}

@@ -3,13 +3,13 @@ package main
 import (
 	"log"
 
+	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/service"
-
-	"github.com/hibiken/asynq"
 )
 
 func main() {

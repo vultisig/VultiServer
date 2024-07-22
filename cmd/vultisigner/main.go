@@ -17,22 +17,28 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	client := asynq.NewClient(asynq.RedisClientOpt{
+	redisOptions := asynq.RedisClientOpt{
 		Addr:     config.AppConfig.Redis.Host + ":" + config.AppConfig.Redis.Port,
 		Username: config.AppConfig.Redis.User,
 		Password: config.AppConfig.Redis.Password,
 		DB:       config.AppConfig.Redis.DB,
-	})
+	}
+	client := asynq.NewClient(redisOptions)
 	defer func() {
 		if err := client.Close(); err != nil {
 			fmt.Println("fail to close asynq client,", err)
 		}
 	}()
+	inspector := asynq.NewInspector(redisOptions)
 	if config.AppConfig.Server.VaultsFilePath == "" {
 		panic("vaults file path is empty")
 
 	}
-	server := api.NewServer(port, redisStorage, client, config.AppConfig.Server.VaultsFilePath)
+	server := api.NewServer(port,
+		redisStorage,
+		client,
+		inspector,
+		config.AppConfig.Server.VaultsFilePath)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}
