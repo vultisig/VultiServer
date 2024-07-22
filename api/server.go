@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"compress/flate"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -16,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"google.golang.org/protobuf/proto"
 
@@ -139,11 +142,40 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to set vault cache item, err: %w", err)
 	}
 
+	keygenMsg := &keygenTypes.KeygenMessage{
+		SessionId:        sessionID,
+		HexChainCode:     hexChainCode,
+		ServiceName:      "VultiSignerApp",
+		EncryptionKeyHex: encryptionKey,
+		UseVultisigRelay: true,
+		VaultName:        req.Name,
+	}
+
+	serializedData, err := proto.Marshal(keygenMsg)
+	if err != nil {
+		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
+	}
+
+	var buf bytes.Buffer
+	writer, err := flate.NewWriter(&buf, 5)
+	if err != nil {
+		return fmt.Errorf("flate.NewWriter failed, err: %w", err)
+	}
+	_, err = writer.Write(serializedData)
+	if err != nil {
+		return fmt.Errorf("writer.Write failed, err: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("writer.Close failed, err: %w", err)
+	}
+
 	resp := types.VaultCreateResponse{
 		Name:             req.Name,
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
+		KeygenMsg:        base64.StdEncoding.EncodeToString(buf.Bytes()),
 	}
 	task, err := cacheItem.Task()
 	if err != nil {

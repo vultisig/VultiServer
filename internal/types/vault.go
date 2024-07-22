@@ -21,6 +21,7 @@ type VaultCreateResponse struct {
 	SessionID        string `json:"session_id"`
 	HexEncryptionKey string `json:"hex_encryption_key"`
 	HexChainCode     string `json:"hex_chain_code"`
+	KeygenMsg        string `json:"keygen_msg"`
 }
 
 // VaultCacheItem is a struct that represents the vault information stored in cache
