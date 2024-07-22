@@ -5,8 +5,12 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
+
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func EncryptVault(password string, vault []byte) ([]byte, error) {
@@ -60,7 +64,7 @@ func DecryptVault(password string, vault []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ciphertext too short")
 	}
 
-	// Extract the nonce and ciphertext
+	// Extract the nonce from the vault
 	nonce, ciphertext := vault[:nonceSize], vault[nonceSize:]
 
 	// Decrypt the vault
@@ -70,4 +74,35 @@ func DecryptVault(password string, vault []byte) ([]byte, error) {
 	}
 
 	return plaintext, nil
+}
+
+func DecryptVaultFromBackup(password string, vaultBackupRaw []byte) (*vaultType.Vault, error) {
+	var vaultBackup vaultType.VaultContainer
+	base64DecodeVaultBackup, err := base64.StdEncoding.DecodeString(string(vaultBackupRaw))
+	if err != nil {
+		return nil, err
+	}
+	if err := proto.Unmarshal(base64DecodeVaultBackup, &vaultBackup); err != nil {
+		return nil, err
+	}
+
+	vaultRaw := []byte(vaultBackup.Vault)
+	if vaultBackup.IsEncrypted {
+		// decrypt the vault
+		vaultBytes, err := base64.StdEncoding.DecodeString(vaultBackup.Vault)
+		if err != nil {
+			return nil, err
+		}
+		vaultRaw, err = DecryptVault(password, vaultBytes)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var vault vaultType.Vault
+	if err := proto.Unmarshal(vaultRaw, &vault); err != nil {
+		return nil, err
+	}
+
+	return &vault, nil
 }
