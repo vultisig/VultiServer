@@ -10,16 +10,21 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/vultisigner/internal/logging"
 )
 
 type Server struct {
 	vultisigRelay string
+	client        http.Client
 }
 
 func NewServer(vultisigRelay string) *Server {
 	return &Server{
 		vultisigRelay: vultisigRelay,
+		client: http.Client{
+			Timeout: 5 * time.Second,
+		},
 	}
 }
 
@@ -30,13 +35,12 @@ func (s *Server) StartSession(sessionID string, parties []string) error {
 		return fmt.Errorf("fail to start session: %w", err)
 	}
 	bodyReader := bytes.NewReader(body)
-	client := http.Client{}
 	req, err := http.NewRequest(http.MethodPost, sessionURL, bodyReader)
-	req.Header.Set("Content-Type", "application/json")
 	if err != nil {
 		return fmt.Errorf("fail to start session: %w", err)
 	}
-	resp, err := client.Do(req)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fail to start session: %w", err)
 	}
@@ -46,7 +50,6 @@ func (s *Server) StartSession(sessionID string, parties []string) error {
 	return nil
 }
 
-// TODO: This should be done on FE => rename the function (join keygen commete)
 func (s *Server) RegisterSession(sessionID string, key string) error {
 	sessionURL := s.vultisigRelay + "/" + sessionID
 	body := []byte("[\"" + key + "\"]")
@@ -56,9 +59,7 @@ func (s *Server) RegisterSession(sessionID string, key string) error {
 		"body":    string(body),
 	}).Info("Registering session")
 	bodyReader := bytes.NewReader(body)
-
-	resp, err := http.Post(sessionURL, "application/json", bodyReader)
-
+	resp, err := s.client.Post(sessionURL, "application/json", bodyReader)
 	if err != nil {
 		return fmt.Errorf("fail to register session: %w", err)
 	}
@@ -79,7 +80,7 @@ func (s *Server) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 			logging.Logger.WithFields(logrus.Fields{
 				"session": sessionID,
 			}).Info("Waiting for session start")
-			resp, err := http.Get(sessionURL)
+			resp, err := s.client.Get(sessionURL)
 			if err != nil {
 				return nil, fmt.Errorf("fail to get session: %w", err)
 			}
@@ -117,7 +118,7 @@ func (s *Server) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 			}).Info("Waiting for someone to start session")
 
 			// backoff
-			time.Sleep(2 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 	}
 }
@@ -125,7 +126,7 @@ func (s *Server) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 func (s *Server) GetSession(sessionID string) ([]string, error) {
 	sessionURL := s.vultisigRelay + "/" + sessionID
 
-	resp, err := http.Get(sessionURL)
+	resp, err := s.client.Get(sessionURL)
 	if err != nil {
 		return nil, fmt.Errorf("fail to get session: %w", err)
 	}
@@ -145,21 +146,20 @@ func (s *Server) GetSession(sessionID string) ([]string, error) {
 	return parties, nil
 }
 
-func (s *Server) CompleteSession(sessionID string) error {
+func (s *Server) CompleteSession(sessionID, localPartyID string) error {
 	sessionURL := s.vultisigRelay + "/complete/" + sessionID
-	parties := []string{"VultiSignerApp"}
+	parties := []string{localPartyID}
 	body, err := json.Marshal(parties)
 	if err != nil {
 		return fmt.Errorf("fail to complete session: %w", err)
 	}
 	bodyReader := bytes.NewReader(body)
-	client := http.Client{}
 	req, err := http.NewRequest(http.MethodPost, sessionURL, bodyReader)
-	req.Header.Set("Content-Type", "application/json")
 	if err != nil {
 		return fmt.Errorf("fail to complete session: %w", err)
 	}
-	resp, err := client.Do(req)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fail to complete session: %w", err)
 	}
@@ -171,12 +171,11 @@ func (s *Server) CompleteSession(sessionID string) error {
 
 func (s *Server) EndSession(sessionID string) error {
 	sessionURL := s.vultisigRelay + "/" + sessionID
-	client := http.Client{}
 	req, err := http.NewRequest(http.MethodDelete, sessionURL, nil)
 	if err != nil {
 		return fmt.Errorf("fail to end session: %w", err)
 	}
-	resp, err := client.Do(req)
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("fail to end session: %w", err)
 	}

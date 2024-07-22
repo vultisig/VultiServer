@@ -29,7 +29,12 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 
 	server := relay.NewServer(serverURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Let's register session here
+	if err := server.RegisterSession(kg.Session, kg.Key); err != nil {
+		return "", "", fmt.Errorf("failed to register session: %w", err)
+	}
+	// wait longer for keygen start
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	partiesJoined, err := server.WaitForSessionStart(ctx, kg.Session)
@@ -63,7 +68,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", err
 	}
 
-	if err := server.CompleteSession(kg.Session); err != nil {
+	if err := server.CompleteSession(kg.Session, kg.Key); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"session": kg.Session,
 			"error":   err,

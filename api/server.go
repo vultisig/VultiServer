@@ -18,10 +18,10 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"google.golang.org/protobuf/proto"
 
-	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -118,9 +118,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-
 	sessionID := uuid.New().String()
-
 	encryptionKey, err := s.getHexEncodedRandomBytes()
 	if err != nil {
 		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
