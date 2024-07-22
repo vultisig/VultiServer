@@ -63,7 +63,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", err
 	}
 
-	if err := server.CompleteSession(kg.Session); err != nil {
+	if err := server.CompleteSession(kg.Session, kg.Key); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"session": kg.Session,
 			"error":   err,

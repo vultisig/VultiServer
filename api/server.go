@@ -116,9 +116,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-
 	sessionID := uuid.New().String()
-
 	encryptionKey, err := s.getHexEncodedRandomBytes()
 	if err != nil {
 		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
