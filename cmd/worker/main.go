@@ -27,9 +27,10 @@ func main() {
 		asynq.Config{
 			Concurrency: 10,
 			Queues: map[string]int{
-				"critical": 6,
-				"default":  3,
-				"low":      1,
+				"critical":       6,
+				"default":        3,
+				"low":            1,
+				tasks.QUEUE_NAME: 10,
 			},
 		},
 	)
