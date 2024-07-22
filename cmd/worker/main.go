@@ -3,13 +3,13 @@ package main
 import (
 	"log"
 
+	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/service"
-
-	"github.com/hibiken/asynq"
 )
 
 func main() {
@@ -27,9 +27,10 @@ func main() {
 		asynq.Config{
 			Concurrency: 10,
 			Queues: map[string]int{
-				"critical": 6,
-				"default":  3,
-				"low":      1,
+				"critical":       6,
+				"default":        3,
+				"low":            1,
+				tasks.QUEUE_NAME: 10,
 			},
 		},
 	)

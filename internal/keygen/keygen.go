@@ -13,13 +13,14 @@ import (
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
@@ -28,7 +29,12 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 
 	server := relay.NewServer(serverURL)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	// Let's register session here
+	if err := server.RegisterSession(kg.Session, kg.Key); err != nil {
+		return "", "", fmt.Errorf("failed to register session: %w", err)
+	}
+	// wait longer for keygen start
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	partiesJoined, err := server.WaitForSessionStart(ctx, kg.Session)
@@ -62,7 +68,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", err
 	}
 
-	if err := server.CompleteSession(kg.Session); err != nil {
+	if err := server.CompleteSession(kg.Session, kg.Key); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"session": kg.Session,
 			"error":   err,

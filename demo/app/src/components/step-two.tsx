@@ -23,8 +23,9 @@ export default function StepTwo({
 
   const CreateVault = async () => {
     const data = await (await createVault(vaultName, vaultPwd)).json();
-    setQrCodeString(`vultisig://vultisig.com?type=NewVault&tssType=Keygen&jsonData={"Keygen":{"_0":{"encryptionKeyHex":"${data.hex_encryption_key}","hexChainCode":"${data.hex_chain_code}","serviceName":"VultiSigner-001",
-                    "sessionID":"${data.session_id}","useVultisigRelay":true,"vaultName":"${vaultName}"}}}`);
+    setQrCodeString(
+      `vultisig://vultisig.com?type=NewVault&tssType=Keygen&jsonData=${data.keygen_msg}`
+    );
     setSession_id(data.session_id);
     goToStep(3);
   };
@@ -65,7 +66,6 @@ export default function StepTwo({
           className="bg-[#11243E] text-white w-full my-4 p-3 rounded-lg"
           placeholder="Vault Password"
         />
-
         <button
           onClick={CreateVault}
           disabled={!canContinue}
