@@ -75,6 +75,14 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		}).Error("Failed to complete session")
 	}
 
+	if isCompleted, err := server.CheckCompletedParties(kg.Session, partiesJoined); err != nil || !isCompleted {
+		logging.Logger.WithFields(logrus.Fields{
+			"session":     kg.Session,
+			"isCompleted": isCompleted,
+			"error":       err,
+		}).Error("Failed to check completed parties")
+	}
+
 	if err := server.EndSession(kg.Session); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"session": kg.Session,
