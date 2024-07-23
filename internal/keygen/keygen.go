@@ -7,18 +7,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
-	"github.com/vultisig/mobile-tss-lib/tss"
+	tsslib "github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/logging"
+	"github.com/vultisig/vultisigner/internal/tss"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
 )
@@ -51,7 +51,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		Key:    kg.Key,
 		Folder: keyFolder,
 	}
-	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
+	tssServerImp, err := tss.CreateTSSService(serverURL, kg.Session, kg.HexEncryptionKey, localStateAccessor)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
@@ -91,35 +91,8 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	return ecdsaPubkey, eddsaPubkey, nil
 }
 
-func createTSSService(serverURL string, localStateAccessor tss.LocalStateAccessor, kg *types.KeyGeneration) (tss.Service, error) {
-	messenger := &relay.MessengerImp{
-		Server:           serverURL,
-		SessionID:        kg.Session,
-		HexEncryptionKey: kg.HexEncryptionKey,
-	}
-
-	tssService, err := tss.NewService(messenger, localStateAccessor, true)
-	if err != nil {
-		return nil, fmt.Errorf("create TSS service: %w", err)
-	}
-	return tssService, nil
-}
-
-func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
-	logging.Logger.WithFields(logrus.Fields{
-		"session": session,
-		"key":     key,
-	}).Info("Start downloading messages")
-
-	endCh := make(chan struct{})
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go relay.DownloadMessage(serverURL, session, key, hexEncryptionKey, tssService, endCh, wg)
-	return endCh, wg
-}
-
-func keygenWithRetry(serverURL string, kg *types.KeyGeneration, partiesJoined []string, tssService tss.Service) (string, string, error) {
-	endCh, wg := startMessageDownload(serverURL, kg.Session, kg.Key, kg.HexEncryptionKey, tssService)
+func keygenWithRetry(serverURL string, kg *types.KeyGeneration, partiesJoined []string, tssService tsslib.Service) (string, string, error) {
+	endCh, wg := tss.StartMessageDownload(serverURL, kg.Session, kg.Key, kg.HexEncryptionKey, tssService)
 
 	resp, err := generateECDSAKey(tssService, kg, partiesJoined)
 	if err != nil {
@@ -137,13 +110,13 @@ func keygenWithRetry(serverURL string, kg *types.KeyGeneration, partiesJoined []
 	return resp.PubKey, respEDDSA.PubKey, nil
 }
 
-func generateECDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJoined []string) (*tss.KeygenResponse, error) {
+func generateECDSAKey(tssService tsslib.Service, kg *types.KeyGeneration, partiesJoined []string) (*tsslib.KeygenResponse, error) {
 	logging.Logger.WithFields(logrus.Fields{
 		"key":            kg.Key,
 		"chain_code":     kg.ChainCode,
 		"parties_joined": partiesJoined,
 	}).Info("Start ECDSA keygen...")
-	resp, err := tssService.KeygenECDSA(&tss.KeygenRequest{
+	resp, err := tssService.KeygenECDSA(&tsslib.KeygenRequest{
 		LocalPartyID: kg.Key,
 		AllParties:   strings.Join(partiesJoined, ","),
 		ChainCodeHex: kg.ChainCode,
@@ -159,13 +132,13 @@ func generateECDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJo
 	return resp, nil
 }
 
-func generateEDDSAKey(tssService tss.Service, kg *types.KeyGeneration, partiesJoined []string) (*tss.KeygenResponse, error) {
+func generateEDDSAKey(tssService tsslib.Service, kg *types.KeyGeneration, partiesJoined []string) (*tsslib.KeygenResponse, error) {
 	logging.Logger.WithFields(logrus.Fields{
 		"key":            kg.Key,
 		"chain_code":     kg.ChainCode,
 		"parties_joined": partiesJoined,
 	}).Info("Start EDDSA keygen...")
-	resp, err := tssService.KeygenEdDSA(&tss.KeygenRequest{
+	resp, err := tssService.KeygenEdDSA(&tsslib.KeygenRequest{
 		LocalPartyID: kg.Key,
 		AllParties:   strings.Join(partiesJoined, ","),
 		ChainCodeHex: kg.ChainCode,
