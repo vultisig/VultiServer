@@ -9,10 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/keygen"
-	"github.com/vultisig/vultisigner/internal/keysign"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
+	"github.com/vultisig/vultisigner/internal/tss"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
@@ -35,10 +34,6 @@ type KeyGenerationTaskResult struct {
 	ECDSAPublicKey string
 }
 
-type KeySignTaskResult struct {
-	SignatureEncoded []string
-}
-
 func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	var p tasks.KeyGenerationPayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
@@ -52,7 +47,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 		"HexEncryptionKey": p.HexEncryptionKey,
 	}).Info("Joining keygen")
 
-	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
+	keyECDSA, keyEDDSA, err := tss.JoinKeyGeneration(&types.KeyGeneration{
 		Name:               p.Name,
 		Key:                p.LocalKey,
 		Session:            p.SessionID,
@@ -106,9 +101,8 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		"IsECDSA":          p.IsECDSA,
 	}).Info("Joining keygen")
 
-	resp, err := keysign.JoinKeySign(&types.KeysignRequest{
+	result, err := tss.JoinKeySign(&types.KeysignRequest{
 		PublicKeyECDSA:   p.PublicKeyECDSA,
-		Key:              p.LocalKey,
 		Session:          p.SessionID,
 		Messages:         p.Messages,
 		HexEncryptionKey: p.HexEncryptionKey,
@@ -120,14 +114,10 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	}
 
 	logging.Logger.WithFields(logrus.Fields{
-		"signatureEncoded": resp,
+		"Signatures": result.Signatures,
 	}).Info("Key sign completed")
 
-	result := KeySignTaskResult{
-		SignatureEncoded: resp,
-	}
-
-	resultBytes, err := json.Marshal(result)
+	resultBytes, err := json.Marshal(*result)
 	if err != nil {
 		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
 	}
