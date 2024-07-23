@@ -26,6 +26,8 @@ import (
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
+
+	mathRand "math/rand"
 )
 
 type Server struct {
@@ -128,7 +130,10 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to generate hex chain code, err: %w", err)
 	}
 
+	r := mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
+	randomNumber := r.Intn(1000) + 1
 	cacheItem := types.VaultCacheItem{
+		LocalKey:           fmt.Sprintf("VultiSignerApp-%d", randomNumber),
 		Name:               req.Name,
 		SessionID:          sessionID,
 		HexEncryptionKey:   encryptionKey,
@@ -144,7 +149,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 	keygenMsg := &keygenTypes.KeygenMessage{
 		SessionId:        sessionID,
 		HexChainCode:     hexChainCode,
-		ServiceName:      "VultiSignerApp",
+		ServiceName:      fmt.Sprintf("VultiSignerApp-%d", randomNumber),
 		EncryptionKeyHex: encryptionKey,
 		UseVultisigRelay: true,
 		VaultName:        req.Name,
