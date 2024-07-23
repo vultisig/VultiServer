@@ -18,19 +18,11 @@ export default function StepTwo({
   setQrCodeString,
 }: StepTwoProps) {
   const [vaultName, setVaultName] = useState("");
+  const [vaultPwd, setVaultPwd] = useState("");
   const [canContinue, setCanContinue] = useState(false);
-  const generateRandomString = (): string => {
-    const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let result = "";
-    for (let i = 0; i < 10; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
+
   const CreateVault = async () => {
-    const passNew = generateRandomString();
-    const data = await (await createVault(vaultName, passNew)).json();
+    const data = await (await createVault(vaultName, vaultPwd)).json();
     setQrCodeString(
       `vultisig://vultisig.com?type=NewVault&tssType=Keygen&jsonData=${data.keygen_msg}`
     );
@@ -65,7 +57,15 @@ export default function StepTwo({
           className="bg-[#11243E] text-white w-full my-4 p-3 rounded-lg"
           placeholder="Vault Name"
         />
-
+        <input
+          type="password"
+          onChange={(e) => {
+            setVaultPwd(e.target.value);
+            checkContiune(e.target.value);
+          }}
+          className="bg-[#11243E] text-white w-full my-4 p-3 rounded-lg"
+          placeholder="Vault Password"
+        />
         <button
           onClick={CreateVault}
           disabled={!canContinue}
