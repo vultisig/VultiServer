@@ -284,7 +284,16 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
-	// TODO: decrypt the vault file , if it failed to decrypt file , then reject the request
+
+	content, err := os.ReadFile(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to read file, err: %w", err)
+	}
+
+	_, err = common.DecryptVaultFromBackup(passwd, content)
+	if err != nil {
+		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
+	}
 
 	task, err := keysignReq.NewKeysignTask(passwd)
 	if err != nil {
