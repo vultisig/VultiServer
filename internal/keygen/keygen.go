@@ -83,9 +83,18 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}
 
 	err = BackupVault(kg, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
+	}
+
+	err = localStateAccessor.RemoveLocalState(ecdsaPubkey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to remove local state: %w", err)
+	}
+
+	err = localStateAccessor.RemoveLocalState(eddsaPubkey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to remove local state: %w", err)
 	}
 
 	return ecdsaPubkey, eddsaPubkey, nil

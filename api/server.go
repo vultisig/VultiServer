@@ -203,9 +203,6 @@ func (s *Server) UploadVault(c echo.Context) error {
 	}
 
 	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
-	}
 
 	vault, err := common.DecryptVaultFromBackup(passwd, content)
 	if err != nil {
@@ -244,9 +241,6 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	}
 
 	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
-	}
 
 	content, err := os.ReadFile(filePathName)
 	if err != nil {
@@ -281,9 +275,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 	// password that used to decrypt the vault file
 	// if the password can't be used to decrypt the vault file, the keysign request should be rejected
 	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
-	}
+
 	// TODO: decrypt the vault file , if it failed to decrypt file , then reject the request
 
 	task, err := keysignReq.NewKeysignTask(passwd)
