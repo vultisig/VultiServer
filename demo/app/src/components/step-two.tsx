@@ -22,7 +22,12 @@ export default function StepTwo({
   const [canContinue, setCanContinue] = useState(false);
 
   const CreateVault = async () => {
-    const data = await (await createVault(vaultName, vaultPwd)).json();
+    const localPartyId = `VultiSignerApp-${
+      Math.floor(Math.random() * 1000) + 1
+    }`;
+    const data = await (
+      await createVault(vaultName, vaultPwd, localPartyId)
+    ).json();
     setQrCodeString(
       `vultisig://vultisig.com?type=NewVault&tssType=Keygen&jsonData=${data.keygen_msg}`
     );

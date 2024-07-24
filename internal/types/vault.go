@@ -12,6 +12,7 @@ import (
 // VaultCreateRequest is a struct that represents a request to create a new vault from integration.
 type VaultCreateRequest struct {
 	Name               string `json:"name" validate:"required"`
+	LocalPartyId       string `json:"local_party_id" validate:"required"`
 	EncryptionPassword string `json:"encryption_password" validate:"required"`
 }
 
