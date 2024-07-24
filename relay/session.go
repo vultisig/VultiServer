@@ -206,7 +206,7 @@ func (s *Server) CheckCompletedParties(sessionID string, partiesJoined []string)
 				continue
 			}
 
-			if common.IsSubset(peers, partiesJoined) {
+			if common.IsSubset(partiesJoined, peers) {
 				logging.Logger.Info("All parties have completed keygen successfully")
 				return true, nil
 			}
