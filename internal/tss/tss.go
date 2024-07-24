@@ -1,4 +1,4 @@
-package keygen
+package tss
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -21,6 +20,8 @@ import (
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
+
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 )
 
 func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
@@ -52,7 +53,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
 
-	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
+	tssServerImp, err := createTSSService(serverURL, kg.Session, kg.HexEncryptionKey, localStateAccessor, true)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
@@ -107,33 +108,6 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}
 
 	return ecdsaPubkey, eddsaPubkey, nil
-}
-
-func createTSSService(serverURL string, localStateAccessor tss.LocalStateAccessor, kg *types.KeyGeneration) (tss.Service, error) {
-	messenger := &relay.MessengerImp{
-		Server:           serverURL,
-		SessionID:        kg.Session,
-		HexEncryptionKey: kg.HexEncryptionKey,
-	}
-
-	tssService, err := tss.NewService(messenger, localStateAccessor, true)
-	if err != nil {
-		return nil, fmt.Errorf("create TSS service: %w", err)
-	}
-	return tssService, nil
-}
-
-func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
-	logging.Logger.WithFields(logrus.Fields{
-		"session": session,
-		"key":     key,
-	}).Info("Start downloading messages")
-
-	endCh := make(chan struct{})
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go relay.DownloadMessage(serverURL, session, key, hexEncryptionKey, tssService, endCh, wg)
-	return endCh, wg
 }
 
 func keygenWithRetry(serverURL string, kg *types.KeyGeneration, partiesJoined []string, tssService tss.Service) (string, string, error) {
@@ -271,4 +245,126 @@ func BackupVault(kg *types.KeyGeneration, partiesJoined []string, ecdsaPubkey, e
 	}
 
 	return nil
+}
+
+func createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool) (tss.Service, error) {
+	messenger := &relay.MessengerImp{
+		Server:           serverURL,
+		SessionID:        Session,
+		HexEncryptionKey: HexEncryptionKey,
+	}
+
+	tssService, err := tss.NewService(messenger, localStateAccessor, createPreParam)
+	if err != nil {
+		return nil, fmt.Errorf("create TSS service: %w", err)
+	}
+	return tssService, nil
+}
+
+func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
+	logging.Logger.WithFields(logrus.Fields{
+		"session": session,
+		"key":     key,
+	}).Info("Start downloading messages")
+
+	endCh := make(chan struct{})
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go relay.DownloadMessage(serverURL, session, key, hexEncryptionKey, tssService, endCh, wg)
+	return endCh, wg
+}
+
+func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
+	result := &types.KeysignResponse{
+		Signatures: []tss.KeysignResponse{},
+	}
+	keyFolder := config.AppConfig.Server.VaultsFilePath
+	serverURL := config.AppConfig.Relay.Server
+	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, ks.PublicKeyECDSA, ks.VaultPassword)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
+	}
+
+	localPartyId := localStateAccessor.Vault.LocalPartyId
+	server := relay.NewServer(serverURL)
+
+	// Let's register session here
+	if err := server.RegisterSession(ks.Session, localPartyId); err != nil {
+		return nil, fmt.Errorf("failed to register session: %w", err)
+	}
+	// wait longer for keysign start
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute+3*time.Second)
+	defer cancel()
+
+	partiesJoined, err := server.WaitForSessionStart(ctx, ks.Session)
+	logging.Logger.WithFields(logrus.Fields{
+		"session":        ks.Session,
+		"parties_joined": partiesJoined,
+	}).Info("Session started")
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for session start: %w", err)
+	}
+
+	tssServerImp, err := createTSSService(serverURL, ks.Session, ks.HexEncryptionKey, localStateAccessor, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TSS service: %w", err)
+	}
+
+	for _, message := range ks.Messages {
+		var signature *tss.KeysignResponse
+		for attempt := 0; attempt < 3; attempt++ {
+			signature, err = keysignWithRetry(serverURL, localPartyId, ks, partiesJoined, tssServerImp, message)
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+		result.Signatures = append(result.Signatures, *signature)
+	}
+
+	if err := server.CompleteSession(ks.Session, localPartyId); err != nil {
+		logging.Logger.WithFields(logrus.Fields{
+			"session": ks.Session,
+			"error":   err,
+		}).Error("Failed to complete session")
+	}
+
+	return result, nil
+}
+
+func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {
+	endCh, wg := startMessageDownload(serverURL, ks.Session, localPartyId, ks.HexEncryptionKey, tssService)
+
+	var signature *tss.KeysignResponse
+	var err error
+
+	if ks.IsECDSA {
+		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
+			PubKey:               ks.PublicKeyECDSA,
+			MessageToSign:        ks.Messages[0],
+			LocalPartyKey:        localPartyId,
+			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
+			DerivePath:           ks.DerivePath,
+		})
+	} else {
+		signature, err = tssService.KeysignEdDSA(&tss.KeysignRequest{
+			PubKey:               ks.PublicKeyECDSA,
+			MessageToSign:        msg,
+			LocalPartyKey:        localPartyId,
+			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
+			DerivePath:           ks.DerivePath,
+		})
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("fail to key sign: %w", err)
+	}
+
+	close(endCh)
+	wg.Wait()
+
+	return signature, nil
 }

@@ -19,8 +19,9 @@ type KeyGenerationPayload struct {
 type KeysignPayload struct {
 	PublicKeyECDSA   string   `json:"public_key_ecdsa"`   // ECDSA public key, used to identify the backup file
 	Messages         []string `json:"messages"`           // Messages need to be signed
-	Session          string   `json:"session"`            // Session ID , it should be an UUID
+	SessionID        string   `json:"session"`            // Session ID , it should be an UUID
 	HexEncryptionKey string   `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages
+	DerivePath       string   `json:"derive_path"`        // Derive Path
 	IsECDSA          bool     `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
 	VaultPassword    string   `json:"vault_password"`     // password used to decrypt the vault file
 }

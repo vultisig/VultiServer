@@ -9,9 +9,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/keygen"
 	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/tasks"
+	"github.com/vultisig/vultisigner/internal/tss"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
@@ -47,7 +47,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 		"HexEncryptionKey": p.HexEncryptionKey,
 	}).Info("Joining keygen")
 
-	keyECDSA, keyEDDSA, err := keygen.JoinKeyGeneration(&types.KeyGeneration{
+	keyECDSA, keyEDDSA, err := tss.JoinKeyGeneration(&types.KeyGeneration{
 		Name:               p.Name,
 		Key:                p.LocalKey,
 		Session:            p.SessionID,
@@ -75,6 +75,49 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 	}
 
 	resultBytes, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if _, err := t.ResultWriter().Write(resultBytes); err != nil {
+		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	return nil
+}
+
+func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error {
+	var p tasks.KeysignPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	logging.Logger.WithFields(logrus.Fields{
+		"PublicKeyECDSA":   p.PublicKeyECDSA,
+		"session":          p.SessionID,
+		"Messages":         p.Messages,
+		"HexEncryptionKey": p.HexEncryptionKey,
+		"DerivePath":       p.DerivePath,
+		"IsECDSA":          p.IsECDSA,
+	}).Info("Joining keygen")
+
+	result, err := tss.JoinKeySign(&types.KeysignRequest{
+		PublicKeyECDSA:   p.PublicKeyECDSA,
+		Session:          p.SessionID,
+		Messages:         p.Messages,
+		HexEncryptionKey: p.HexEncryptionKey,
+		DerivePath:       p.DerivePath,
+		IsECDSA:          p.IsECDSA,
+		VaultPassword:    p.VaultPassword,
+	})
+	if err != nil {
+		return fmt.Errorf("keysign.JoinKeySign failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	logging.Logger.WithFields(logrus.Fields{
+		"Signatures": result.Signatures,
+	}).Info("Key sign completed")
+
+	resultBytes, err := json.Marshal(*result)
 	if err != nil {
 		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
 	}

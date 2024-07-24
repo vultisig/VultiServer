@@ -16,7 +16,9 @@ type KeysignRequest struct {
 	Messages         []string `json:"messages"`           // Messages need to be signed
 	Session          string   `json:"session"`            // Session ID , it should be an UUID
 	HexEncryptionKey string   `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages
+	DerivePath       string   `json:"derive_path"`        // Derive Path
 	IsECDSA          bool     `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
+	VaultPassword    string   `json:"vault_password"`     // password used to decrypt the vault file
 }
 
 // IsValid checks if the keysign request is valid
@@ -33,6 +35,9 @@ func (r KeysignRequest) IsValid() error {
 	if r.HexEncryptionKey == "" {
 		return errors.New("invalid hex encryption key")
 	}
+	if r.DerivePath == "" {
+		return errors.New("invalid derive path")
+	}
 	return nil
 }
 
@@ -41,8 +46,9 @@ func (r KeysignRequest) NewKeysignTask(vaultPassword string) (*asynq.Task, error
 	buf, err := json.Marshal(tasks.KeysignPayload{
 		PublicKeyECDSA:   r.PublicKeyECDSA,
 		Messages:         r.Messages,
-		Session:          r.Session,
+		SessionID:        r.Session,
 		HexEncryptionKey: r.HexEncryptionKey,
+		DerivePath:       r.DerivePath,
 		IsECDSA:          r.IsECDSA,
 		VaultPassword:    vaultPassword,
 	})

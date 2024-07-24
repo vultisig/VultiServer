@@ -42,6 +42,7 @@ func main() {
 	// mux maps a type to a handler
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypeKeyGeneration, workerServce.HandleKeyGeneration)
+	mux.HandleFunc(tasks.TypeKeySign, workerServce.HandleKeySign)
 	// mux.Handle(tasks.TypeKeyGeneration, tasks.I())
 	// ...register other handlers...
 
