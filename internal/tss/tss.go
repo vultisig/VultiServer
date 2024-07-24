@@ -48,10 +48,11 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor := &relay.LocalStateAccessorImp{
-		Key:    kg.Key,
-		Folder: keyFolder,
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(kg.Key, keyFolder, "", "")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
+
 	tssServerImp, err := createTSSService(serverURL, kg.Session, kg.HexEncryptionKey, localStateAccessor, true)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
@@ -76,6 +77,14 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		}).Error("Failed to complete session")
 	}
 
+	if isCompleted, err := server.CheckCompletedParties(kg.Session, partiesJoined); err != nil || !isCompleted {
+		logging.Logger.WithFields(logrus.Fields{
+			"session":     kg.Session,
+			"isCompleted": isCompleted,
+			"error":       err,
+		}).Error("Failed to check completed parties")
+	}
+
 	if err := server.EndSession(kg.Session); err != nil {
 		logging.Logger.WithFields(logrus.Fields{
 			"session": kg.Session,
@@ -84,9 +93,18 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}
 
 	err = BackupVault(kg, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
+	}
+
+	err = localStateAccessor.RemoveLocalState(ecdsaPubkey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to remove local state: %w", err)
+	}
+
+	err = localStateAccessor.RemoveLocalState(eddsaPubkey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to remove local state: %w", err)
 	}
 
 	return ecdsaPubkey, eddsaPubkey, nil

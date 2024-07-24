@@ -129,6 +129,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 	}
 
 	cacheItem := types.VaultCacheItem{
+		LocalKey:           req.LocalPartyId,
 		Name:               req.Name,
 		SessionID:          sessionID,
 		HexEncryptionKey:   encryptionKey,
