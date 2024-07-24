@@ -47,10 +47,12 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor := &relay.LocalStateAccessorImp{
-		Key:    kg.Key,
-		Folder: keyFolder,
+	var localStateAccessor *relay.LocalStateAccessorImp
+	err = localStateAccessor.NewLocalStateAccessorImp(kg.Key, keyFolder, "", "")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
+
 	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
