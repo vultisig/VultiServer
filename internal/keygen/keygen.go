@@ -47,8 +47,7 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	var localStateAccessor *relay.LocalStateAccessorImp
-	err = localStateAccessor.NewLocalStateAccessorImp(kg.Key, keyFolder, "", "")
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(kg.Key, keyFolder, "", "")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
