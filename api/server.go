@@ -285,6 +285,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
+
 	// TODO: decrypt the vault file , if it failed to decrypt file , then reject the request
 
 	task, err := keysignReq.NewKeysignTask(passwd)

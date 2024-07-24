@@ -47,10 +47,11 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor := &relay.LocalStateAccessorImp{
-		Key:    kg.Key,
-		Folder: keyFolder,
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(kg.Key, keyFolder, "", "")
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
+
 	tssServerImp, err := createTSSService(serverURL, localStateAccessor, kg)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
@@ -91,9 +92,18 @@ func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
 	}
 
 	err = BackupVault(kg, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
-
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
+	}
+
+	err = localStateAccessor.RemoveLocalState(ecdsaPubkey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to remove local state: %w", err)
+	}
+
+	err = localStateAccessor.RemoveLocalState(eddsaPubkey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to remove local state: %w", err)
 	}
 
 	return ecdsaPubkey, eddsaPubkey, nil
