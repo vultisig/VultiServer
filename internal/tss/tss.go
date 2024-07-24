@@ -278,10 +278,14 @@ func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
 	result := &types.KeysignResponse{
 		Signatures: []tss.KeysignResponse{},
 	}
-	localPartyId := "Vultisigner" // This will be replaced to get from the vault once https://github.com/vultisig/vultisigner/issues/47 is done
 	keyFolder := config.AppConfig.Server.VaultsFilePath
 	serverURL := config.AppConfig.Relay.Server
+	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, ks.PublicKeyECDSA, ks.VaultPassword)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
+	}
 
+	localPartyId := localStateAccessor.Vault.LocalPartyId
 	server := relay.NewServer(serverURL)
 
 	// Let's register session here
@@ -302,10 +306,6 @@ func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
 		return nil, fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor := &relay.LocalStateAccessorImp{
-		Key:    localPartyId,
-		Folder: keyFolder,
-	}
 	tssServerImp, err := createTSSService(serverURL, ks.Session, ks.HexEncryptionKey, localStateAccessor, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TSS service: %w", err)

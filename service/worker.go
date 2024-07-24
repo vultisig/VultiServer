@@ -94,7 +94,6 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	logging.Logger.WithFields(logrus.Fields{
 		"PublicKeyECDSA":   p.PublicKeyECDSA,
 		"session":          p.SessionID,
-		"local_key":        p.LocalKey,
 		"Messages":         p.Messages,
 		"HexEncryptionKey": p.HexEncryptionKey,
 		"DerivePath":       p.DerivePath,
@@ -108,6 +107,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		HexEncryptionKey: p.HexEncryptionKey,
 		DerivePath:       p.DerivePath,
 		IsECDSA:          p.IsECDSA,
+		VaultPassword:    p.VaultPassword,
 	})
 	if err != nil {
 		return fmt.Errorf("keysign.JoinKeySign failed: %v: %w", err, asynq.SkipRetry)
