@@ -18,7 +18,7 @@ export default function Signer() {
 
   return (
     <>
-      <section className="h-[70vh] flex justify-center items-center">
+      <section className="h-[55vh] flex justify-center items-center">
         {(currentStep === 1 || currentStep === 2) && (
           <AnimatePresence mode="wait">
             <>
