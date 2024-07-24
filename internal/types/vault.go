@@ -1,6 +1,7 @@
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/hibiken/asynq"
@@ -11,6 +12,7 @@ import (
 // VaultCreateRequest is a struct that represents a request to create a new vault from integration.
 type VaultCreateRequest struct {
 	Name               string `json:"name" validate:"required"`
+	LocalPartyId       string `json:"local_party_id" validate:"required"`
 	EncryptionPassword string `json:"encryption_password" validate:"required"`
 }
 
@@ -26,6 +28,7 @@ type VaultCreateResponse struct {
 
 // VaultCacheItem is a struct that represents the vault information stored in cache
 type VaultCacheItem struct {
+	LocalKey           string `json:"key"`
 	Name               string `json:"name"`
 	SessionID          string `json:"session_id"`
 	HexEncryptionKey   string `json:"hex_encryption_key"`
@@ -38,14 +41,16 @@ func (v *VaultCacheItem) Key() string {
 }
 
 func (v *VaultCacheItem) Task() (*asynq.Task, error) {
-	task, err := tasks.NewKeyGeneration("VultiSignerApp",
-		v.Name,
-		v.SessionID,
-		v.HexChainCode,
-		v.HexEncryptionKey,
-		v.EncryptionPassword)
+	payload, err := json.Marshal(tasks.KeyGenerationPayload{
+		LocalKey:           v.LocalKey,
+		Name:               v.Name,
+		SessionID:          v.SessionID,
+		ChainCode:          v.HexChainCode,
+		HexEncryptionKey:   v.HexEncryptionKey,
+		EncryptionPassword: v.EncryptionPassword})
 	if err != nil {
-		return nil, fmt.Errorf("fail to create task, err: %w", err)
+		return nil, fmt.Errorf("fail to marshal keygen payload to json,err: %w", err)
 	}
-	return task, nil
+
+	return asynq.NewTask(tasks.TypeKeyGeneration, payload), nil
 }
