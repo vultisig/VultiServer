@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/internal/logging"
 )
 
@@ -167,6 +168,57 @@ func (s *Server) CompleteSession(sessionID, localPartyID string) error {
 		return fmt.Errorf("fail to complete session: %s", resp.Status)
 	}
 	return nil
+}
+
+func (s *Server) CheckCompletedParties(sessionID string, partiesJoined []string) (bool, error) {
+	sessionURL := s.vultisigRelay + "/complete/" + sessionID
+	start := time.Now()
+	timeout := time.Minute
+
+	for {
+		req, err := http.NewRequest(http.MethodGet, sessionURL, nil)
+		if err != nil {
+			return false, fmt.Errorf("fail to check completed parties: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return false, fmt.Errorf("fail to check completed parties: %w", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return false, fmt.Errorf("fail to check completed parties: %s", resp.Status)
+		}
+		defer resp.Body.Close()
+
+		result, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return false, fmt.Errorf("fail to fetch request: %w", err)
+		}
+
+		if len(result) > 0 {
+			var peers []string
+			err := json.Unmarshal(result, &peers)
+			if err != nil {
+				logging.Logger.WithFields(logrus.Fields{
+					"error": err,
+				}).Error("Failed to decode response to JSON")
+				continue
+			}
+
+			if common.IsSubset(partiesJoined, peers) {
+				logging.Logger.Info("All parties have completed keygen successfully")
+				return true, nil
+			}
+		}
+
+		time.Sleep(time.Second)
+		if time.Since(start) >= timeout {
+			break
+		}
+	}
+
+	return false, nil
 }
 
 func (s *Server) EndSession(sessionID string) error {
