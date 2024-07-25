@@ -75,9 +75,9 @@ func (s *Server) StartServer() error {
 	}))
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
-	grp.GET("/download/{publicKeyECDSA}", s.DownloadVault)
-	grp.POST("/sign", s.SignMessages)                       // Sign messages
-	grp.GET("/sign/response/{task_id}", s.GetKeysignResult) // Get keysign result
+	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	grp.POST("/sign", s.SignMessages)                     // Sign messages
+	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	host := config.AppConfig.Server.Host
 	return e.Start(fmt.Sprintf("%s:%d", host, s.port))
 }
@@ -315,7 +315,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 
 // GetKeysignResult is a handler to get the keysign response
 func (s *Server) GetKeysignResult(c echo.Context) error {
-	taskID := c.QueryParam("task_id")
+	taskID := c.Param("taskId")
 	if taskID == "" {
 		return fmt.Errorf("task id is required")
 	}
