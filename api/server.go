@@ -70,9 +70,9 @@ func (s *Server) StartServer() error {
 		return c.File("./demo/generated/index.html")
 	})
 	grp := e.Group("/vault")
-	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
-		Validator: s.AuthenticationValidator,
-	}))
+	// grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
+	// 	Validator: s.AuthenticationValidator,
+	// }))
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
