@@ -274,10 +274,8 @@ func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssS
 	return endCh, wg
 }
 
-func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
-	result := &types.KeysignResponse{
-		Signatures: []tss.KeysignResponse{},
-	}
+func JoinKeySign(ks *types.KeysignRequest) ([]tss.KeysignResponse, error) {
+	signatures := []tss.KeysignResponse{}
 	keyFolder := config.AppConfig.Server.VaultsFilePath
 	serverURL := config.AppConfig.Relay.Server
 	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, ks.PublicKeyECDSA, ks.VaultPassword)
@@ -322,7 +320,7 @@ func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
 		if err != nil {
 			return nil, err
 		}
-		result.Signatures = append(result.Signatures, *signature)
+		signatures = append(signatures, *signature)
 	}
 
 	if err := server.CompleteSession(ks.Session, localPartyId); err != nil {
@@ -332,7 +330,7 @@ func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
 		}).Error("Failed to complete session")
 	}
 
-	return result, nil
+	return signatures, nil
 }
 
 func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {

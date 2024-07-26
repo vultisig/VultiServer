@@ -19,6 +19,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
+	keysignTypes "github.com/vultisig/commondata/go/vultisig/keysign/v1"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/vultisig/vultisigner/common"
@@ -265,7 +266,7 @@ func (s *Server) DownloadVault(c echo.Context) error {
 
 // SignMessages is a handler to process Keysing request
 func (s *Server) SignMessages(c echo.Context) error {
-	var keysignReq types.KeysignRequest
+	var keysignReq types.KeysignAPIRequest
 	if err := c.Bind(&keysignReq); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
@@ -273,8 +274,14 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
 
+	sessionID := uuid.New().String()
+	encryptionKey, err := s.getHexEncodedRandomBytes()
+	if err != nil {
+		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
+	}
+
 	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKeyECDSA+".bak")
-	_, err := os.Stat(filePathName)
+	_, err = os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
 	}
@@ -291,12 +298,67 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
 
-	_, err = common.DecryptVaultFromBackup(passwd, content)
+	vault, err := common.DecryptVaultFromBackup(passwd, content)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
 
-	task, err := keysignReq.NewKeysignTask(passwd)
+	// In the demo, it doesn't support utxo, swapPayload, approvePayload
+	keysignMsg := &keysignTypes.KeysignMessage{
+		SessionId:        sessionID,
+		ServiceName:      "VultiSignerApp",
+		EncryptionKeyHex: encryptionKey,
+		KeysignPayload: &keysignTypes.KeysignPayload{
+			Coin: &keysignTypes.Coin{
+				Chain:           keysignReq.Payload.Coin.Chain,
+				Ticker:          keysignReq.Payload.Coin.Ticker,
+				Address:         keysignReq.Payload.Coin.Address,
+				ContractAddress: keysignReq.Payload.Coin.ContractAddress,
+				Decimals:        keysignReq.Payload.Coin.Decimals,
+				PriceProviderId: keysignReq.Payload.Coin.PriceProviderId,
+				IsNativeToken:   keysignReq.Payload.Coin.IsNativeToken,
+				HexPublicKey:    keysignReq.Payload.Coin.HexPublicKey,
+				Logo:            keysignReq.Payload.Coin.Logo,
+			},
+			ToAddress: keysignReq.Payload.ToAddress,
+			ToAmount:  keysignReq.Payload.ToAmount,
+			BlockchainSpecific: &keysignTypes.KeysignPayload_ThorchainSpecific{
+				ThorchainSpecific: &keysignTypes.THORChainSpecific{
+					AccountNumber: keysignReq.Payload.AccountNumber,
+					Sequence:      keysignReq.Payload.Sequence,
+					Fee:           keysignReq.Payload.Fee,
+				},
+			},
+			UtxoInfo:            []*keysignTypes.UtxoInfo{},
+			Memo:                &keysignReq.Payload.Memo,
+			SwapPayload:         nil,
+			Erc20ApprovePayload: nil,
+			VaultPublicKeyEcdsa: vault.PublicKeyEcdsa,
+			VaultLocalPartyId:   vault.LocalPartyId,
+		},
+		UseVultisigRelay: true,
+	}
+
+	serializedData, err := proto.Marshal(keysignMsg)
+	if err != nil {
+		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
+	}
+
+	var buf bytes.Buffer
+	writer, err := flate.NewWriter(&buf, 5)
+	if err != nil {
+		return fmt.Errorf("flate.NewWriter failed, err: %w", err)
+	}
+	_, err = writer.Write(serializedData)
+	if err != nil {
+		return fmt.Errorf("writer.Write failed, err: %w", err)
+	}
+	err = writer.Close()
+	if err != nil {
+		return fmt.Errorf("writer.Close failed, err: %w", err)
+	}
+
+	task, err := keysignReq.NewKeysignTask(passwd, sessionID, encryptionKey)
 	if err != nil {
 		return fmt.Errorf("fail to create task, err: %w", err)
 	}
@@ -308,8 +370,16 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
-	// return the task id to the client , so we can use the id to retrieve the task result
-	return c.JSON(http.StatusOK, ti.ID)
+
+	resp := types.KeysignAPIResponse{
+		SessionID:        sessionID,
+		HexEncryptionKey: encryptionKey,
+		HexChainCode:     vault.HexChainCode,
+		KeysignMsg:       base64.StdEncoding.EncodeToString(buf.Bytes()),
+		TaskId:           ti.ID, // return the task id to the client , so we can use the id to retrieve the task result
+	}
+
+	return c.JSON(http.StatusOK, resp)
 
 }
 

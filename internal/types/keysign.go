@@ -6,34 +6,47 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
-	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/internal/tasks"
 )
 
-type KeysignRequest struct {
-	PublicKeyECDSA   string   `json:"public_key_ecdsa"`   // ECDSA public key, used to identify the backup file
-	Messages         []string `json:"messages"`           // Messages need to be signed
-	Session          string   `json:"session"`            // Session ID , it should be an UUID
-	HexEncryptionKey string   `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages
-	DerivePath       string   `json:"derive_path"`        // Derive Path
-	IsECDSA          bool     `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
-	VaultPassword    string   `json:"vault_password"`     // password used to decrypt the vault file
+type Coin struct {
+	Chain           string
+	Ticker          string
+	Address         string
+	ContractAddress string
+	Decimals        int32
+	PriceProviderId string
+	IsNativeToken   bool
+	HexPublicKey    string
+	Logo            string
+}
+
+type KeysignPayload struct {
+	Coin          Coin
+	AccountNumber uint64
+	Sequence      uint64
+	Fee           uint64
+	ToAddress     string
+	ToAmount      string
+	Memo          string
+}
+
+type KeysignAPIRequest struct {
+	PublicKeyECDSA string         `json:"public_key_ecdsa"` // ECDSA public key, used to identify the backup file
+	Messages       []string       `json:"messages"`         // Messages need to be signed
+	DerivePath     string         `json:"derive_path"`      // Derive Path
+	IsECDSA        bool           `json:"is_ecdsa"`         // indicate use ECDSA or EDDSA key to sign the messages
+	Payload        KeysignPayload `json:"payload"`          // password used to decrypt the vault file
 }
 
 // IsValid checks if the keysign request is valid
-func (r KeysignRequest) IsValid() error {
+func (r KeysignAPIRequest) IsValid() error {
 	if r.PublicKeyECDSA == "" {
 		return errors.New("invalid public key ECDSA")
 	}
 	if len(r.Messages) == 0 {
 		return errors.New("invalid messages")
-	}
-	if r.Session == "" {
-		return errors.New("invalid session")
-	}
-	if r.HexEncryptionKey == "" {
-		return errors.New("invalid hex encryption key")
 	}
 	if r.DerivePath == "" {
 		return errors.New("invalid derive path")
@@ -42,12 +55,12 @@ func (r KeysignRequest) IsValid() error {
 }
 
 // NewKeysignTask creates a new task to sign the messages
-func (r KeysignRequest) NewKeysignTask(vaultPassword string) (*asynq.Task, error) {
+func (r KeysignAPIRequest) NewKeysignTask(vaultPassword, sessionID, encryptionKey string) (*asynq.Task, error) {
 	buf, err := json.Marshal(tasks.KeysignPayload{
 		PublicKeyECDSA:   r.PublicKeyECDSA,
 		Messages:         r.Messages,
-		SessionID:        r.Session,
-		HexEncryptionKey: r.HexEncryptionKey,
+		SessionID:        sessionID,
+		HexEncryptionKey: encryptionKey,
 		DerivePath:       r.DerivePath,
 		IsECDSA:          r.IsECDSA,
 		VaultPassword:    vaultPassword,
@@ -59,6 +72,21 @@ func (r KeysignRequest) NewKeysignTask(vaultPassword string) (*asynq.Task, error
 
 }
 
-type KeysignResponse struct {
-	Signatures []tss.KeysignResponse `json:"signature"` // Signature of the messages
+type KeysignAPIResponse struct {
+	SessionID        string `json:"session_id"`
+	HexEncryptionKey string `json:"hex_encryption_key"`
+	HexChainCode     string `json:"hex_chain_code"`
+	KeysignMsg       string `json:"keysign_msg"`
+	TaskId           string `json:"task_id"`
+}
+
+type KeysignRequest struct {
+	PublicKeyECDSA   string         `json:"public_key_ecdsa"`   // ECDSA public key, used to identify the backup file
+	Messages         []string       `json:"messages"`           // Messages need to be signed
+	Session          string         `json:"session"`            // Session ID , it should be an UUID
+	HexEncryptionKey string         `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages
+	DerivePath       string         `json:"derive_path"`        // Derive Path
+	IsECDSA          bool           `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
+	VaultPassword    string         `json:"vault_password"`     // password used to decrypt the vault file
+	Payload          KeysignPayload `json:"payload"`            // password used to decrypt the vault file
 }
