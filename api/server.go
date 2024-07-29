@@ -158,22 +158,22 @@ func (s *Server) CreateVault(c echo.Context) error {
 
 	var compressedData bytes.Buffer
 	// Create a new XZ writer.
-    xzWriter, err := xz.NewWriter(&compressedData)
-    if err != nil {
-        return fmt.Errorf("xz.NewWriter failed, err: %w", err)
-    }
-    defer xzWriter.Close()
+	xzWriter, err := xz.NewWriter(&compressedData)
+	if err != nil {
+		return fmt.Errorf("xz.NewWriter failed, err: %w", err)
+	}
+	defer xzWriter.Close()
 
 	// Write the input data to the XZ writer.
-    _, err = xzWriter.Write(serializedData)
-    if err != nil {
-        return fmt.Errorf("xzWriter.Write failed, err: %w", err)
-    }
+	_, err = xzWriter.Write(serializedData)
+	if err != nil {
+		return fmt.Errorf("xzWriter.Write failed, err: %w", err)
+	}
 
-    err = xzWriter.Close()
-    if err != nil {
-        return fmt.Errorf("xzWriter.Close failed, err: %w", err)
-    }
+	err = xzWriter.Close()
+	if err != nil {
+		return fmt.Errorf("xzWriter.Close failed, err: %w", err)
+	}
 
 	resp := types.VaultCreateResponse{
 		Name:             req.Name,
