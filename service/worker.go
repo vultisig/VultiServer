@@ -92,7 +92,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	logging.Logger.WithFields(logrus.Fields{
-		"PublicKeyECDSA":   p.PublicKeyECDSA,
+		"PublicKey":        p.PublicKey,
 		"session":          p.SessionID,
 		"Messages":         p.Messages,
 		"HexEncryptionKey": p.HexEncryptionKey,
@@ -101,7 +101,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	}).Info("Joining keygen")
 
 	signatures, err := tss.JoinKeySign(&types.KeysignRequest{
-		PublicKeyECDSA:   p.PublicKeyECDSA,
+		PublicKey:        p.PublicKey,
 		Session:          p.SessionID,
 		Messages:         p.Messages,
 		HexEncryptionKey: p.HexEncryptionKey,

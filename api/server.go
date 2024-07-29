@@ -18,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/ulikunitz/xz"
 	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	keysignTypes "github.com/vultisig/commondata/go/vultisig/keysign/v1"
 	"google.golang.org/protobuf/proto"
@@ -280,7 +281,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKeyECDSA+".bak")
+	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKey+".bak")
 	_, err = os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
@@ -303,39 +304,15 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
 
-	// In the demo, it doesn't support utxo, swapPayload, approvePayload
+	keysignPayload := keysignReq.Payload
+	keysignPayload.VaultPublicKeyEcdsa = vault.PublicKeyEcdsa
+	keysignPayload.VaultLocalPartyId = vault.LocalPartyId
+
 	keysignMsg := &keysignTypes.KeysignMessage{
 		SessionId:        sessionID,
 		ServiceName:      "VultiSignerApp",
 		EncryptionKeyHex: encryptionKey,
-		KeysignPayload: &keysignTypes.KeysignPayload{
-			Coin: &keysignTypes.Coin{
-				Chain:           keysignReq.Payload.Coin.Chain,
-				Ticker:          keysignReq.Payload.Coin.Ticker,
-				Address:         keysignReq.Payload.Coin.Address,
-				ContractAddress: keysignReq.Payload.Coin.ContractAddress,
-				Decimals:        keysignReq.Payload.Coin.Decimals,
-				PriceProviderId: keysignReq.Payload.Coin.PriceProviderId,
-				IsNativeToken:   keysignReq.Payload.Coin.IsNativeToken,
-				HexPublicKey:    keysignReq.Payload.Coin.HexPublicKey,
-				Logo:            keysignReq.Payload.Coin.Logo,
-			},
-			ToAddress: keysignReq.Payload.ToAddress,
-			ToAmount:  keysignReq.Payload.ToAmount,
-			BlockchainSpecific: &keysignTypes.KeysignPayload_ThorchainSpecific{
-				ThorchainSpecific: &keysignTypes.THORChainSpecific{
-					AccountNumber: keysignReq.Payload.AccountNumber,
-					Sequence:      keysignReq.Payload.Sequence,
-					Fee:           keysignReq.Payload.Fee,
-				},
-			},
-			UtxoInfo:            []*keysignTypes.UtxoInfo{},
-			Memo:                &keysignReq.Payload.Memo,
-			SwapPayload:         nil,
-			Erc20ApprovePayload: nil,
-			VaultPublicKeyEcdsa: vault.PublicKeyEcdsa,
-			VaultLocalPartyId:   vault.LocalPartyId,
-		},
+		KeysignPayload:   keysignPayload,
 		UseVultisigRelay: true,
 	}
 
@@ -344,18 +321,23 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
 	}
 
-	var buf bytes.Buffer
-	writer, err := flate.NewWriter(&buf, 5)
+	var compressedData bytes.Buffer
+	// Create a new XZ writer.
+	xzWriter, err := xz.NewWriter(&compressedData)
 	if err != nil {
-		return fmt.Errorf("flate.NewWriter failed, err: %w", err)
+		return fmt.Errorf("xz.NewWriter failed, err: %w", err)
 	}
-	_, err = writer.Write(serializedData)
+	defer xzWriter.Close()
+
+	// Write the input data to the XZ writer.
+	_, err = xzWriter.Write(serializedData)
 	if err != nil {
-		return fmt.Errorf("writer.Write failed, err: %w", err)
+		return fmt.Errorf("xzWriter.Write failed, err: %w", err)
 	}
-	err = writer.Close()
+
+	err = xzWriter.Close()
 	if err != nil {
-		return fmt.Errorf("writer.Close failed, err: %w", err)
+		return fmt.Errorf("xzWriter.Close failed, err: %w", err)
 	}
 
 	task, err := keysignReq.NewKeysignTask(passwd, sessionID, encryptionKey)
@@ -375,7 +357,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     vault.HexChainCode,
-		KeysignMsg:       base64.StdEncoding.EncodeToString(buf.Bytes()),
+		KeysignMsg:       base64.StdEncoding.EncodeToString(compressedData.Bytes()),
 		TaskId:           ti.ID, // return the task id to the client , so we can use the id to retrieve the task result
 	}
 

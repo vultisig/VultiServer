@@ -17,7 +17,7 @@ type KeyGenerationPayload struct {
 
 // KeysignPayload is a struct that represent a requst submitted to redis queue to sign messages
 type KeysignPayload struct {
-	PublicKeyECDSA   string   `json:"public_key_ecdsa"`   // ECDSA public key, used to identify the backup file
+	PublicKey        string   `json:"public_key"`         // public key, used to identify the backup file
 	Messages         []string `json:"messages"`           // Messages need to be signed
 	SessionID        string   `json:"session"`            // Session ID , it should be an UUID
 	HexEncryptionKey string   `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages

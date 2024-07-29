@@ -7,42 +7,21 @@ import (
 
 	"github.com/hibiken/asynq"
 
+	keysignTypes "github.com/vultisig/commondata/go/vultisig/keysign/v1"
 	"github.com/vultisig/vultisigner/internal/tasks"
 )
 
-type Coin struct {
-	Chain           string
-	Ticker          string
-	Address         string
-	ContractAddress string
-	Decimals        int32
-	PriceProviderId string
-	IsNativeToken   bool
-	HexPublicKey    string
-	Logo            string
-}
-
-type KeysignPayload struct {
-	Coin          Coin
-	AccountNumber uint64
-	Sequence      uint64
-	Fee           uint64
-	ToAddress     string
-	ToAmount      string
-	Memo          string
-}
-
 type KeysignAPIRequest struct {
-	PublicKeyECDSA string         `json:"public_key_ecdsa"` // ECDSA public key, used to identify the backup file
-	Messages       []string       `json:"messages"`         // Messages need to be signed
-	DerivePath     string         `json:"derive_path"`      // Derive Path
-	IsECDSA        bool           `json:"is_ecdsa"`         // indicate use ECDSA or EDDSA key to sign the messages
-	Payload        KeysignPayload `json:"payload"`          // password used to decrypt the vault file
+	PublicKey  string                       `json:"public_key"`  // public key, used to identify the backup file
+	Messages   []string                     `json:"messages"`    // Messages need to be signed
+	DerivePath string                       `json:"derive_path"` // Derive Path
+	IsECDSA    bool                         `json:"is_ecdsa"`    // indicate use ECDSA or EDDSA key to sign the messages
+	Payload    *keysignTypes.KeysignPayload `json:"payload"`     // keysign payload
 }
 
 // IsValid checks if the keysign request is valid
 func (r KeysignAPIRequest) IsValid() error {
-	if r.PublicKeyECDSA == "" {
+	if r.PublicKey == "" {
 		return errors.New("invalid public key ECDSA")
 	}
 	if len(r.Messages) == 0 {
@@ -51,13 +30,16 @@ func (r KeysignAPIRequest) IsValid() error {
 	if r.DerivePath == "" {
 		return errors.New("invalid derive path")
 	}
+	if r.Payload == nil {
+		return errors.New("invalid payload")
+	}
 	return nil
 }
 
 // NewKeysignTask creates a new task to sign the messages
 func (r KeysignAPIRequest) NewKeysignTask(vaultPassword, sessionID, encryptionKey string) (*asynq.Task, error) {
 	buf, err := json.Marshal(tasks.KeysignPayload{
-		PublicKeyECDSA:   r.PublicKeyECDSA,
+		PublicKey:        r.PublicKey,
 		Messages:         r.Messages,
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
@@ -81,12 +63,12 @@ type KeysignAPIResponse struct {
 }
 
 type KeysignRequest struct {
-	PublicKeyECDSA   string         `json:"public_key_ecdsa"`   // ECDSA public key, used to identify the backup file
-	Messages         []string       `json:"messages"`           // Messages need to be signed
-	Session          string         `json:"session"`            // Session ID , it should be an UUID
-	HexEncryptionKey string         `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages
-	DerivePath       string         `json:"derive_path"`        // Derive Path
-	IsECDSA          bool           `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
-	VaultPassword    string         `json:"vault_password"`     // password used to decrypt the vault file
-	Payload          KeysignPayload `json:"payload"`            // password used to decrypt the vault file
+	PublicKey        string                      `json:"public_key"`         // ECDSA public key, used to identify the backup file
+	Messages         []string                    `json:"messages"`           // Messages need to be signed
+	Session          string                      `json:"session"`            // Session ID , it should be an UUID
+	HexEncryptionKey string                      `json:"hex_encryption_key"` // Hex encryption key, used to encrypt the keysign messages
+	DerivePath       string                      `json:"derive_path"`        // Derive Path
+	IsECDSA          bool                        `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
+	VaultPassword    string                      `json:"vault_password"`     // password used to decrypt the vault file
+	Payload          keysignTypes.KeysignPayload `json:"payload"`            // keysign payload
 }
