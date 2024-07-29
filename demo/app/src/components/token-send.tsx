@@ -1,11 +1,20 @@
 import React, { useState } from "react";
 import { initWasm, TW, WalletCore } from "@trustwallet/wallet-core";
+import { endPoints } from "../api/endpoints";
+import {
+  Coin,
+  KeysignPayload,
+  KeysignPayloadType,
+  KeysignResponse,
+  THORChainSpecific,
+} from "../utils/types";
 
 const TokenSend: React.FC = () => {
   const [vaultAddress, setVaultAddress] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
   const [toAddress, setToAddress] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
+  const [passwd, setPasswd] = useState<string>("");
 
   const rpcEndpoint = "https://thornode.ninerealms.com";
 
@@ -26,7 +35,7 @@ const TokenSend: React.FC = () => {
 
   function getPreSignedInputData(
     walletCore: WalletCore,
-    keysignPayload: KeysignPayload
+    keysignPayload: KeysignPayloadType
   ): Uint8Array {
     const { AnyAddress } = walletCore;
 
@@ -39,24 +48,24 @@ const TokenSend: React.FC = () => {
       return Uint8Array.of();
     }
 
-    if (!keysignPayload.chainSpecific) {
+    if (!keysignPayload.blockchain_specific) {
       console.error("fail to get account number, sequence, or fee");
       return Uint8Array.of();
     }
 
-    const { accountNumber, sequence } = keysignPayload.chainSpecific;
-    const pubKeyData = Buffer.from(keysignPayload.coin.hexPublicKey, "hex");
+    const { account_number, sequence } = keysignPayload.thorchain_specific;
+    const pubKeyData = Buffer.from(keysignPayload.coin.hex_public_key, "hex");
     if (!pubKeyData) {
       console.error("invalid hex public key");
       return Uint8Array.of();
     }
 
     const toAddress = AnyAddress.createWithString(
-      keysignPayload.toAddress,
+      keysignPayload.to_address,
       walletCore.CoinType.thorchain
     );
     if (!toAddress) {
-      console.error(`${keysignPayload.toAddress} is invalid`);
+      console.error(`${keysignPayload.to_address} is invalid`);
       return Uint8Array.of();
     }
 
@@ -67,7 +76,7 @@ const TokenSend: React.FC = () => {
           amounts: [
             TW.Cosmos.Proto.Amount.create({
               denom: "rune",
-              amount: keysignPayload.toAmount.toString(),
+              amount: keysignPayload.to_amount.toString(),
             }),
           ],
           toAddress: toAddress.data(),
@@ -84,7 +93,7 @@ const TokenSend: React.FC = () => {
       publicKey: pubKeyData,
       signingMode: TW.Cosmos.Proto.SigningMode.Protobuf,
       chainId: chainId,
-      accountNumber: accountNumber,
+      accountNumber: account_number,
       sequence: sequence,
       mode: TW.Cosmos.Proto.BroadcastMode.SYNC,
       memo: keysignPayload.memo,
@@ -99,8 +108,8 @@ const TokenSend: React.FC = () => {
     walletCore: WalletCore,
     vaultHexPubKey: string,
     vaultHexChainCode: string,
-    keysignPayload: KeysignPayload,
-    signatures: { [key: string]: TssKeysignResponse }
+    keysignPayload: KeysignPayloadType,
+    signatures: { [key: string]: KeysignResponse }
   ) {
     const inputData = getPreSignedInputData(walletCore, keysignPayload);
     const thorPublicKey = getDerivedPubKey(
@@ -190,8 +199,39 @@ const TokenSend: React.FC = () => {
       );
       const accountNumber = accountInfo.data.result.value.account_number;
       const sequence = accountInfo.data.result.value.sequence;
+      const thorchainspecific = new THORChainSpecific({
+        account_number: accountNumber,
+        sequence: sequence,
+        fee: 20000,
+      });
+      const coin = new Coin({
+        chain: "thorchain",
+        ticker: "rune",
+        is_native_token: true,
+      });
 
-      // build keysign request
+      const payload = new KeysignPayload({
+        coin: coin,
+        to_address: toAddress,
+        to_amount: amount,
+        thorchain_specific: thorchainspecific,
+      });
+
+      await fetch(endPoints.sign, {
+        method: "POST",
+        headers: {
+          "x-password": passwd,
+        },
+        body: JSON.stringify({
+          public_key: vaultAddress,
+          messages: [],
+          derive_path: walletCore.CoinTypeExt.derivationPath(
+            walletCore.CoinType.thorchain
+          ),
+          is_ecdsa: true,
+          payload: payload,
+        }),
+      });
       // api call to get keysignPayload, chain code
       // api call to get signatures after task completed
 
@@ -207,7 +247,7 @@ const TokenSend: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
       <div className="bg-white p-6 rounded-lg shadow-md w-96">
-        <h1 className="text-xl font-bold mb-4">Thorchain Wallet Demo</h1>
+        <h1 className="text-xl font-bold mb-4">Vault Token Send Demo</h1>
         <div className="mb-4">
           <label className="block text-gray-700">Wallet Address</label>
           <input

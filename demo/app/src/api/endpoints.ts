@@ -9,4 +9,6 @@ export const endPoints = {
   createVault: `${vultisignerBaseUrl}vault/create`,
   uploadVault: `${vultisignerBaseUrl}vault/upload`,
   downloadVault: `${vultisignerBaseUrl}vault/download`,
+  sign: `${vultisignerBaseUrl}vault/sign`,
+  getSignResult: `${vultisignerBaseUrl}vault/sign/response`,
 };
