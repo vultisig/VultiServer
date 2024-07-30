@@ -1,8 +1,6 @@
 package api
 
 import (
-	"bytes"
-	"compress/flate"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -76,6 +74,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	host := config.AppConfig.Server.Host
@@ -156,18 +155,9 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
 	}
 
-	var buf bytes.Buffer
-	writer, err := flate.NewWriter(&buf, 5)
+	compressedData, err := common.CompressData(serializedData)
 	if err != nil {
-		return fmt.Errorf("flate.NewWriter failed, err: %w", err)
-	}
-	_, err = writer.Write(serializedData)
-	if err != nil {
-		return fmt.Errorf("writer.Write failed, err: %w", err)
-	}
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("writer.Close failed, err: %w", err)
+		return fmt.Errorf("common.CompressData failed, err: %w", err)
 	}
 
 	resp := types.VaultCreateResponse{
@@ -175,7 +165,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
-		KeygenMsg:        base64.StdEncoding.EncodeToString(buf.Bytes()),
+		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedData),
 	}
 	task, err := cacheItem.Task()
 	if err != nil {
@@ -263,6 +253,42 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	return c.File(filePathName)
 }
 
+func (s *Server) GetVault(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return fmt.Errorf("public key is required")
+	}
+
+	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
+	_, err := os.Stat(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to get file info, err: %w", err)
+	}
+
+	passwd := c.Request().Header.Get("x-password")
+	if passwd == "" {
+		return fmt.Errorf("vault backup password is required")
+	}
+
+	content, err := os.ReadFile(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to read file, err: %w", err)
+	}
+
+	vault, err := common.DecryptVaultFromBackup(passwd, content)
+	if err != nil {
+		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
+	}
+
+	return c.JSON(http.StatusOK, types.VaultGetResponse{
+		Name:           vault.Name,
+		PublicKeyEcdsa: vault.PublicKeyEcdsa,
+		PublicKeyEddsa: vault.PublicKeyEddsa,
+		HexChainCode:   vault.HexChainCode,
+		LocalPartyId:   vault.LocalPartyId,
+	})
+}
+
 // SignMessages is a handler to process Keysing request
 func (s *Server) SignMessages(c echo.Context) error {
 	var keysignReq types.KeysignRequest
@@ -273,7 +299,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKeyECDSA+".bak")
+	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKey+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
@@ -308,7 +334,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
-	// return the task id to the client , so we can use the id to retrieve the task result
+
 	return c.JSON(http.StatusOK, ti.ID)
 
 }

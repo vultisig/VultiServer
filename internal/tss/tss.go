@@ -274,13 +274,11 @@ func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssS
 	return endCh, wg
 }
 
-func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
-	result := &types.KeysignResponse{
-		Signatures: []tss.KeysignResponse{},
-	}
+func JoinKeySign(ks *types.KeysignRequest) ([]tss.KeysignResponse, error) {
+	signatures := []tss.KeysignResponse{}
 	keyFolder := config.AppConfig.Server.VaultsFilePath
 	serverURL := config.AppConfig.Relay.Server
-	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, ks.PublicKeyECDSA, ks.VaultPassword)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, ks.PublicKey, ks.VaultPassword)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
@@ -322,7 +320,7 @@ func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
 		if err != nil {
 			return nil, err
 		}
-		result.Signatures = append(result.Signatures, *signature)
+		signatures = append(signatures, *signature)
 	}
 
 	if err := server.CompleteSession(ks.Session, localPartyId); err != nil {
@@ -332,7 +330,7 @@ func JoinKeySign(ks *types.KeysignRequest) (*types.KeysignResponse, error) {
 		}).Error("Failed to complete session")
 	}
 
-	return result, nil
+	return signatures, nil
 }
 
 func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {
@@ -343,7 +341,7 @@ func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, 
 
 	if ks.IsECDSA {
 		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
-			PubKey:               ks.PublicKeyECDSA,
+			PubKey:               ks.PublicKey,
 			MessageToSign:        ks.Messages[0],
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
@@ -351,7 +349,7 @@ func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, 
 		})
 	} else {
 		signature, err = tssService.KeysignEdDSA(&tss.KeysignRequest{
-			PubKey:               ks.PublicKeyECDSA,
+			PubKey:               ks.PublicKey,
 			MessageToSign:        msg,
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),

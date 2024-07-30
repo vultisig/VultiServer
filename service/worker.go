@@ -92,7 +92,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	logging.Logger.WithFields(logrus.Fields{
-		"PublicKeyECDSA":   p.PublicKeyECDSA,
+		"PublicKey":        p.PublicKey,
 		"session":          p.SessionID,
 		"Messages":         p.Messages,
 		"HexEncryptionKey": p.HexEncryptionKey,
@@ -100,8 +100,8 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		"IsECDSA":          p.IsECDSA,
 	}).Info("Joining keygen")
 
-	result, err := tss.JoinKeySign(&types.KeysignRequest{
-		PublicKeyECDSA:   p.PublicKeyECDSA,
+	signatures, err := tss.JoinKeySign(&types.KeysignRequest{
+		PublicKey:        p.PublicKey,
 		Session:          p.SessionID,
 		Messages:         p.Messages,
 		HexEncryptionKey: p.HexEncryptionKey,
@@ -114,10 +114,10 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	}
 
 	logging.Logger.WithFields(logrus.Fields{
-		"Signatures": result.Signatures,
+		"Signatures": signatures,
 	}).Info("Key sign completed")
 
-	resultBytes, err := json.Marshal(*result)
+	resultBytes, err := json.Marshal(signatures)
 	if err != nil {
 		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
 	}
