@@ -18,9 +18,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	"github.com/ulikunitz/xz"
 	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
-	keysignTypes "github.com/vultisig/commondata/go/vultisig/keysign/v1"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/vultisig/vultisigner/common"
@@ -78,6 +76,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	host := config.AppConfig.Server.Host
@@ -265,9 +264,46 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	return c.File(filePathName)
 }
 
+func (s *Server) GetVault(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return fmt.Errorf("public key is required")
+	}
+
+	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
+	_, err := os.Stat(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to get file info, err: %w", err)
+	}
+
+	passwd := c.Request().Header.Get("x-password")
+	if passwd == "" {
+		return fmt.Errorf("vault backup password is required")
+	}
+
+	content, err := os.ReadFile(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to read file, err: %w", err)
+	}
+
+	vault, err := common.DecryptVaultFromBackup(passwd, content)
+	if err != nil {
+		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
+	}
+
+	return c.JSON(http.StatusOK, types.VaultGetResponse{
+		Name:           vault.Name,
+		PublicKeyEcdsa: vault.PublicKeyEcdsa,
+		PublicKeyEddsa: vault.PublicKeyEddsa,
+		HexChainCode:   vault.HexChainCode,
+		KeyShares:      vault.KeyShares,
+		LocalPartyId:   vault.LocalPartyId,
+	})
+}
+
 // SignMessages is a handler to process Keysing request
 func (s *Server) SignMessages(c echo.Context) error {
-	var keysignReq types.KeysignAPIRequest
+	var keysignReq types.KeysignRequest
 	if err := c.Bind(&keysignReq); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
@@ -275,14 +311,8 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
 
-	sessionID := uuid.New().String()
-	encryptionKey, err := s.getHexEncodedRandomBytes()
-	if err != nil {
-		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
-	}
-
 	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKey+".bak")
-	_, err = os.Stat(filePathName)
+	_, err := os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
 	}
@@ -299,48 +329,12 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
 
-	vault, err := common.DecryptVaultFromBackup(passwd, content)
+	_, err = common.DecryptVaultFromBackup(passwd, content)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
 
-	keysignPayload := keysignReq.Payload
-	keysignPayload.VaultPublicKeyEcdsa = vault.PublicKeyEcdsa
-	keysignPayload.VaultLocalPartyId = vault.LocalPartyId
-
-	keysignMsg := &keysignTypes.KeysignMessage{
-		SessionId:        sessionID,
-		ServiceName:      "VultiSignerApp",
-		EncryptionKeyHex: encryptionKey,
-		KeysignPayload:   keysignPayload,
-		UseVultisigRelay: true,
-	}
-
-	serializedData, err := proto.Marshal(keysignMsg)
-	if err != nil {
-		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
-	}
-
-	var compressedData bytes.Buffer
-	// Create a new XZ writer.
-	xzWriter, err := xz.NewWriter(&compressedData)
-	if err != nil {
-		return fmt.Errorf("xz.NewWriter failed, err: %w", err)
-	}
-	defer xzWriter.Close()
-
-	// Write the input data to the XZ writer.
-	_, err = xzWriter.Write(serializedData)
-	if err != nil {
-		return fmt.Errorf("xzWriter.Write failed, err: %w", err)
-	}
-
-	err = xzWriter.Close()
-	if err != nil {
-		return fmt.Errorf("xzWriter.Close failed, err: %w", err)
-	}
-
-	task, err := keysignReq.NewKeysignTask(passwd, sessionID, encryptionKey)
+	task, err := keysignReq.NewKeysignTask(passwd)
 	if err != nil {
 		return fmt.Errorf("fail to create task, err: %w", err)
 	}
@@ -353,15 +347,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
 
-	resp := types.KeysignAPIResponse{
-		SessionID:        sessionID,
-		HexEncryptionKey: encryptionKey,
-		HexChainCode:     vault.HexChainCode,
-		KeysignMsg:       base64.StdEncoding.EncodeToString(compressedData.Bytes()),
-		TaskId:           ti.ID, // return the task id to the client , so we can use the id to retrieve the task result
-	}
-
-	return c.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusOK, ti.ID)
 
 }
 
