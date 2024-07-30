@@ -296,7 +296,6 @@ func (s *Server) GetVault(c echo.Context) error {
 		PublicKeyEcdsa: vault.PublicKeyEcdsa,
 		PublicKeyEddsa: vault.PublicKeyEddsa,
 		HexChainCode:   vault.HexChainCode,
-		KeyShares:      vault.KeyShares,
 		LocalPartyId:   vault.LocalPartyId,
 	})
 }

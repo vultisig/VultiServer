@@ -6,7 +6,6 @@ import (
 
 	"github.com/hibiken/asynq"
 
-	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/vultisigner/internal/tasks"
 )
 
@@ -57,10 +56,9 @@ func (v *VaultCacheItem) Task() (*asynq.Task, error) {
 }
 
 type VaultGetResponse struct {
-	Name           string                      `json:"name"`
-	PublicKeyEcdsa string                      `json:"public_key_ecdsa"`
-	PublicKeyEddsa string                      `json:"public_key_eddsa"`
-	HexChainCode   string                      `json:"hex_chain_code"`
-	KeyShares      []*vaultType.Vault_KeyShare `json:"key_shares"`
-	LocalPartyId   string                      `json:"local_party_id"`
+	Name           string `json:"name"`
+	PublicKeyEcdsa string `json:"public_key_ecdsa"`
+	PublicKeyEddsa string `json:"public_key_eddsa"`
+	HexChainCode   string `json:"hex_chain_code"`
+	LocalPartyId   string `json:"local_party_id"`
 }
