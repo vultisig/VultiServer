@@ -9,7 +9,6 @@ import {
   KeysignResponse,
   THORChainSpecific,
 } from "../utils/types";
-import { randomBytes } from "crypto";
 
 const TokenSend: React.FC = () => {
   const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>("");
@@ -19,6 +18,12 @@ const TokenSend: React.FC = () => {
   const [passwd, setPasswd] = useState<string>("");
 
   const rpcEndpoint = "https://thornode.ninerealms.com";
+
+  const generateRandomHex = (size: number) => {
+    return Array.from({ length: size }, () => Math.floor(Math.random() * 256))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  };
 
   const getDerivedPublicKey = async (
     publicKey: string,
@@ -336,7 +341,7 @@ const TokenSend: React.FC = () => {
           public_key: vaultPublicKeyEcdsa,
           messages: [message],
           session: uuidv4(),
-          hex_encryption_key: randomBytes(32).toString("hex"),
+          hex_encryption_key: generateRandomHex(32),
           derive_path: walletCore.CoinTypeExt.derivationPath(
             walletCore.CoinType.thorchain
           ),
