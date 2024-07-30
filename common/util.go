@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -9,9 +10,50 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ulikunitz/xz"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"google.golang.org/protobuf/proto"
 )
+
+func CompressData(data []byte) ([]byte, error) {
+	var compressedData bytes.Buffer
+	// Create a new XZ writer.
+	xzWriter, err := xz.NewWriter(&compressedData)
+	if err != nil {
+		return nil, fmt.Errorf("xz.NewWriter failed, err: %w", err)
+	}
+
+	// Write the input data to the XZ writer.
+	_, err = xzWriter.Write(data)
+	if err != nil {
+		return nil, fmt.Errorf("xzWriter.Write failed, err: %w", err)
+	}
+
+	err = xzWriter.Close()
+	if err != nil {
+		return nil, fmt.Errorf("xzWriter.Close failed, err: %w", err)
+	}
+
+	return compressedData.Bytes(), nil
+}
+
+func DecompressData(compressedData []byte) ([]byte, error) {
+	var decompressedData bytes.Buffer
+
+	// Create a new XZ reader.
+	xzReader, err := xz.NewReader(bytes.NewReader(compressedData))
+	if err != nil {
+		return nil, fmt.Errorf("xz.NewReader failed, err: %w", err)
+	}
+
+	// Copy the decompressed data to the buffer.
+	_, err = io.Copy(&decompressedData, xzReader)
+	if err != nil {
+		return nil, fmt.Errorf("io.Copy failed, err: %w", err)
+	}
+
+	return decompressedData.Bytes(), nil
+}
 
 func EncryptVault(password string, vault []byte) ([]byte, error) {
 	// Hash the password to create a key

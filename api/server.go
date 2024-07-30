@@ -1,8 +1,6 @@
 package api
 
 import (
-	"bytes"
-	"compress/flate"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -156,18 +154,9 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
 	}
 
-	var buf bytes.Buffer
-	writer, err := flate.NewWriter(&buf, 5)
+	compressedData, err := common.CompressData(serializedData)
 	if err != nil {
-		return fmt.Errorf("flate.NewWriter failed, err: %w", err)
-	}
-	_, err = writer.Write(serializedData)
-	if err != nil {
-		return fmt.Errorf("writer.Write failed, err: %w", err)
-	}
-	err = writer.Close()
-	if err != nil {
-		return fmt.Errorf("writer.Close failed, err: %w", err)
+		return fmt.Errorf("common.CompressData failed, err: %w", err)
 	}
 
 	resp := types.VaultCreateResponse{
@@ -175,7 +164,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
-		KeygenMsg:        base64.StdEncoding.EncodeToString(buf.Bytes()),
+		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedData),
 	}
 	task, err := cacheItem.Task()
 	if err != nil {

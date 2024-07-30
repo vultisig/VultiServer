@@ -6,6 +6,23 @@ import (
 	"testing"
 )
 
+func TestDataCompression(t *testing.T) {
+	data := "message"
+	compressedData, err := CompressData([]byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	decompressedData, err := DecompressData(compressedData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(decompressedData) != data {
+		t.Fatalf("decompressed: %s, expected: %s", decompressedData, data)
+	}
+}
+
 func TestVaultEncryption(t *testing.T) {
 	password := "password"
 	src := "vault_bytes"
