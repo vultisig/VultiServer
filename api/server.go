@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -17,7 +16,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	"github.com/ulikunitz/xz"
 	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"google.golang.org/protobuf/proto"
 
@@ -156,23 +154,9 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
 	}
 
-	var compressedData bytes.Buffer
-	// Create a new XZ writer.
-	xzWriter, err := xz.NewWriter(&compressedData)
+	compressedData, err := common.CompressData(serializedData)
 	if err != nil {
-		return fmt.Errorf("xz.NewWriter failed, err: %w", err)
-	}
-	defer xzWriter.Close()
-
-	// Write the input data to the XZ writer.
-	_, err = xzWriter.Write(serializedData)
-	if err != nil {
-		return fmt.Errorf("xzWriter.Write failed, err: %w", err)
-	}
-
-	err = xzWriter.Close()
-	if err != nil {
-		return fmt.Errorf("xzWriter.Close failed, err: %w", err)
+		return fmt.Errorf("common.CompressData failed, err: %w", err)
 	}
 
 	resp := types.VaultCreateResponse{
@@ -180,7 +164,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		SessionID:        sessionID,
 		HexEncryptionKey: encryptionKey,
 		HexChainCode:     hexChainCode,
-		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedData.Bytes()),
+		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedData),
 	}
 	task, err := cacheItem.Task()
 	if err != nil {
