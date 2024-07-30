@@ -17,6 +17,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/vultisig/vultisigner/common"
@@ -67,6 +68,7 @@ func (s *Server) StartServer() error {
 		//server index.html file in demo folder
 		return c.File("./demo/generated/index.html")
 	})
+	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
 	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
 		Validator: s.AuthenticationValidator,
@@ -109,6 +111,20 @@ func (s *Server) getHexEncodedRandomBytes() (string, error) {
 		return "", fmt.Errorf("fail to generate random bytes, err: %w", err)
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+func (s *Server) GetDerivedPublicKey(c echo.Context) error {
+	var req types.GetDerivedPublicKeyRequest
+	if err := c.Bind(&req); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
+	derivedPublicKey, err := tss.GetDerivedPubKey(req.PublicKey, req.HexChainCode, req.DerivePath, req.IsEdDSA)
+	if err != nil {
+		return fmt.Errorf("fail to get derived public key from tss, err: %w", err)
+	}
+
+	return c.JSON(http.StatusOK, derivedPublicKey)
 }
 
 func (s *Server) CreateVault(c echo.Context) error {
