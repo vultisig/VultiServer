@@ -54,3 +54,11 @@ func (v *VaultCacheItem) Task() (*asynq.Task, error) {
 
 	return asynq.NewTask(tasks.TypeKeyGeneration, payload), nil
 }
+
+type VaultGetResponse struct {
+	Name           string `json:"name"`
+	PublicKeyEcdsa string `json:"public_key_ecdsa"`
+	PublicKeyEddsa string `json:"public_key_eddsa"`
+	HexChainCode   string `json:"hex_chain_code"`
+	LocalPartyId   string `json:"local_party_id"`
+}
