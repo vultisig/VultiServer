@@ -70,9 +70,9 @@ func (s *Server) StartServer() error {
 	})
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
-	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
-		Validator: s.AuthenticationValidator,
-	}))
+	// grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
+	// 	Validator: s.AuthenticationValidator,
+	// }))
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
@@ -114,12 +114,25 @@ func (s *Server) getHexEncodedRandomBytes() (string, error) {
 }
 
 func (s *Server) GetDerivedPublicKey(c echo.Context) error {
-	var req types.GetDerivedPublicKeyRequest
-	if err := c.Bind(&req); err != nil {
-		return fmt.Errorf("fail to parse request, err: %w", err)
+	publicKey := c.QueryParam("publicKey")
+	if publicKey == "" {
+		return fmt.Errorf("publicKey is required")
+	}
+	hexChainCode := c.QueryParam("hexChainCode")
+	if hexChainCode == "" {
+		return fmt.Errorf("hexChainCode is required")
+	}
+	derivePath := c.QueryParam("derivePath")
+	if derivePath == "" {
+		return fmt.Errorf("derivePath is required")
+	}
+	isEdDSA := false
+	isEdDSAstr := c.QueryParam("isEdDSA")
+	if isEdDSAstr == "true" {
+		isEdDSA = true
 	}
 
-	derivedPublicKey, err := tss.GetDerivedPubKey(req.PublicKey, req.HexChainCode, req.DerivePath, req.IsEdDSA)
+	derivedPublicKey, err := tss.GetDerivedPubKey(publicKey, hexChainCode, derivePath, isEdDSA)
 	if err != nil {
 		return fmt.Errorf("fail to get derived public key from tss, err: %w", err)
 	}
