@@ -64,3 +64,9 @@ export const generateRandomHex = (size: number) => {
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
 };
+
+const userName = process.env.REACT_APP_VULTISIGNER_USER;
+const passWord = process.env.REACT_APP_VULTISIGNER_PASSWORD;
+export const getAuthHeader = () => {
+  return `Basic ${encodeToBase64(`${userName}:${passWord}`)}`;
+};

@@ -1,30 +1,23 @@
 import { useEffect, useState } from "react";
 import { QRCode } from "react-qrcode-logo";
 import { getRoute, routeStart } from "../../api/router/router";
-interface StepThreeProps {
-  qrCodeString?: string;
-  session_id?: string;
+interface StepTwoProps {
+  qrCodeString: string;
+  session_id: string;
   uniqueStrings: string[];
   setUniqueStrings: (uniqueStrings: string[]) => void;
   goToStep: (step: number) => void;
 }
 
-export default function StepThree({
-  qrCodeString = "",
-  session_id = "",
+export default function StepTwo({
+  qrCodeString,
+  session_id,
   uniqueStrings,
   setUniqueStrings,
   goToStep,
-}: StepThreeProps) {
-  const [qr, setQr] = useState<string>("");
+}: StepTwoProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [canContinue, setCanContinue] = useState(false);
-
-  useEffect(() => {
-    if (qrCodeString) {
-      setQr(qrCodeString);
-    }
-  }, [qrCodeString, session_id]);
 
   useEffect(() => {
     let intervalId = setInterval(getDevices, 3000);
@@ -67,7 +60,7 @@ export default function StepThree({
     <>
       <div className="bg-white p-4 rounded-lg mx-8">
         <QRCode
-          value={qr}
+          value={qrCodeString}
           size={250}
           bgColor={"#ffffff"}
           fgColor={"#0B51C6"}

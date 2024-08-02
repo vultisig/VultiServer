@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { initWasm, TW, WalletCore } from "@trustwallet/wallet-core";
 import { v4 as uuidv4 } from "uuid";
-import { endPoints } from "../../api/endpoints";
 import {
   Coin,
   KeysignMessage,
@@ -11,92 +10,33 @@ import {
   THORChainSpecific,
 } from "../../utils/types";
 import { createHash } from "crypto";
-import { QRCode } from "react-qrcode-logo";
 import { Buffer } from "buffer";
 import {
   byteArrayToHexString,
   generateRandomHex,
   getSignatureWithRecoveryID,
 } from "../../utils/utils";
+import StepOne from "./StepOne";
+import StepTwo from "./StepTwo";
+import StepThree from "./StepThree";
+import {
+  broadcastSignedTransaction,
+  getAccountInfo,
+} from "../../api/thorchain";
+import {
+  getDerivedPublicKey,
+  getLzmaCompressedData,
+} from "../../api/utils/utils";
+import { getSignResult, signMessages } from "../../api/vault/vault";
 
 const TokenSend: React.FC = () => {
-  const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>("");
-  const [balance, setBalance] = useState<string>("");
-  const [toAddress, setToAddress] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
-  const [passwd, setPasswd] = useState<string>("");
+  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [sessionId, setSessionId] = useState<string>("");
   const [qrString, setQrString] = useState<string>("");
+  const [uniqueStrings, setUniqueStrings] = useState<string[]>([]);
 
-  const rpcEndpoint = "https://thornode.ninerealms.com";
-
-  const getDerivedPublicKey = async (
-    publicKey: string,
-    hexChainCode: string,
-    derivePath: string,
-    isEdDSA: boolean
-  ) => {
-    if (!publicKey) return;
-
-    const queryParams = new URLSearchParams({
-      publicKey,
-      hexChainCode,
-      derivePath,
-      isEdDSA: isEdDSA ? "true" : "",
-    }).toString();
-    try {
-      const response = await fetch(
-        `${endPoints.getDerivedPublicKey}?${queryParams}`
-      );
-      const derivedPublicKey = await response.json();
-
-      return derivedPublicKey;
-    } catch (error) {
-      console.error("Error getThorchainPublicKey:", error);
-    }
-  };
-
-  const getBalance = async () => {
-    if (!vaultPublicKeyEcdsa) return;
-
-    try {
-      let response: any = await fetch(
-        `${endPoints.getVault}/${vaultPublicKeyEcdsa}`,
-        {
-          headers: {
-            "x-password": passwd,
-          },
-        }
-      );
-      const vaultInfo = await response.json();
-      const vaultHexChainCode = vaultInfo.hex_chain_code;
-
-      const walletCore = await initWasm();
-      const thorPublicKeyStr = await getDerivedPublicKey(
-        vaultPublicKeyEcdsa,
-        vaultHexChainCode,
-        walletCore.CoinTypeExt.derivationPath(walletCore.CoinType.thorchain),
-        false
-      );
-      const pubkeyData = Buffer.from(thorPublicKeyStr, "hex");
-      const thorPublicKey = walletCore.PublicKey.createWithData(
-        pubkeyData,
-        walletCore.PublicKeyType.secp256k1
-      );
-      const thorAddress = walletCore.CoinTypeExt.deriveAddressFromPublicKey(
-        walletCore.CoinType.thorchain,
-        thorPublicKey
-      );
-      response = await fetch(
-        `${rpcEndpoint}/cosmos/bank/v1beta1/balances/${thorAddress}`
-      );
-      const data = await response.json();
-      const runeBalance = data.balances.find(
-        (bal: any) => bal.denom === "rune"
-      );
-      setBalance(runeBalance ? runeBalance.amount : "0");
-    } catch (error) {
-      console.error("Error fetching balance:", error);
-    }
+  const goToStep = (step: number) => {
+    setCurrentStep(step);
   };
 
   function getPreSignedInputData(
@@ -220,65 +160,28 @@ const TokenSend: React.FC = () => {
     }
   };
 
-  async function broadcastSignedTransaction(signedTx: string): Promise<any> {
-    try {
-      const response = await fetch(`${rpcEndpoint}/broadcast`, {
-        method: "POST",
-        body: signedTx,
-      });
-
-      if (response.status === 200) {
-        const data = await response.json();
-        console.log("Transaction broadcasted successfully:", data);
-        return data;
-      } else {
-        console.error(
-          "Failed to broadcast transaction:",
-          response.status,
-          response.statusText
-        );
-        return;
-      }
-    } catch (error) {
-      console.error("Error broadcasting transaction:", error);
+  const sendTransaction = async (
+    vaultPublicKeyEcdsa: string,
+    vaultLocalPartyId: string,
+    vaultHexChainCode: string,
+    fromAddress: string,
+    toAddress: string,
+    amount: string,
+    passwd: string
+  ) => {
+    if (
+      !vaultPublicKeyEcdsa ||
+      !vaultLocalPartyId ||
+      !vaultHexChainCode ||
+      !fromAddress ||
+      !toAddress ||
+      !amount
+    )
       return;
-    }
-  }
-
-  const sendTransaction = async () => {
-    if (!vaultPublicKeyEcdsa || !toAddress || !amount) return;
 
     try {
       const walletCore = await initWasm();
-      let response: any = await fetch(
-        `${endPoints.getVault}/${vaultPublicKeyEcdsa}`,
-        {
-          headers: {
-            "x-password": passwd,
-          },
-        }
-      );
-      const vaultInfo = await response.json();
-      const vaultLocalPartyId = vaultInfo.local_party_id;
-      const vaultHexChainCode = vaultInfo.hex_chain_code;
-      const thorPublicKeyStr = await getDerivedPublicKey(
-        vaultPublicKeyEcdsa,
-        vaultHexChainCode,
-        walletCore.CoinTypeExt.derivationPath(walletCore.CoinType.thorchain),
-        false
-      );
-      const pubkeyData = Buffer.from(thorPublicKeyStr, "hex");
-      const thorPublicKey = walletCore.PublicKey.createWithData(
-        pubkeyData,
-        walletCore.PublicKeyType.secp256k1
-      );
-      const thorAddress = walletCore.CoinTypeExt.deriveAddressFromPublicKey(
-        walletCore.CoinType.thorchain,
-        thorPublicKey
-      );
-
-      response = await fetch(`${rpcEndpoint}/auth/accounts/${thorAddress}`);
-      const accountInfo = await response.json();
+      const accountInfo = await (await getAccountInfo(fromAddress)).json();
       const accountNumber = accountInfo.result.value.account_number;
       const sequence = accountInfo.result.value.sequence;
       const thorchainspecific = new THORChainSpecific({
@@ -292,7 +195,7 @@ const TokenSend: React.FC = () => {
         decimals: 8,
         is_native_token: true,
         hex_public_key: vaultPublicKeyEcdsa,
-        address: thorAddress,
+        address: fromAddress,
       });
       const payload = new KeysignPayload({
         coin: coin,
@@ -312,11 +215,12 @@ const TokenSend: React.FC = () => {
       const message = byteArrayToHexString(preSigningOutput.signature);
 
       const sessionId = uuidv4();
+      setSessionId(sessionId);
       const hexEncryptionKey = generateRandomHex(32);
 
       const keysignMsg = new KeysignMessage({
         session_id: sessionId,
-        service_name: "VultisignerApp",
+        service_name: vaultLocalPartyId,
         keysign_payload: payload,
         encryption_key_hex: hexEncryptionKey,
         use_vultisig_relay: true,
@@ -328,42 +232,42 @@ const TokenSend: React.FC = () => {
       //     compressedData
       //   ).toString("base64")}`
       // );
-      response = await fetch(endPoints.lzmaCompressData, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          data: keysignMsg.serialize().toString(),
-        }),
-      });
-      const data = await response.json();
+      const data = await (
+        await getLzmaCompressedData(
+          JSON.stringify({
+            data: Buffer.from(keysignMsg.serialize()).toString(),
+          })
+        )
+      ).json();
       setQrString(
         `vultisig://vultisig.com?type=SignTransaction&vault=${vaultPublicKeyEcdsa}&jsonData=${data}`
       );
 
-      // build util function like createVault
-      response = await fetch(endPoints.sign, {
-        method: "POST",
-        headers: {
-          "x-password": passwd,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          public_key: vaultPublicKeyEcdsa,
-          messages: [message],
-          session: sessionId,
-          hex_encryption_key: hexEncryptionKey,
-          derive_path: walletCore.CoinTypeExt.derivationPath(
-            walletCore.CoinType.thorchain
-          ),
-          is_ecdsa: true,
-          vault_password: "",
-        }),
-      });
-      const taskId = await response.json();
+      const taskId = await (
+        await signMessages(
+          passwd,
+          JSON.stringify({
+            public_key: vaultPublicKeyEcdsa,
+            messages: [message],
+            session: sessionId,
+            hex_encryption_key: hexEncryptionKey,
+            derive_path: walletCore.CoinTypeExt.derivationPath(
+              walletCore.CoinType.thorchain
+            ),
+            is_ecdsa: true,
+            vault_password: "",
+          })
+        )
+      ).json();
+      goToStep(2);
       setTimeout(() => {
-        signTransaction(taskId, walletCore, vaultHexChainCode, payload);
+        signTransaction(
+          taskId,
+          walletCore,
+          vaultPublicKeyEcdsa,
+          vaultHexChainCode,
+          payload
+        );
       }, 20000);
     } catch (error) {
       console.error("Error sending transaction:", error);
@@ -373,15 +277,22 @@ const TokenSend: React.FC = () => {
   const signTransaction = async (
     taskId: string,
     walletCore: WalletCore,
+    vaultPublicKeyEcdsa: string,
     vaultHexChainCode: string,
     payload: KeysignPayloadType
   ) => {
     try {
-      const resp = await fetch(`${endPoints.getSignResult}/${taskId}`);
+      const resp = await getSignResult(taskId);
       if (resp.status !== 200) {
         console.error("Invalid Task Id");
         setTimeout(() => {
-          signTransaction(taskId, walletCore, vaultHexChainCode, payload);
+          signTransaction(
+            taskId,
+            walletCore,
+            vaultPublicKeyEcdsa,
+            vaultHexChainCode,
+            payload
+          );
         }, 5000);
         return;
       }
@@ -392,7 +303,13 @@ const TokenSend: React.FC = () => {
         signatures.message === "Task is still in progress"
       ) {
         setTimeout(() => {
-          signTransaction(taskId, walletCore, vaultHexChainCode, payload);
+          signTransaction(
+            taskId,
+            walletCore,
+            vaultPublicKeyEcdsa,
+            vaultHexChainCode,
+            payload
+          );
         }, 5000);
         return;
       }
@@ -415,84 +332,18 @@ const TokenSend: React.FC = () => {
 
   return (
     <div className="my-16 flex flex-col items-center justify-center">
-      <div className="bg-white p-6 rounded-lg shadow-md w-96 text-black">
-        <h1 className="text-xl font-bold mb-4">Vault Token Send Demo</h1>
-        <div className="mb-4">
-          <input
-            type="text"
-            value={vaultPublicKeyEcdsa}
-            onChange={(e) => setVaultPublicKeyEcdsa(e.target.value)}
-            placeholder="Vault PublicKey Ecdsa"
-            className="mt-1 p-2 w-full border border-gray-300 rounded-md mb-4"
-          />
-          <input
-            type="password"
-            value={passwd}
-            onChange={(e) => setPasswd(e.target.value)}
-            placeholder="Password"
-            className="mt-1 p-2 w-full border border-gray-300 rounded-md"
-          />
-        </div>
-        <button
-          onClick={getBalance}
-          className="w-full bg-blue-500 text-white py-2 rounded-md mb-4 hover:bg-blue-600"
-        >
-          Get Balance
-        </button>
-        {!balance && (
-          <div className="mb-4">
-            <label className="block text-gray-700">
-              Balance: {balance} RUNE
-            </label>
-          </div>
-        )}
-        <div className="mb-4">
-          <label className="block text-gray-700">To Address</label>
-          <input
-            type="text"
-            value={toAddress}
-            onChange={(e) => setToAddress(e.target.value)}
-            className="mt-1 p-2 w-full border border-gray-300 rounded-md"
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700">Amount (RUNE)</label>
-          <input
-            type="text"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="mt-1 p-2 w-full border border-gray-300 rounded-md"
-          />
-        </div>
-        <button
-          onClick={sendTransaction}
-          className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600"
-        >
-          Send
-        </button>
-      </div>
-      {qrString && (
-        <div className="bg-white p-4 rounded-lg mx-8">
-          <QRCode
-            value={qrString}
-            size={250}
-            bgColor={"#ffffff"}
-            fgColor={"#0B51C6"}
-            ecLevel="L"
-            logoImage="/img/logo.svg"
-            logoWidth={70}
-            logoHeight={70}
-            qrStyle="dots"
-            eyeRadius={[
-              {
-                outer: [10, 10, 0, 10],
-                inner: [0, 10, 10, 10],
-              },
-              [10, 10, 10, 0],
-              [10, 0, 10, 10],
-            ]}
-          />
-        </div>
+      {currentStep === 1 && <StepOne sendTransaction={sendTransaction} />}
+      {currentStep === 2 && (
+        <StepTwo
+          uniqueStrings={[]}
+          setUniqueStrings={setUniqueStrings}
+          goToStep={goToStep}
+          qrCodeString={qrString}
+          session_id={sessionId}
+        />
+      )}
+      {currentStep === 3 && (
+        <StepThree devices={uniqueStrings} session_id={sessionId} />
       )}
     </div>
   );

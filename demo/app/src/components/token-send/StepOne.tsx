@@ -1,30 +1,73 @@
+import { useState } from "react";
+import { initWasm } from "@trustwallet/wallet-core";
+import { getBalances } from "../../api/thorchain";
+import { getDerivedPublicKey } from "../../api/utils/utils";
+import { getVault } from "../../api/vault/vault";
+
 interface StepOneProps {
-  vaultPublicKeyEcdsa: string;
-  balance: string;
-  toAddress: string;
-  amount: string;
-  passwd: string;
-  setVaultPublicKeyEcdsa: (value: string) => void;
-  setPasswd: (value: string) => void;
-  setToAddress: (value: string) => void;
-  setAmount: (value: string) => void;
-  getBalance: () => void;
-  sendTransaction: () => void;
+  sendTransaction: (
+    vaultPublicKeyEcdsa: string,
+    vaultLocalPartyId: string,
+    vaultHexChainCode: string,
+    fromAddress: string,
+    toAddress: string,
+    amount: string,
+    passwd: string
+  ) => void;
 }
 
-const StepOne = ({
-  vaultPublicKeyEcdsa,
-  balance,
-  toAddress,
-  amount,
-  passwd,
-  setVaultPublicKeyEcdsa,
-  setToAddress,
-  setAmount,
-  setPasswd,
-  getBalance,
-  sendTransaction,
-}: StepOneProps) => {
+const StepOne = ({ sendTransaction }: StepOneProps) => {
+  const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>("");
+  const [balance, setBalance] = useState<string>("");
+  const [toAddress, setToAddress] = useState<string>("");
+  const [amount, setAmount] = useState<string>("");
+  const [passwd, setPasswd] = useState<string>("");
+
+  const getThorAddress = async () => {
+    if (!vaultPublicKeyEcdsa) return;
+
+    const vaultInfo = await (
+      await getVault(vaultPublicKeyEcdsa, passwd)
+    ).json();
+    const walletCore = await initWasm();
+    const thorPublicKeyStr = await getDerivedPublicKey(
+      vaultPublicKeyEcdsa,
+      vaultInfo.hex_chain_code,
+      walletCore.CoinTypeExt.derivationPath(walletCore.CoinType.thorchain),
+      false
+    );
+    const pubkeyData = Buffer.from(thorPublicKeyStr, "hex");
+    const thorPublicKey = walletCore.PublicKey.createWithData(
+      pubkeyData,
+      walletCore.PublicKeyType.secp256k1
+    );
+    const thorAddress = walletCore.CoinTypeExt.deriveAddressFromPublicKey(
+      walletCore.CoinType.thorchain,
+      thorPublicKey
+    );
+    return {
+      thorAddress,
+      vaultLocalPartyId: vaultInfo.vault_local_party_id,
+      vaultHexChainCode: vaultInfo.hex_chain_code,
+    };
+  };
+
+  const getBalance = async () => {
+    if (!vaultPublicKeyEcdsa) return;
+
+    try {
+      const resp = await getThorAddress();
+      if (!resp || !resp.thorAddress) return;
+      const data = await (await getBalances(resp.thorAddress)).json();
+      const runeBalance = data.balances.find(
+        (bal: any) => bal.denom === "rune"
+      );
+      setBalance(runeBalance ? runeBalance.amount : "0");
+    } catch (error) {
+      console.error("Error fetching balance:", error);
+    }
+  };
+
   return (
     <div className="bg-white p-6 rounded-lg shadow-md w-96 text-black">
       <h1 className="text-xl font-bold mb-4">Vault Token Send Demo</h1>
@@ -50,7 +93,7 @@ const StepOne = ({
       >
         Get Balance
       </button>
-      {!balance && (
+      {balance !== "" && (
         <div className="mb-4">
           <label className="block text-gray-700">Balance: {balance} RUNE</label>
         </div>
@@ -74,7 +117,19 @@ const StepOne = ({
         />
       </div>
       <button
-        onClick={sendTransaction}
+        onClick={async () => {
+          const resp = await getThorAddress();
+          if (!resp || !resp.thorAddress) return;
+          sendTransaction(
+            vaultPublicKeyEcdsa,
+            resp.vaultLocalPartyId,
+            resp.vaultHexChainCode,
+            resp.thorAddress,
+            toAddress,
+            amount,
+            passwd
+          );
+        }}
         className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600"
       >
         Send

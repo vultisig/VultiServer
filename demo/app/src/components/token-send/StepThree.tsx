@@ -1,16 +1,14 @@
 import { useEffect, useState, useRef } from "react";
 import { routeComplete } from "../../api/router/router";
-interface StepFourProps {
-  devices?: string[];
-  session_id?: string;
+interface StepThreeProps {
+  devices: string[];
+  session_id: string;
 }
 
-export default function StepFour({
-  devices = [],
-  session_id = "",
-}: StepFourProps) {
+export default function StepThree({ devices, session_id }: StepThreeProps) {
   const [status, setStatus] = useState<string>("pending");
   const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (status !== "done")
       intervalIdRef.current = setInterval(getCompleteDevice, 3000);
@@ -18,6 +16,7 @@ export default function StepFour({
       if (intervalIdRef.current) clearInterval(intervalIdRef.current);
     };
   }, [session_id, status]);
+
   const getCompleteDevice = async () => {
     let lengthDevices = devices.length;
     const data = await (await routeComplete(session_id)).json();
@@ -29,6 +28,7 @@ export default function StepFour({
       }
     }
   };
+
   return (
     <>
       <div className="w-full pt-20 pb-40 relative">
@@ -42,7 +42,7 @@ export default function StepFour({
                 <span></span>
               </div>
               <div className="absolute text-white text-xs">
-                <span>Preparing Signing...</span>
+                <span>Signing...</span>
                 <div className="flex justify-center mt-2">
                   <div className="circle-1"></div>
                   <div className="circle-2"></div>
