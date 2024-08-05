@@ -69,7 +69,6 @@ func (s *Server) StartServer() error {
 		return c.File("./demo/generated/index.html")
 	})
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
-	e.POST("/lzmaCompressData", s.LzmaCompressData)
 	grp := e.Group("/vault")
 	// grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
 	// 	Validator: s.AuthenticationValidator,
@@ -139,20 +138,6 @@ func (s *Server) GetDerivedPublicKey(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, derivedPublicKey)
-}
-
-func (s *Server) LzmaCompressData(c echo.Context) error {
-	var req types.LzmaCompressDataRequest
-	if err := c.Bind(&req); err != nil {
-		return fmt.Errorf("fail to parse request, err: %w", err)
-	}
-
-	compressedData, err := common.CompressData([]byte(req.Data))
-	if err != nil {
-		return fmt.Errorf("fail to compress data, err: %w", err)
-	}
-
-	return c.JSON(http.StatusOK, base64.StdEncoding.EncodeToString(compressedData))
 }
 
 func (s *Server) CreateVault(c echo.Context) error {
@@ -373,7 +358,8 @@ func (s *Server) SignMessages(c echo.Context) error {
 
 	ti, err := s.client.EnqueueContext(c.Request().Context(), task, asynq.MaxRetry(-1),
 		asynq.Timeout(2*time.Minute),
-		asynq.Retention(5*time.Minute))
+		asynq.Retention(5*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
 
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)

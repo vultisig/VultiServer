@@ -15,6 +15,7 @@ import {
   byteArrayToHexString,
   generateRandomHex,
   getSignatureWithRecoveryID,
+  lzmaCompressData,
 } from "../../utils/utils";
 import StepOne from "./StepOne";
 import StepTwo from "./StepTwo";
@@ -23,10 +24,7 @@ import {
   broadcastSignedTransaction,
   getAccountInfo,
 } from "../../api/thorchain";
-import {
-  getDerivedPublicKey,
-  getLzmaCompressedData,
-} from "../../api/utils/utils";
+import { getDerivedPublicKey } from "../../api/utils/utils";
 import { getSignResult, signMessages } from "../../api/vault/vault";
 
 const TokenSend: React.FC = () => {
@@ -226,21 +224,11 @@ const TokenSend: React.FC = () => {
         use_vultisig_relay: true,
       });
 
-      // const compressedData = await lzmaCompressData(keysignMsg.serialize());
-      // setQrString(
-      //   `vultisig://vultisig.com?type=SignTransaction&vault=${vaultPublicKeyEcdsa}&jsonData=${Buffer.from(
-      //     compressedData
-      //   ).toString("base64")}`
-      // );
-      const data = await (
-        await getLzmaCompressedData(
-          JSON.stringify({
-            data: Buffer.from(keysignMsg.serialize()).toString(),
-          })
-        )
-      ).json();
+      const compressedData = await lzmaCompressData(keysignMsg.serialize());
       setQrString(
-        `vultisig://vultisig.com?type=SignTransaction&vault=${vaultPublicKeyEcdsa}&jsonData=${data}`
+        `vultisig://vultisig.com?type=SignTransaction&vault=${vaultPublicKeyEcdsa}&jsonData=${Buffer.from(
+          compressedData
+        ).toString("base64")}`
       );
 
       const taskId = await (
@@ -299,8 +287,8 @@ const TokenSend: React.FC = () => {
       const signatures = await resp.json();
       console.log(111, "signatures", signatures);
       if (
-        signatures.message &&
-        signatures.message === "Task is still in progress"
+        signatures === "Task is still in progress" ||
+        signatures === "task state is invalid"
       ) {
         setTimeout(() => {
           signTransaction(
@@ -335,7 +323,7 @@ const TokenSend: React.FC = () => {
       {currentStep === 1 && <StepOne sendTransaction={sendTransaction} />}
       {currentStep === 2 && (
         <StepTwo
-          uniqueStrings={[]}
+          uniqueStrings={uniqueStrings}
           setUniqueStrings={setUniqueStrings}
           goToStep={goToStep}
           qrCodeString={qrString}

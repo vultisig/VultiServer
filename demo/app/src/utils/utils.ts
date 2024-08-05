@@ -48,7 +48,10 @@ export const lzmaCompressData = (
   input: string | Uint8Array
 ): Promise<Uint8Array> => {
   const lzma = new LZMA();
-  return lzma.compress(input);
+  type Mode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  const modes: Mode[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+  return lzma.compress(input, modes[Math.floor(Math.random() * 9)]);
 };
 
 // Function to decompress a Uint8Array

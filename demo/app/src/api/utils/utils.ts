@@ -31,14 +31,3 @@ export const getDerivedPublicKey = async (
     console.error("Error getThorchainPublicKey:", error);
   }
 };
-
-export const getLzmaCompressedData = async (data: string) => {
-  return fetch(endPoints.lzmaCompressData, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: getAuthHeader(),
-    },
-    body: data,
-  });
-};

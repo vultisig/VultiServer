@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { initWasm } from "@trustwallet/wallet-core";
+import { Buffer } from "buffer";
 import { getBalances } from "../../api/thorchain";
 import { getDerivedPublicKey } from "../../api/utils/utils";
 import { getVault } from "../../api/vault/vault";
@@ -17,11 +18,15 @@ interface StepOneProps {
 }
 
 const StepOne = ({ sendTransaction }: StepOneProps) => {
-  const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>("");
+  const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>(
+    "0282ee89003fbf985aaebff03d5c9b885a3d508c6fbd2974801e018a11bb79c01f"
+  );
   const [balance, setBalance] = useState<string>("");
-  const [toAddress, setToAddress] = useState<string>("");
-  const [amount, setAmount] = useState<string>("");
-  const [passwd, setPasswd] = useState<string>("");
+  const [toAddress, setToAddress] = useState<string>(
+    "thor1z5wcwjs0jymr589zns48n5l0x6n2twm7dfkelp"
+  );
+  const [amount, setAmount] = useState<string>("1000000");
+  const [passwd, setPasswd] = useState<string>("2vault");
 
   const getThorAddress = async () => {
     if (!vaultPublicKeyEcdsa) return;
@@ -47,7 +52,7 @@ const StepOne = ({ sendTransaction }: StepOneProps) => {
     );
     return {
       thorAddress,
-      vaultLocalPartyId: vaultInfo.vault_local_party_id,
+      vaultLocalPartyId: vaultInfo.local_party_id,
       vaultHexChainCode: vaultInfo.hex_chain_code,
     };
   };
