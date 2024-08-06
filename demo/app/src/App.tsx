@@ -4,7 +4,7 @@ import Header from "./shared-components/header";
 import Footer from "./shared-components/footer";
 import FileUpload from "./components/file-upload";
 import FileDownload from "./components/file-download";
-import TokenSend from "./components/token-send";
+import TokenSend from "./components/token-send/TokenSend";
 
 function App() {
   return (
@@ -20,9 +20,9 @@ function App() {
         <div className="flex justify-around text-justify">
           <FileUpload />
           <FileDownload />
-          <TokenSend />
         </div>
       </div>
+      <TokenSend />
       <Footer />
     </div>
   );

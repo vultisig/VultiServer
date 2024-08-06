@@ -30,10 +30,7 @@ export default function StepThree({
   }, [qrCodeString, session_id]);
 
   useEffect(() => {
-    let intervalId: string | number | NodeJS.Timeout | undefined;
-    postRoute(session_id, "VultiSignerApp").then(() => {
-      intervalId = setInterval(getDevices, 3000);
-    });
+    let intervalId = setInterval(getDevices, 3000);
     return () => clearInterval(intervalId);
   }, [session_id]);
 

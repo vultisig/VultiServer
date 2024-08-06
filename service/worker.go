@@ -98,7 +98,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		"HexEncryptionKey": p.HexEncryptionKey,
 		"DerivePath":       p.DerivePath,
 		"IsECDSA":          p.IsECDSA,
-	}).Info("Joining keygen")
+	}).Info("Joining keysign")
 
 	signatures, err := tss.JoinKeySign(&types.KeysignRequest{
 		PublicKey:        p.PublicKey,

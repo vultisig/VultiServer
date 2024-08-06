@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { createVault } from "../api/create-vault/vault";
+import { createVault } from "../api/vault/vault";
 
 const variants = {
   initial: { x: "100%" },

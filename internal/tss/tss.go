@@ -274,8 +274,8 @@ func startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssS
 	return endCh, wg
 }
 
-func JoinKeySign(ks *types.KeysignRequest) ([]tss.KeysignResponse, error) {
-	signatures := []tss.KeysignResponse{}
+func JoinKeySign(ks *types.KeysignRequest) (map[string]tss.KeysignResponse, error) {
+	result := map[string]tss.KeysignResponse{}
 	keyFolder := config.AppConfig.Server.VaultsFilePath
 	serverURL := config.AppConfig.Relay.Server
 	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, ks.PublicKey, ks.VaultPassword)
@@ -318,9 +318,9 @@ func JoinKeySign(ks *types.KeysignRequest) ([]tss.KeysignResponse, error) {
 			}
 		}
 		if err != nil {
-			return nil, err
+			return result, err
 		}
-		signatures = append(signatures, *signature)
+		result[message] = *signature
 	}
 
 	if err := server.CompleteSession(ks.Session, localPartyId); err != nil {
@@ -330,7 +330,7 @@ func JoinKeySign(ks *types.KeysignRequest) ([]tss.KeysignResponse, error) {
 		}).Error("Failed to complete session")
 	}
 
-	return signatures, nil
+	return result, nil
 }
 
 func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {
@@ -342,7 +342,7 @@ func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, 
 	if ks.IsECDSA {
 		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
 			PubKey:               ks.PublicKey,
-			MessageToSign:        ks.Messages[0],
+			MessageToSign:        msg,
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
 			DerivePath:           ks.DerivePath,

@@ -14,4 +14,5 @@ export const endPoints = {
   getSignResult: `${vultisignerBaseUrl}vault/sign/response`,
   // Other
   getDerivedPublicKey: `${vultisignerBaseUrl}getDerivedPublicKey`,
+  lzmaCompressData: `${vultisignerBaseUrl}lzmaCompressData`,
 };
