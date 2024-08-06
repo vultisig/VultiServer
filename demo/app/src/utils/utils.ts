@@ -22,11 +22,11 @@ export const lzmaCompressData = (
   input: string | Uint8Array
 ): Promise<Uint8Array> => {
   const lzma = new LZMA();
-  type Mode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
-  const modes: Mode[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-  // return lzma.compress(input, 1);
-  return lzma.compress(input, modes[Math.floor(Math.random() * 9)]);
+  // type Mode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  // const modes: Mode[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  // const mode = modes[Math.floor(Math.random() * 9)];
+  // return lzma.compress(input, mode);
+  return lzma.compress(input);
 };
 
 // Function to decompress a Uint8Array

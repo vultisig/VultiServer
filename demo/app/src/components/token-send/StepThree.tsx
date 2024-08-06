@@ -1,37 +1,11 @@
-import { useEffect, useState, useRef } from "react";
-import { routeComplete } from "../../api/router/router";
 interface StepThreeProps {
-  devices: string[];
-  session_id: string;
+  status: string;
 }
 
-export default function StepThree({ devices, session_id }: StepThreeProps) {
-  const [status, setStatus] = useState<string>("pending");
-  const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (status !== "done")
-      intervalIdRef.current = setInterval(getCompleteDevice, 3000);
-    return () => {
-      if (intervalIdRef.current) clearInterval(intervalIdRef.current);
-    };
-  }, [session_id, status]);
-
-  const getCompleteDevice = async () => {
-    let lengthDevices = devices.length;
-    const data = await (await routeComplete(session_id)).json();
-    const uniqueDevices: any = Array.from(new Set(data));
-    if (uniqueDevices.length === lengthDevices) {
-      setStatus("done");
-      if (intervalIdRef.current) {
-        clearInterval(intervalIdRef.current);
-      }
-    }
-  };
-
+export default function StepThree({ status }: StepThreeProps) {
   return (
     <>
-      <div className="w-full pt-20 pb-40 relative">
+      <div className="w-full mt-20 pb-20 mb-8 pb-40 relative">
         {status === "pending" ? (
           <>
             <div className="flex justify-center items-center mt-[-40px]">
@@ -63,7 +37,7 @@ export default function StepThree({ devices, session_id }: StepThreeProps) {
         ) : (
           <div className="flex flex-col justify-center items-center">
             <div className="done rounded-full w-[100px] h-[100px] flex flex-col justify-center items-center bg-[#33e6bf]">
-              <img src="img/checked.svg" />
+              <img src="img/checked.svg" alt="checked" />
             </div>
             <p className="text-white mt-4 text-xl">Done!</p>
           </div>

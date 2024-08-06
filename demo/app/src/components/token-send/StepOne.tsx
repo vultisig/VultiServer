@@ -19,15 +19,11 @@ interface StepOneProps {
 }
 
 const StepOne = ({ sendTransaction }: StepOneProps) => {
-  const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>(
-    "0282ee89003fbf985aaebff03d5c9b885a3d508c6fbd2974801e018a11bb79c01f"
-  );
+  const [vaultPublicKeyEcdsa, setVaultPublicKeyEcdsa] = useState<string>("");
   const [balance, setBalance] = useState<string>("");
-  const [toAddress, setToAddress] = useState<string>(
-    "thor1z5wcwjs0jymr589zns48n5l0x6n2twm7dfkelp"
-  );
-  const [amount, setAmount] = useState<string>("1000000");
-  const [passwd, setPasswd] = useState<string>("2vault");
+  const [toAddress, setToAddress] = useState<string>("");
+  const [amount, setAmount] = useState<string>("");
+  const [passwd, setPasswd] = useState<string>("");
 
   const getThorAddress = async () => {
     if (!vaultPublicKeyEcdsa) return;
@@ -69,7 +65,8 @@ const StepOne = ({ sendTransaction }: StepOneProps) => {
       const runeBalance = data.balances.find(
         (bal: any) => bal.denom === "rune"
       );
-      setBalance(runeBalance ? runeBalance.amount : "0");
+      const balance = runeBalance ? runeBalance.amount : "0";
+      setBalance((parseFloat(balance) / Math.pow(10, 8)).toFixed(8));
     } catch (error) {
       console.error("Error fetching balance:", error);
     }
@@ -134,7 +131,7 @@ const StepOne = ({ sendTransaction }: StepOneProps) => {
             resp.thorPublicKeyStr,
             resp.thorAddress,
             toAddress,
-            amount,
+            Math.round(parseFloat(amount) * Math.pow(10, 8)).toString(),
             passwd
           );
         }}

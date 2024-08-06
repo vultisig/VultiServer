@@ -12,8 +12,11 @@ export async function broadcastSignedTransaction(
   signedTx: string
 ): Promise<any> {
   try {
-    const response = await fetch(`${rpcEndpoint}/broadcast`, {
+    const response = await fetch(`${rpcEndpoint}/cosmos/tx/v1beta1/txs`, {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: signedTx,
     });
 

@@ -31,6 +31,7 @@ const TokenSend: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>("");
   const [qrString, setQrString] = useState<string>("");
   const [uniqueStrings, setUniqueStrings] = useState<string[]>([]);
+  const [status, setStatus] = useState<string>("pending");
 
   const goToStep = (step: number) => {
     setCurrentStep(step);
@@ -116,15 +117,8 @@ const TokenSend: React.FC = () => {
       const allSignatures = walletCore.DataVector.create();
       const allPublicKeys = walletCore.DataVector.create();
       const signature = getSignatureWithRecoveryID(
-        signatures[Buffer.from(preSigningOutput.dataHash).toString("hex")]
+        signatures[Buffer.from(preSigningOutput.dataHash).toString("base64")]
       );
-      console.log(
-        222,
-        preSigningOutput,
-        preSigningOutput.dataHash,
-        Buffer.from(preSigningOutput.dataHash).toString("hex")
-      );
-      console.log(333, "signature", signature);
       if (!publicKey.verify(signature, preSigningOutput.dataHash)) {
         console.error("fail to verify signature");
         return;
@@ -141,12 +135,12 @@ const TokenSend: React.FC = () => {
           allPublicKeys
         );
       const output = TW.Cosmos.Proto.SigningOutput.decode(compileWithSignature);
-
-      {
-        const buffer = Buffer.from(output.serialized, "base64");
-        const hash = createHash("sha256").update(buffer).digest("hex");
-        console.log("txHash:", hash);
-      }
+      const buffer = Buffer.from(
+        JSON.parse(output.serialized).tx_bytes,
+        "base64"
+      );
+      const hash = createHash("sha256").update(buffer).digest("hex");
+      console.log("txHash:", hash);
 
       return output.serialized; // raw transaction
     } catch (error: any) {
@@ -282,11 +276,10 @@ const TokenSend: React.FC = () => {
         }, 5000);
         return;
       }
-      const signatures = await resp.json();
-      console.log(111, "signatures", signatures);
+      const result = await resp.json();
       if (
-        signatures === "Task is still in progress" ||
-        signatures === "task state is invalid"
+        result === "Task is still in progress" ||
+        result === "task state is invalid"
       ) {
         setTimeout(() => {
           signTransaction(
@@ -299,7 +292,7 @@ const TokenSend: React.FC = () => {
         }, 5000);
         return;
       }
-
+      const signatures = JSON.parse(Buffer.from(result, "base64").toString());
       const signedTx = await getSignedTransaction(
         walletCore,
         vaultPublicKeyEcdsa,
@@ -307,9 +300,9 @@ const TokenSend: React.FC = () => {
         payload,
         signatures
       );
-      console.log(444, "signedTx", signedTx);
       if (signedTx) {
         broadcastSignedTransaction(signedTx);
+        setStatus("done");
       }
     } catch (error) {
       console.error("Error signing transaction:", error);
@@ -328,9 +321,7 @@ const TokenSend: React.FC = () => {
           session_id={sessionId}
         />
       )}
-      {currentStep === 3 && (
-        <StepThree devices={uniqueStrings} session_id={sessionId} />
-      )}
+      {currentStep === 3 && <StepThree status={status} />}
     </div>
   );
 };
