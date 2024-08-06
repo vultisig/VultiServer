@@ -25,7 +25,6 @@ import {
 } from "../../api/thorchain";
 import { getDerivedPublicKey } from "../../api/utils/utils";
 import { getSignResult, signMessages } from "../../api/vault/vault";
-import { PublicKey } from "@trustwallet/wallet-core/dist/src/wallet-core";
 
 const TokenSend: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -114,8 +113,8 @@ const TokenSend: React.FC = () => {
       );
       const preSigningOutput =
         TW.TxCompiler.Proto.PreSigningOutput.decode(hashes);
-      const allSignatures = new walletCore.DataVector();
-      const allPublicKeys = new walletCore.DataVector();
+      const allSignatures = walletCore.DataVector.create();
+      const allPublicKeys = walletCore.DataVector.create();
       const signature = getSignatureWithRecoveryID(
         signatures[Buffer.from(preSigningOutput.dataHash).toString("hex")]
       );
@@ -151,9 +150,7 @@ const TokenSend: React.FC = () => {
 
       return output.serialized; // raw transaction
     } catch (error: any) {
-      console.error(
-        `fail to get signed ethereum transaction, error: ${error.message}`
-      );
+      console.error(`fail to get signed transaction, error: ${error.message}`);
       return;
     }
   };
@@ -162,7 +159,7 @@ const TokenSend: React.FC = () => {
     vaultPublicKeyEcdsa: string,
     vaultLocalPartyId: string,
     vaultHexChainCode: string,
-    fromPublicKey: PublicKey,
+    fromPublicKey: string,
     fromAddress: string,
     toAddress: string,
     amount: string,
@@ -186,14 +183,14 @@ const TokenSend: React.FC = () => {
       const thorchainspecific = new THORChainSpecific({
         account_number: accountNumber,
         sequence: sequence,
-        fee: 20000000,
+        fee: 2000000,
       });
       const coin = new Coin({
         chain: "THORChain",
         ticker: "RUNE",
         decimals: 8,
         is_native_token: true,
-        hex_public_key: Buffer.from(fromPublicKey.data()).toString("hex"),
+        hex_public_key: fromPublicKey,
         address: fromAddress,
       });
       const payload = new KeysignPayload({
