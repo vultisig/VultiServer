@@ -4,12 +4,14 @@ import { Buffer } from "buffer";
 import { getBalances } from "../../api/thorchain";
 import { getDerivedPublicKey } from "../../api/utils/utils";
 import { getVault } from "../../api/vault/vault";
+import { PublicKey } from "@trustwallet/wallet-core/dist/src/wallet-core";
 
 interface StepOneProps {
   sendTransaction: (
     vaultPublicKeyEcdsa: string,
     vaultLocalPartyId: string,
     vaultHexChainCode: string,
+    fromPublicKey: PublicKey,
     fromAddress: string,
     toAddress: string,
     amount: string,
@@ -51,6 +53,7 @@ const StepOne = ({ sendTransaction }: StepOneProps) => {
       thorPublicKey
     );
     return {
+      thorPublicKey,
       thorAddress,
       vaultLocalPartyId: vaultInfo.local_party_id,
       vaultHexChainCode: vaultInfo.hex_chain_code,
@@ -125,10 +128,12 @@ const StepOne = ({ sendTransaction }: StepOneProps) => {
         onClick={async () => {
           const resp = await getThorAddress();
           if (!resp || !resp.thorAddress) return;
+          console.log(123123, resp);
           sendTransaction(
             vaultPublicKeyEcdsa,
             resp.vaultLocalPartyId,
             resp.vaultHexChainCode,
+            resp.thorPublicKey,
             resp.thorAddress,
             toAddress,
             amount,

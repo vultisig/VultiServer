@@ -9,10 +9,9 @@ import {
   KeysignResponse,
   THORChainSpecific,
 } from "../../utils/types";
-import { createHash } from "crypto";
+import { createHash } from "crypto-browserify";
 import { Buffer } from "buffer";
 import {
-  byteArrayToHexString,
   generateRandomHex,
   getSignatureWithRecoveryID,
   lzmaCompressData,
@@ -26,6 +25,7 @@ import {
 } from "../../api/thorchain";
 import { getDerivedPublicKey } from "../../api/utils/utils";
 import { getSignResult, signMessages } from "../../api/vault/vault";
+import { PublicKey } from "@trustwallet/wallet-core/dist/src/wallet-core";
 
 const TokenSend: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -117,13 +117,13 @@ const TokenSend: React.FC = () => {
       const allSignatures = new walletCore.DataVector();
       const allPublicKeys = new walletCore.DataVector();
       const signature = getSignatureWithRecoveryID(
-        signatures[byteArrayToHexString(preSigningOutput.dataHash)]
+        signatures[Buffer.from(preSigningOutput.dataHash).toString("hex")]
       );
       console.log(
         222,
         preSigningOutput,
         preSigningOutput.dataHash,
-        byteArrayToHexString(preSigningOutput.dataHash)
+        Buffer.from(preSigningOutput.dataHash).toString("hex")
       );
       console.log(333, "signature", signature);
       if (!publicKey.verify(signature, preSigningOutput.dataHash)) {
@@ -162,6 +162,7 @@ const TokenSend: React.FC = () => {
     vaultPublicKeyEcdsa: string,
     vaultLocalPartyId: string,
     vaultHexChainCode: string,
+    fromPublicKey: PublicKey,
     fromAddress: string,
     toAddress: string,
     amount: string,
@@ -185,14 +186,14 @@ const TokenSend: React.FC = () => {
       const thorchainspecific = new THORChainSpecific({
         account_number: accountNumber,
         sequence: sequence,
-        fee: 2000000,
+        fee: 20000000,
       });
       const coin = new Coin({
         chain: "THORChain",
         ticker: "RUNE",
         decimals: 8,
         is_native_token: true,
-        hex_public_key: vaultPublicKeyEcdsa,
+        hex_public_key: Buffer.from(fromPublicKey.data()).toString("hex"),
         address: fromAddress,
       });
       const payload = new KeysignPayload({
@@ -209,8 +210,8 @@ const TokenSend: React.FC = () => {
         txInputData
       );
       const preSigningOutput =
-        TW.Cosmos.Proto.SigningOutput.decode(preImageHashes);
-      const message = byteArrayToHexString(preSigningOutput.signature);
+        TW.TxCompiler.Proto.PreSigningOutput.decode(preImageHashes);
+      const message = Buffer.from(preSigningOutput.dataHash).toString("base64");
 
       const sessionId = uuidv4();
       setSessionId(sessionId);

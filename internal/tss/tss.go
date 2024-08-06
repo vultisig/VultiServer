@@ -342,7 +342,7 @@ func keysignWithRetry(serverURL, localPartyId string, ks *types.KeysignRequest, 
 	if ks.IsECDSA {
 		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
 			PubKey:               ks.PublicKey,
-			MessageToSign:        ks.Messages[0],
+			MessageToSign:        msg,
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
 			DerivePath:           ks.DerivePath,

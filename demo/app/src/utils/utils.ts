@@ -1,39 +1,13 @@
 import LZMA from "lzma-web";
+import { Buffer } from "buffer";
 import { KeysignResponse } from "./types";
-
-export function encodeToBase64(input: string): string {
-  const binaryString = new TextEncoder().encode(input);
-  let binary = "";
-  for (let i = 0; i < binaryString.length; i++) {
-    binary += String.fromCharCode(binaryString[i]);
-  }
-  const base64String = btoa(binary);
-  return base64String;
-}
-
-export const byteArrayToHexString = (byteArray: Uint8Array): string => {
-  return Array.from(byteArray, (byte) =>
-    byte.toString(16).padStart(2, "0")
-  ).join("");
-};
-
-export const hexStringToByteArray = (hex: string): Uint8Array => {
-  if (hex.length % 2 !== 0) {
-    throw new Error("Invalid hex string");
-  }
-  const byteArray = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    byteArray[i / 2] = parseInt(hex.slice(i, i + 2), 16);
-  }
-  return byteArray;
-};
 
 export const getSignatureWithRecoveryID = (
   signature: KeysignResponse
 ): Uint8Array => {
-  const rBytes = hexStringToByteArray(signature.r);
-  const sBytes = hexStringToByteArray(signature.s);
-  const recoveryIdBytes = hexStringToByteArray(signature.recovery_id);
+  const rBytes = Buffer.from(signature.r, "hex");
+  const sBytes = Buffer.from(signature.s, "hex");
+  const recoveryIdBytes = Buffer.from(signature.recovery_id, "hex");
   const signatureWithRecoveryID = new Uint8Array(
     rBytes.length + sBytes.length + recoveryIdBytes.length
   );
@@ -51,6 +25,7 @@ export const lzmaCompressData = (
   type Mode = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   const modes: Mode[] = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
+  // return lzma.compress(input, 1);
   return lzma.compress(input, modes[Math.floor(Math.random() * 9)]);
 };
 
@@ -71,5 +46,5 @@ export const generateRandomHex = (size: number) => {
 const userName = process.env.REACT_APP_VULTISIGNER_USER;
 const passWord = process.env.REACT_APP_VULTISIGNER_PASSWORD;
 export const getAuthHeader = () => {
-  return `Basic ${encodeToBase64(`${userName}:${passWord}`)}`;
+  return `Basic ${Buffer.from(`${userName}:${passWord}`).toString("base64")}`;
 };
