@@ -80,7 +80,7 @@ const TokenSend: React.FC = () => {
       memo: keysignPayload.memo,
       messages: messages,
       fee: TW.Cosmos.Proto.Fee.create({
-        gas: 2000000,
+        gas: 20000000,
       }),
     });
 
