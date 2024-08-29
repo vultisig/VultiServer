@@ -3,7 +3,6 @@ module github.com/vultisig/vultisigner
 go 1.22.2
 
 require (
-	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.24.1
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/labstack/gommon v0.4.2
@@ -14,6 +13,8 @@ require (
 	github.com/vultisig/mobile-tss-lib v0.0.0-20240621002938-ee58dda07286
 	google.golang.org/protobuf v1.34.2
 )
+
+require github.com/google/uuid v1.6.0 // indirect
 
 require (
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect

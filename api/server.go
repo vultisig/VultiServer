@@ -1,8 +1,6 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -82,15 +80,7 @@ func (s *Server) Ping(c echo.Context) error {
 	return c.String(http.StatusOK, "Vultisigner is running")
 }
 
-func (s *Server) getHexEncodedRandomBytes() (string, error) {
-	bytes := make([]byte, 32)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", fmt.Errorf("fail to generate random bytes, err: %w", err)
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
+// GetDerivedPublicKey is a handler to get the derived public key
 func (s *Server) GetDerivedPublicKey(c echo.Context) error {
 	publicKey := c.QueryParam("publicKey")
 	if publicKey == "" {

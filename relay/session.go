@@ -55,7 +55,7 @@ func (c *Client) StartSession(sessionID string, parties []string) error {
 	defer c.bodyCloser(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fail to start session: %c", resp.Status)
+		return fmt.Errorf("fail to start session: %s", resp.Status)
 	}
 	return nil
 }
@@ -74,7 +74,7 @@ func (c *Client) RegisterSession(sessionID string, key string) error {
 	}
 	defer c.bodyCloser(resp.Body)
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("fail to register session: %c", resp.Status)
+		return fmt.Errorf("fail to register session: %s", resp.Status)
 	}
 
 	return nil
@@ -95,7 +95,7 @@ func (c *Client) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 				return nil, fmt.Errorf("fail to get session: %w", err)
 			}
 			if resp.StatusCode != http.StatusOK {
-				return nil, fmt.Errorf("fail to get session: %c", resp.Status)
+				return nil, fmt.Errorf("fail to get session: %s", resp.Status)
 			}
 			var parties []string
 			buff, err := io.ReadAll(resp.Body)
@@ -143,7 +143,7 @@ func (c *Client) GetSession(sessionID string) ([]string, error) {
 	}
 	defer c.bodyCloser(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fail to get session: %c", resp.Status)
+		return nil, fmt.Errorf("fail to get session: %s", resp.Status)
 	}
 	var parties []string
 	if err := json.NewDecoder(resp.Body).Decode(&parties); err != nil {
@@ -172,7 +172,7 @@ func (c *Client) CompleteSession(sessionID, localPartyID string) error {
 	}
 	defer c.bodyCloser(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fail to complete session: %c", resp.Status)
+		return fmt.Errorf("fail to complete session: %s", resp.Status)
 	}
 	return nil
 }
@@ -194,7 +194,7 @@ func (c *Client) CheckCompletedParties(sessionID string, partiesJoined []string)
 			return false, fmt.Errorf("fail to check completed parties: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			return false, fmt.Errorf("fail to check completed parties: %c", resp.Status)
+			return false, fmt.Errorf("fail to check completed parties: %s", resp.Status)
 		}
 
 		result, err := io.ReadAll(resp.Body)
@@ -240,7 +240,7 @@ func (c *Client) EndSession(sessionID string) error {
 	}
 	defer c.bodyCloser(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fail to end session: %c", resp.Status)
+		return fmt.Errorf("fail to end session: %s", resp.Status)
 	}
 	return nil
 }

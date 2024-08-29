@@ -10,7 +10,6 @@ import (
 
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
-	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
@@ -88,11 +87,11 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		return err
 	}
 
-	var p tasks.KeysignPayload
+	var p types.KeysignRequest
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	logging.Logger.WithFields(logrus.Fields{
+	s.logger.WithFields(logrus.Fields{
 		"PublicKey":        p.PublicKey,
 		"session":          p.SessionID,
 		"Messages":         p.Messages,
@@ -101,20 +100,12 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		"IsECDSA":          p.IsECDSA,
 	}).Info("Joining keysign")
 
-	signatures, err := JoinKeySign(&types.KeysignRequest{
-		PublicKey:        p.PublicKey,
-		Session:          p.SessionID,
-		Messages:         p.Messages,
-		HexEncryptionKey: p.HexEncryptionKey,
-		DerivePath:       p.DerivePath,
-		IsECDSA:          p.IsECDSA,
-		VaultPassword:    p.VaultPassword,
-	})
+	signatures, err := s.JoinKeySign(p)
 	if err != nil {
 		return fmt.Errorf("keysign.JoinKeySign failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	logging.Logger.WithFields(logrus.Fields{
+	s.logger.WithFields(logrus.Fields{
 		"Signatures": signatures,
 	}).Info("Key sign completed")
 
