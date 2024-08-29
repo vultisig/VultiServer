@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/spf13/viper"
 )
@@ -14,21 +14,19 @@ type Config struct {
 	}
 
 	Redis struct {
-		Host     string `mapstructure:"host"`
-		Port     string `mapstructure:"port"`
-		User     string `mapstructure:"user"`
-		Password string `mapstructure:"password"`
-		DB       int    `mapstructure:"db"`
-	} `mapstructure:"redis"`
+		Host     string `mapstructure:"host" json:"host,omitempty"`
+		Port     string `mapstructure:"port" json:"port,omitempty"`
+		User     string `mapstructure:"user" json:"user,omitempty"`
+		Password string `mapstructure:"password" json:"password,omitempty"`
+		DB       int    `mapstructure:"db" json:"db,omitempty"`
+	} `mapstructure:"redis" json:"redis,omitempty"`
 
 	Relay struct {
-		Server string `mapstructure:"server"`
-	} `mapstructure:"relay"`
+		Server string `mapstructure:"server" json:"server"`
+	} `mapstructure:"relay" json:"relay,omitempty"`
 }
 
-var AppConfig Config
-
-func init() {
+func GetConfigure() (*Config, error) {
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
@@ -44,11 +42,12 @@ func init() {
 	viper.SetDefault("Relay.Server", "https://api.vultisig.com/router")
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file, %s", err)
+		return nil, fmt.Errorf("fail to reading config file, %w", err)
 	}
-
-	err := viper.Unmarshal(&AppConfig)
+	var cfg Config
+	err := viper.Unmarshal(&cfg)
 	if err != nil {
-		log.Fatalf("Unable to decode into struct, %v", err)
+		return nil, fmt.Errorf("unable to decode into struct, %w", err)
 	}
+	return &cfg, nil
 }

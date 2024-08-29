@@ -11,17 +11,21 @@ import (
 )
 
 func main() {
-	port := config.AppConfig.Server.Port
+	cfg, err := config.GetConfigure()
+	if err != nil {
+		panic(err)
+	}
+	port := cfg.Server.Port
 
-	redisStorage, err := storage.NewRedisStorage(config.AppConfig)
+	redisStorage, err := storage.NewRedisStorage(*cfg)
 	if err != nil {
 		panic(err)
 	}
 	redisOptions := asynq.RedisClientOpt{
-		Addr:     config.AppConfig.Redis.Host + ":" + config.AppConfig.Redis.Port,
-		Username: config.AppConfig.Redis.User,
-		Password: config.AppConfig.Redis.Password,
-		DB:       config.AppConfig.Redis.DB,
+		Addr:     cfg.Redis.Host + ":" + cfg.Redis.Port,
+		Username: cfg.Redis.User,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
 	}
 	client := asynq.NewClient(redisOptions)
 	defer func() {
@@ -30,7 +34,7 @@ func main() {
 		}
 	}()
 	inspector := asynq.NewInspector(redisOptions)
-	if config.AppConfig.Server.VaultsFilePath == "" {
+	if cfg.Server.VaultsFilePath == "" {
 		panic("vaults file path is empty")
 
 	}
@@ -38,7 +42,7 @@ func main() {
 		redisStorage,
 		client,
 		inspector,
-		config.AppConfig.Server.VaultsFilePath)
+		cfg.Server.VaultsFilePath)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}

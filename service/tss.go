@@ -1,4 +1,4 @@
-package tss
+package service
 
 import (
 	"context"
@@ -17,21 +17,19 @@ import (
 
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/logging"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 )
 
-func JoinKeyGeneration(kg *types.KeyGeneration) (string, string, error) {
-	keyFolder := config.AppConfig.Server.VaultsFilePath
-	serverURL := config.AppConfig.Relay.Server
-
-	server := relay.NewServer(serverURL)
+func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string, string, error) {
+	keyFolder := s.cfg.Server.VaultsFilePath
+	serverURL := s.cfg.Relay.Server
+	relayClient := relay.NewRelayClient(serverURL)
 
 	// Let's register session here
-	if err := server.RegisterSession(kg.Session, kg.Key); err != nil {
+	if err := relayClient.RegisterSession(req.Session, kg.Key); err != nil {
 		return "", "", fmt.Errorf("failed to register session: %w", err)
 	}
 	// wait longer for keygen start

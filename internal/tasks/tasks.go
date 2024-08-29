@@ -6,15 +6,6 @@ const (
 	TypeKeySign       = "key:sign"
 )
 
-type KeyGenerationPayload struct {
-	LocalKey           string
-	Name               string
-	SessionID          string
-	ChainCode          string
-	HexEncryptionKey   string
-	EncryptionPassword string
-}
-
 // KeysignPayload is a struct that represent a requst submitted to redis queue to sign messages
 type KeysignPayload struct {
 	PublicKey        string   `json:"public_key"`         // public key, used to identify the backup file

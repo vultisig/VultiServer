@@ -2,8 +2,8 @@ package api
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,17 +11,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/vultisig/vultisigner/common"
-	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
@@ -60,6 +56,7 @@ func (s *Server) StartServer() error {
 
 	e.Use(middleware.CORS())
 	e.GET("/ping", s.Ping)
+
 	//serve demo/generated/img folder as img
 	e.Static("/img", "./demo/generated/img")
 	//serve demo/generated/static folder as static
@@ -68,6 +65,7 @@ func (s *Server) StartServer() error {
 		//server index.html file in demo folder
 		return c.File("./demo/generated/index.html")
 	})
+
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
 	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
@@ -79,8 +77,7 @@ func (s *Server) StartServer() error {
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
-	host := config.AppConfig.Server.Host
-	return e.Start(fmt.Sprintf("%s:%d", host, s.port))
+	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 
 // AuthenticationValidator is a middleware that validates the basic auth credentials.
@@ -145,73 +142,22 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-	sessionID := uuid.New().String()
-	encryptionKey, err := s.getHexEncodedRandomBytes()
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid request, err: %w", err)
+	}
+	buf, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
-
-	hexChainCode, err := s.getHexEncodedRandomBytes()
-	if err != nil {
-		return fmt.Errorf("fail to generate hex chain code, err: %w", err)
-	}
-
-	cacheItem := types.VaultCacheItem{
-		LocalKey:           req.LocalPartyId,
-		Name:               req.Name,
-		SessionID:          sessionID,
-		HexEncryptionKey:   encryptionKey,
-		HexChainCode:       hexChainCode,
-		EncryptionPassword: req.EncryptionPassword,
-	}
-
-	// Save the item into cache, so work can retrieve it
-	if err := s.redis.SetVaultCacheItem(c.Request().Context(), &cacheItem); err != nil {
-		return fmt.Errorf("fail to set vault cache item, err: %w", err)
-	}
-
-	keygenMsg := &keygenTypes.KeygenMessage{
-		SessionId:        sessionID,
-		HexChainCode:     hexChainCode,
-		ServiceName:      "VultiSignerApp",
-		EncryptionKeyHex: encryptionKey,
-		UseVultisigRelay: true,
-		VaultName:        req.Name,
-	}
-
-	serializedData, err := proto.Marshal(keygenMsg)
-	if err != nil {
-		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
-	}
-
-	compressedData, err := common.CompressData(serializedData)
-	if err != nil {
-		return fmt.Errorf("common.CompressData failed, err: %w", err)
-	}
-
-	resp := types.VaultCreateResponse{
-		Name:             req.Name,
-		SessionID:        sessionID,
-		HexEncryptionKey: encryptionKey,
-		HexChainCode:     hexChainCode,
-		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedData),
-	}
-	task, err := cacheItem.Task()
-	if err != nil {
-		return fmt.Errorf("fail to create task, err: %w", err)
-	}
-
-	_, err = s.client.Enqueue(task,
+	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
-		asynq.Unique(time.Hour),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
-
-	return c.JSON(http.StatusOK, resp)
+	return c.NoContent(http.StatusOK)
 }
 
 // UploadVault is a handler that receives a vault file from integration.
