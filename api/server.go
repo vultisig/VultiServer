@@ -68,9 +68,7 @@ func (s *Server) StartServer() error {
 
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
-	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
-		Validator: s.AuthenticationValidator,
-	}))
+
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
@@ -78,23 +76,6 @@ func (s *Server) StartServer() error {
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
-}
-
-// AuthenticationValidator is a middleware that validates the basic auth credentials.
-func (s *Server) AuthenticationValidator(username string, password string, c echo.Context) (bool, error) {
-	if username == "" || password == "" {
-		return false, nil
-	}
-	// save the user/password in redis, it is not idea , but vultisigner mostly run by integration partners
-	// they can add db support later
-	passwd, err := s.redis.GetUser(c.Request().Context(), username)
-	if err != nil {
-		return false, fmt.Errorf("fail to get user, err: %w", err)
-	}
-	if passwd == password {
-		return true, nil
-	}
-	return false, nil
 }
 
 func (s *Server) Ping(c echo.Context) error {
@@ -266,25 +247,18 @@ func (s *Server) GetVault(c echo.Context) error {
 
 // SignMessages is a handler to process Keysing request
 func (s *Server) SignMessages(c echo.Context) error {
-	var keysignReq types.KeysignRequest
-	if err := c.Bind(&keysignReq); err != nil {
+	var req types.KeysignRequest
+	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-	if err := keysignReq.IsValid(); err != nil {
+	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKey+".bak")
+	filePathName := filepath.Join(s.vaultFilePath, req.PublicKey+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
-	}
-
-	// password that used to decrypt the vault file
-	// if the password can't be used to decrypt the vault file, the keysign request should be rejected
-	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
 	}
 
 	content, err := os.ReadFile(filePathName)
@@ -292,17 +266,17 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
 
-	_, err = common.DecryptVaultFromBackup(passwd, content)
+	_, err = common.DecryptVaultFromBackup(req.VaultPassword, content)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
-
-	task, err := keysignReq.NewKeysignTask(passwd)
+	buf, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("fail to create task, err: %w", err)
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
-
-	ti, err := s.client.EnqueueContext(c.Request().Context(), task, asynq.MaxRetry(-1),
+	ti, err := s.client.EnqueueContext(c.Request().Context(),
+		asynq.NewTask(tasks.TypeKeySign, buf),
+		asynq.MaxRetry(-1),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))

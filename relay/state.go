@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
+
 	"github.com/vultisig/vultisigner/common"
 )
 
