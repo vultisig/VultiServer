@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/mailgun/mailgun-go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
@@ -15,22 +17,24 @@ import (
 )
 
 type WorkerService struct {
-	cfg    config.Config
-	redis  *storage.RedisStorage
-	logger *logrus.Logger
+	cfg         config.Config
+	redis       *storage.RedisStorage
+	logger      *logrus.Logger
+	queueClient *asynq.Client
 }
 
 // NewWorker creates a new worker service
-func NewWorker(cfg config.Config) (*WorkerService, error) {
+func NewWorker(cfg config.Config, queueClient *asynq.Client) (*WorkerService, error) {
 	redis, err := storage.NewRedisStorage(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
 	}
 
 	return &WorkerService{
-		redis:  redis,
-		cfg:    cfg,
-		logger: logrus.WithField("service", "worker").Logger,
+		redis:       redis,
+		cfg:         cfg,
+		logger:      logrus.WithField("service", "worker").Logger,
+		queueClient: queueClient,
 	}, nil
 }
 
@@ -116,5 +120,37 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
 	}
 
+	return nil
+}
+func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	var req types.EmailRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"email":    req.Email,
+		"filename": req.FileName,
+	}).Info("sending email")
+
+	mg := mailgun.NewMailgun("vultisig.com", s.cfg.EmailServer.ApiKey)
+	msg := mg.NewMessage("fastvault@vultisig.com", "Vault Backup ", "Your vault backup is ready", req.Email)
+	msg.AddBufferAttachment(req.FileName, []byte(req.FileContent))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	resp, id, err := mg.Send(ctx, msg)
+	if err != nil {
+		return fmt.Errorf("mg.Send failed: %v", err)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"resp": resp,
+		"id":   id,
+	}).Info("email sent")
+
+	if _, err := t.ResultWriter().Write([]byte("email sent:" + resp + ",id:" + id)); err != nil {
+		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
+	}
 	return nil
 }

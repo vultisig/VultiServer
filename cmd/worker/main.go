@@ -15,20 +15,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	workerServce, err := service.NewWorker(*cfg)
+	redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
+	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+	workerServce, err := service.NewWorker(*cfg, client)
 	if err != nil {
 		panic(err)
 	}
-
-	redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
 
 	srv := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: redisAddr},
 		asynq.Config{
 			Concurrency: 10,
 			Queues: map[string]int{
-				tasks.QUEUE_NAME: 10,
+				tasks.QUEUE_NAME:       10,
+				tasks.EMAIL_QUEUE_NAME: 100,
 			},
 		},
 	)
@@ -37,6 +37,7 @@ func main() {
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypeKeyGeneration, workerServce.HandleKeyGeneration)
 	mux.HandleFunc(tasks.TypeKeySign, workerServce.HandleKeySign)
+	mux.HandleFunc(tasks.TypeEmailVaultBackup, workerServce.HandleEmailVaultBackup)
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))
 	}

@@ -24,6 +24,10 @@ type Config struct {
 	Relay struct {
 		Server string `mapstructure:"server" json:"server"`
 	} `mapstructure:"relay" json:"relay,omitempty"`
+
+	EmailServer struct {
+		ApiKey string `mapstructure:"api_key" json:"api_key"`
+	} `mapstructure:"eamil_server" json:"email_server"`
 }
 
 func GetConfigure() (*Config, error) {

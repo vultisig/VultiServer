@@ -18,12 +18,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
 
@@ -229,11 +231,27 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 	if err != nil {
 		return fmt.Errorf("failed to Marshal vaultBackup: %w", err)
 	}
-
-	if _, err := file.Write([]byte(base64.StdEncoding.EncodeToString(vaultBackupData))); err != nil {
+	base64VaultContent := base64.StdEncoding.EncodeToString(vaultBackupData)
+	if _, err := file.Write([]byte(base64VaultContent)); err != nil {
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
 
+	emailRequest := types.EmailRequest{
+		Email:       req.Email,
+		FileName:    common.GetVaultName(vault),
+		FileContent: base64VaultContent,
+	}
+	buf, err := json.Marshal(emailRequest)
+	if err != nil {
+		return fmt.Errorf("json.Marshal failed: %w", err)
+	}
+	taskInfo, err := s.queueClient.Enqueue(asynq.NewTask(tasks.TypeEmailVaultBackup, buf),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.EMAIL_QUEUE_NAME))
+	if err != nil {
+		s.logger.Errorf("fail to enqueue email task: %v", err)
+	}
+	s.logger.Info("Email task enqueued: ", taskInfo.ID)
 	return nil
 }
 
