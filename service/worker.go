@@ -9,24 +9,29 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/logging"
-	"github.com/vultisig/vultisigner/internal/tasks"
-	"github.com/vultisig/vultisigner/internal/tss"
+	"github.com/vultisig/vultisigner/contexthelper"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
 
 type WorkerService struct {
-	redis *storage.RedisStorage
+	cfg    config.Config
+	redis  *storage.RedisStorage
+	logger *logrus.Logger
 }
 
-func (s *WorkerService) Initialize() error {
-	redis, err := storage.NewRedisStorage(config.AppConfig)
+// NewWorker creates a new worker service
+func NewWorker(cfg config.Config) (*WorkerService, error) {
+	redis, err := storage.NewRedisStorage(cfg)
 	if err != nil {
-		return fmt.Errorf("storage.NewRedisStorage failed: %w", err)
+		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
 	}
-	s.redis = redis
-	return nil
+
+	return &WorkerService{
+		redis:  redis,
+		cfg:    cfg,
+		logger: logrus.WithField("service", "worker").Logger,
+	}, nil
 }
 
 type KeyGenerationTaskResult struct {
@@ -35,39 +40,30 @@ type KeyGenerationTaskResult struct {
 }
 
 func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
-	var p tasks.KeyGenerationPayload
-	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+
+	var req types.VaultCreateRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	logging.Logger.WithFields(logrus.Fields{
-		"name":             p.Name,
-		"session":          p.SessionID,
-		"local_key":        p.LocalKey,
-		"chain_code":       p.ChainCode,
-		"HexEncryptionKey": p.HexEncryptionKey,
+	s.logger.WithFields(logrus.Fields{
+		"name":           req.Name,
+		"session":        req.SessionID,
+		"local_party_id": req.LocalPartyId,
+		"email":          req.Email,
 	}).Info("Joining keygen")
 
-	keyECDSA, keyEDDSA, err := tss.JoinKeyGeneration(&types.KeyGeneration{
-		Name:               p.Name,
-		Key:                p.LocalKey,
-		Session:            p.SessionID,
-		ChainCode:          p.ChainCode,
-		HexEncryptionKey:   p.HexEncryptionKey,
-		EncryptionPassword: p.EncryptionPassword,
-	})
+	keyECDSA, keyEDDSA, err := s.JoinKeyGeneration(req)
 	if err != nil {
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	logging.Logger.WithFields(logrus.Fields{
+	s.logger.WithFields(logrus.Fields{
 		"keyECDSA": keyECDSA,
 		"keyEDDSA": keyEDDSA,
-	}).Info("Key generation completed")
-
-	err = s.redis.RemoveVaultCacheItem(ctx, fmt.Sprintf("vault-%s-%s", p.Name, p.SessionID))
-	if err != nil {
-		logging.Logger.Errorf("redis.RemoveVaultCacheItem failed: %v", err)
-	}
+	}).Info("localPartyID generation completed")
 
 	result := KeyGenerationTaskResult{
 		EDDSAPublicKey: keyEDDSA,
@@ -87,35 +83,29 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 }
 
 func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error {
-	var p tasks.KeysignPayload
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	var p types.KeysignRequest
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	logging.Logger.WithFields(logrus.Fields{
-		"PublicKey":        p.PublicKey,
-		"session":          p.SessionID,
-		"Messages":         p.Messages,
-		"HexEncryptionKey": p.HexEncryptionKey,
-		"DerivePath":       p.DerivePath,
-		"IsECDSA":          p.IsECDSA,
-	}).Info("Joining keysign")
+	s.logger.WithFields(logrus.Fields{
+		"PublicKey":  p.PublicKey,
+		"session":    p.SessionID,
+		"Messages":   p.Messages,
+		"DerivePath": p.DerivePath,
+		"IsECDSA":    p.IsECDSA,
+	}).Info("joining keysign")
 
-	signatures, err := tss.JoinKeySign(&types.KeysignRequest{
-		PublicKey:        p.PublicKey,
-		Session:          p.SessionID,
-		Messages:         p.Messages,
-		HexEncryptionKey: p.HexEncryptionKey,
-		DerivePath:       p.DerivePath,
-		IsECDSA:          p.IsECDSA,
-		VaultPassword:    p.VaultPassword,
-	})
+	signatures, err := s.JoinKeySign(p)
 	if err != nil {
-		return fmt.Errorf("keysign.JoinKeySign failed: %v: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("join keysign failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	logging.Logger.WithFields(logrus.Fields{
+	s.logger.WithFields(logrus.Fields{
 		"Signatures": signatures,
-	}).Info("Key sign completed")
+	}).Info("localPartyID sign completed")
 
 	resultBytes, err := json.Marshal(signatures)
 	if err != nil {

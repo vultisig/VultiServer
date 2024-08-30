@@ -6,20 +6,23 @@ import (
 	"path/filepath"
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
+
 	"github.com/vultisig/vultisigner/common"
 )
 
 type LocalStateAccessorImp struct {
-	Key    string
-	Folder string
-	Vault  *vaultType.Vault
+	localPartyID string
+	Folder       string
+	Vault        *vaultType.Vault
+	cache        map[string]string
 }
 
-func NewLocalStateAccessorImp(key, folder, vaultFileName, vaultPasswd string) (*LocalStateAccessorImp, error) {
+func NewLocalStateAccessorImp(localPartyID, folder, vaultFileName, vaultPasswd string) (*LocalStateAccessorImp, error) {
 	localStateAccessor := &LocalStateAccessorImp{
-		Key:    key,
-		Folder: folder,
-		Vault:  nil,
+		localPartyID: localPartyID,
+		Folder:       folder,
+		Vault:        nil,
+		cache:        make(map[string]string),
 	}
 
 	var err error
@@ -52,36 +55,17 @@ func NewLocalStateAccessorImp(key, folder, vaultFileName, vaultPasswd string) (*
 
 func (l *LocalStateAccessorImp) GetLocalState(pubKey string) (string, error) {
 	if l.Vault != nil {
-		for _, keyshare := range l.Vault.KeyShares {
-			if keyshare.PublicKey == pubKey {
-				return keyshare.Keyshare, nil
+		for _, item := range l.Vault.KeyShares {
+			if item.PublicKey == pubKey {
+				return item.Keyshare, nil
 			}
 		}
-
 		return "", fmt.Errorf("%s keyshare does not exist", pubKey)
 	}
-
-	fileName := filepath.Join(l.Folder, pubKey+"-"+l.Key+".json")
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		return "", fmt.Errorf("file %s does not exist", fileName)
-	}
-
-	buf, err := os.ReadFile(fileName)
-	if err != nil {
-		return "", fmt.Errorf("fail to read file %s: %w", fileName, err)
-	}
-
-	return string(buf), nil
+	return l.cache[pubKey], nil
 }
 
 func (l *LocalStateAccessorImp) SaveLocalState(pubKey, localState string) error {
-	fileName := filepath.Join(l.Folder, pubKey+"-"+l.Key+".json")
-
-	return os.WriteFile(fileName, []byte(localState), 0644)
-}
-
-func (l *LocalStateAccessorImp) RemoveLocalState(pubKey string) error {
-	fileName := filepath.Join(l.Folder, pubKey+"-"+l.Key+".json")
-
-	return os.Remove(fileName)
+	l.cache[pubKey] = localState
+	return nil
 }

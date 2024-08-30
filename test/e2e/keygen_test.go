@@ -73,14 +73,14 @@ package keygen_test
 // 			Server:    server,
 // 			Session:   vaultResponse.SessionID,
 // 			ChainCode: vaultResponse.HexChainCode,
-// 			Key:       "iPhone",
+// 			localPartyID:       "iPhone",
 // 			KeyFolder: "../keys/IPhone",
 // 		},
 // 		"iPad": {
 // 			Server:    server,
 // 			Session:   vaultResponse.SessionID,
 // 			ChainCode: vaultResponse.HexChainCode,
-// 			Key:       "iPad",
+// 			localPartyID:       "iPad",
 // 			KeyFolder: "../keys/IPad",
 // 		},
 // 	}
@@ -91,11 +91,11 @@ package keygen_test
 // 		wg.Add(1)
 // 		go func(partyConfig coordinator.KeygenInput) {
 // 			defer wg.Done()
-// 			fmt.Println("Joining gen party as", partyConfig.Key)
+// 			fmt.Println("Joining gen party as", partyConfig.localPartyID)
 
 // 			publicKey, err := coordinator.ExecuteKeyGeneration(partyConfig)
 // 			if err != nil {
-// 				t.Errorf("Execution for %s failed with %q", partyConfig.Key, err)
+// 				t.Errorf("Execution for %s failed with %q", partyConfig.localPartyID, err)
 // 			}
 // 			os.Setenv("PUBLIC_KEY", publicKey)
 // 		}(partyConfig)

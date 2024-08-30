@@ -1,9 +1,7 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,17 +9,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
-	keygenTypes "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/vultisig/vultisigner/common"
-	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
@@ -60,59 +54,23 @@ func (s *Server) StartServer() error {
 
 	e.Use(middleware.CORS())
 	e.GET("/ping", s.Ping)
-	//serve demo/generated/img folder as img
-	e.Static("/img", "./demo/generated/img")
-	//serve demo/generated/static folder as static
-	e.Static("/static", "./demo/generated/static")
-	e.GET("/demo", func(c echo.Context) error {
-		//server index.html file in demo folder
-		return c.File("./demo/generated/index.html")
-	})
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
-	grp.Use(middleware.BasicAuthWithConfig(middleware.BasicAuthConfig{
-		Validator: s.AuthenticationValidator,
-	}))
+
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
-	host := config.AppConfig.Server.Host
-	return e.Start(fmt.Sprintf("%s:%d", host, s.port))
-}
-
-// AuthenticationValidator is a middleware that validates the basic auth credentials.
-func (s *Server) AuthenticationValidator(username string, password string, c echo.Context) (bool, error) {
-	if username == "" || password == "" {
-		return false, nil
-	}
-	// save the user/password in redis, it is not idea , but vultisigner mostly run by integration partners
-	// they can add db support later
-	passwd, err := s.redis.GetUser(c.Request().Context(), username)
-	if err != nil {
-		return false, fmt.Errorf("fail to get user, err: %w", err)
-	}
-	if passwd == password {
-		return true, nil
-	}
-	return false, nil
+	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 
 func (s *Server) Ping(c echo.Context) error {
 	return c.String(http.StatusOK, "Vultisigner is running")
 }
 
-func (s *Server) getHexEncodedRandomBytes() (string, error) {
-	bytes := make([]byte, 32)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", fmt.Errorf("fail to generate random bytes, err: %w", err)
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
+// GetDerivedPublicKey is a handler to get the derived public key
 func (s *Server) GetDerivedPublicKey(c echo.Context) error {
 	publicKey := c.QueryParam("publicKey")
 	if publicKey == "" {
@@ -145,73 +103,22 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-	sessionID := uuid.New().String()
-	encryptionKey, err := s.getHexEncodedRandomBytes()
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid request, err: %w", err)
+	}
+	buf, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("fail to generate hex encryption key, err: %w", err)
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
-
-	hexChainCode, err := s.getHexEncodedRandomBytes()
-	if err != nil {
-		return fmt.Errorf("fail to generate hex chain code, err: %w", err)
-	}
-
-	cacheItem := types.VaultCacheItem{
-		LocalKey:           req.LocalPartyId,
-		Name:               req.Name,
-		SessionID:          sessionID,
-		HexEncryptionKey:   encryptionKey,
-		HexChainCode:       hexChainCode,
-		EncryptionPassword: req.EncryptionPassword,
-	}
-
-	// Save the item into cache, so work can retrieve it
-	if err := s.redis.SetVaultCacheItem(c.Request().Context(), &cacheItem); err != nil {
-		return fmt.Errorf("fail to set vault cache item, err: %w", err)
-	}
-
-	keygenMsg := &keygenTypes.KeygenMessage{
-		SessionId:        sessionID,
-		HexChainCode:     hexChainCode,
-		ServiceName:      "VultiSignerApp",
-		EncryptionKeyHex: encryptionKey,
-		UseVultisigRelay: true,
-		VaultName:        req.Name,
-	}
-
-	serializedData, err := proto.Marshal(keygenMsg)
-	if err != nil {
-		return fmt.Errorf("fail to Marshal keygenMsg, err: %w", err)
-	}
-
-	compressedData, err := common.CompressData(serializedData)
-	if err != nil {
-		return fmt.Errorf("common.CompressData failed, err: %w", err)
-	}
-
-	resp := types.VaultCreateResponse{
-		Name:             req.Name,
-		SessionID:        sessionID,
-		HexEncryptionKey: encryptionKey,
-		HexChainCode:     hexChainCode,
-		KeygenMsg:        base64.StdEncoding.EncodeToString(compressedData),
-	}
-	task, err := cacheItem.Task()
-	if err != nil {
-		return fmt.Errorf("fail to create task, err: %w", err)
-	}
-
-	_, err = s.client.Enqueue(task,
+	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
-		asynq.Unique(time.Hour),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
-
-	return c.JSON(http.StatusOK, resp)
+	return c.NoContent(http.StatusOK)
 }
 
 // UploadVault is a handler that receives a vault file from integration.
@@ -320,25 +227,18 @@ func (s *Server) GetVault(c echo.Context) error {
 
 // SignMessages is a handler to process Keysing request
 func (s *Server) SignMessages(c echo.Context) error {
-	var keysignReq types.KeysignRequest
-	if err := c.Bind(&keysignReq); err != nil {
+	var req types.KeysignRequest
+	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-	if err := keysignReq.IsValid(); err != nil {
+	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, keysignReq.PublicKey+".bak")
+	filePathName := filepath.Join(s.vaultFilePath, req.PublicKey+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
-	}
-
-	// password that used to decrypt the vault file
-	// if the password can't be used to decrypt the vault file, the keysign request should be rejected
-	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
 	}
 
 	content, err := os.ReadFile(filePathName)
@@ -346,17 +246,17 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
 
-	_, err = common.DecryptVaultFromBackup(passwd, content)
+	_, err = common.DecryptVaultFromBackup(req.VaultPassword, content)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
-
-	task, err := keysignReq.NewKeysignTask(passwd)
+	buf, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("fail to create task, err: %w", err)
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
-
-	ti, err := s.client.EnqueueContext(c.Request().Context(), task, asynq.MaxRetry(-1),
+	ti, err := s.client.EnqueueContext(c.Request().Context(),
+		asynq.NewTask(tasks.TypeKeySign, buf),
+		asynq.MaxRetry(-1),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
