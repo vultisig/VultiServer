@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -88,34 +90,16 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		}).Error("Failed to check completed parties")
 	}
 
-	if err := relayClient.EndSession(req.SessionID); err != nil {
-		s.logger.WithFields(logrus.Fields{
-			"sessionID": req.SessionID,
-			"error":     err,
-		}).Error("Failed to end session")
-	}
-
 	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
-	}
-
-	err = localStateAccessor.RemoveLocalState(ecdsaPubkey)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to remove local state: %w", err)
-	}
-
-	err = localStateAccessor.RemoveLocalState(eddsaPubkey)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to remove local state: %w", err)
 	}
 
 	return ecdsaPubkey, eddsaPubkey, nil
 }
 
 func (s *WorkerService) keygenWithRetry(serverURL string, req types.VaultCreateRequest, partiesJoined []string, tssService tss.Service) (string, string, error) {
-	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, req.LocalPartyId, req.HexEncryptionKey, tssService)
-
+	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, req.LocalPartyId, req.HexEncryptionKey, tssService, "")
 	resp, err := s.generateECDSAKey(tssService, req, partiesJoined)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate ECDSA key: %w", err)
@@ -176,7 +160,10 @@ func (s *WorkerService) generateEDDSAKey(tssService tss.Service, req types.Vault
 	return resp, nil
 }
 
-func (s *WorkerService) BackupVault(req types.VaultCreateRequest, partiesJoined []string, ecdsaPubkey, eddsaPubkey string, localStateAccessor *relay.LocalStateAccessorImp) error {
+func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
+	partiesJoined []string,
+	ecdsaPubkey, eddsaPubkey string,
+	localStateAccessor *relay.LocalStateAccessorImp) error {
 	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
@@ -259,7 +246,7 @@ func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey st
 	return tssService, nil
 }
 
-func (s *WorkerService) startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssService tss.Service) (chan struct{}, *sync.WaitGroup) {
+func (s *WorkerService) startMessageDownload(serverURL, session, key, hexEncryptionKey string, tssService tss.Service, messageID string) (chan struct{}, *sync.WaitGroup) {
 	s.logger.WithFields(logrus.Fields{
 		"session": session,
 		"key":     key,
@@ -268,11 +255,11 @@ func (s *WorkerService) startMessageDownload(serverURL, session, key, hexEncrypt
 	endCh := make(chan struct{})
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go s.downloadMessages(serverURL, session, key, hexEncryptionKey, tssService, endCh, wg)
+	go s.downloadMessages(serverURL, session, key, hexEncryptionKey, tssService, endCh, messageID, wg)
 	return endCh, wg
 }
 
-func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncryptionKey string, tssServerImp tss.Service, endCh chan struct{}, wg *sync.WaitGroup) {
+func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncryptionKey string, tssServerImp tss.Service, endCh chan struct{}, messageID string, wg *sync.WaitGroup) {
 	var messageCache sync.Map
 	defer wg.Done()
 	logger := s.logger.WithFields(logrus.Fields{
@@ -286,9 +273,18 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 		case <-endCh: // we are done
 			return
 		case <-time.After(time.Second):
-			resp, err := http.Get(server + "/message/" + session + "/" + localPartyID)
+
+			req, err := http.NewRequest(http.MethodGet, server+"/message/"+session+"/"+localPartyID, nil)
 			if err != nil {
-				logger.Errorf("Failed to get data from server: %v", err)
+				logger.Errorf("Fail to create request,err: %s", err)
+				return
+			}
+			if messageID != "" {
+				req.Header.Set("message_id", messageID)
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				logger.Errorf("Failed to get data from server,err: %s", err)
 				continue
 			}
 			if resp.StatusCode != http.StatusOK {
@@ -297,40 +293,40 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 			}
 			decoder := json.NewDecoder(resp.Body)
 			var messages []struct {
-				SessionID string   `json:"session_id,omitempty"`
-				From      string   `json:"from,omitempty"`
-				To        []string `json:"to,omitempty"`
-				Body      string   `json:"body,omitempty"`
-				Hash      string   `json:"hash,omitempty"`
+				SessionID  string   `json:"session_id,omitempty"`
+				From       string   `json:"from,omitempty"`
+				To         []string `json:"to,omitempty"`
+				Body       string   `json:"body,omitempty"`
+				Hash       string   `json:"hash,omitempty"`
+				SequenceNo int64    `json:"sequence_no,omitempty"`
 			}
 			if err := decoder.Decode(&messages); err != nil {
 				logger.Errorf("Failed to decode data: %v", err)
 				continue
 			}
+			sort.Slice(messages, func(i, j int) bool {
+				return messages[i].SequenceNo < messages[j].SequenceNo
+			})
 			for _, message := range messages {
-				if message.From == localPartyID {
-					continue
-				}
-
 				cacheKey := fmt.Sprintf("%s-%s-%s", session, localPartyID, message.Hash)
+				if messageID != "" {
+					cacheKey = fmt.Sprintf("%s-%s-%s-%s", session, localPartyID, messageID, message.Hash)
+				}
 				if _, found := messageCache.Load(cacheKey); found {
 					logger.Infof("Message already applied, skipping,hash: %s", message.Hash)
 					continue
 				}
 
-				decryptedBody := message.Body
-				if hexEncryptionKey != "" {
-					decodedBody, err := base64.StdEncoding.DecodeString(message.Body)
-					if err != nil {
-						logger.Errorf("Failed to decode data: %v", err)
-						continue
-					}
+				decodedBody, err := base64.StdEncoding.DecodeString(message.Body)
+				if err != nil {
+					logger.Errorf("Failed to decode data: %v", err)
+					continue
+				}
 
-					decryptedBody, err = decrypt(string(decodedBody), hexEncryptionKey)
-					if err != nil {
-						logger.Errorf("Failed to decrypt data: %v", err)
-						continue
-					}
+				decryptedBody, err := decrypt(string(decodedBody), hexEncryptionKey)
+				if err != nil {
+					logger.Errorf("Failed to decrypt data: %v", err)
+					continue
 				}
 
 				if err := tssServerImp.ApplyData(decryptedBody); err != nil {
@@ -340,12 +336,15 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 
 				messageCache.Store(cacheKey, true)
 				client := http.Client{}
-				req, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+localPartyID+"/"+message.Hash, nil)
+				reqDel, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+localPartyID+"/"+message.Hash, nil)
 				if err != nil {
 					logger.Errorf("Failed to delete message: %v", err)
 					continue
 				}
-				resp, err := client.Do(req)
+				if messageID != "" {
+					reqDel.Header.Set("message_id", messageID)
+				}
+				resp, err := client.Do(reqDel)
 				if err != nil {
 					logger.Errorf("Failed to delete message: %v", err)
 					continue
@@ -457,6 +456,9 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 		if err != nil {
 			return result, err
 		}
+		if signature == nil {
+			return result, fmt.Errorf("signature is nil")
+		}
 		result[message] = *signature
 	}
 
@@ -470,14 +472,20 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 	return result, nil
 }
 
-func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string, req types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {
-	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, localPartyId, req.HexEncryptionKey, tssService)
+func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
+	req types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {
+	messageID := hex.EncodeToString(md5.New().Sum([]byte(msg)))
+	msgBuf, err := hex.DecodeString(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode message: %w", err)
+	}
+	messageToSign := base64.StdEncoding.EncodeToString(msgBuf)
+	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, localPartyId, req.HexEncryptionKey, tssService, messageID)
 	var signature *tss.KeysignResponse
-	var err error
 	if req.IsECDSA {
 		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
 			PubKey:               req.PublicKey,
-			MessageToSign:        msg,
+			MessageToSign:        messageToSign,
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
 			DerivePath:           req.DerivePath,
@@ -485,19 +493,27 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string, req typ
 	} else {
 		signature, err = tssService.KeysignEdDSA(&tss.KeysignRequest{
 			PubKey:               req.PublicKey,
-			MessageToSign:        msg,
+			MessageToSign:        messageToSign,
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
 			DerivePath:           req.DerivePath,
 		})
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("fail to key sign: %w", err)
-	}
-
 	close(endCh)
 	wg.Wait()
+	client := relay.NewRelayClient(serverURL)
+	if err == nil {
+		if err := client.MarkKeysignComplete(req.SessionID, messageID, *signature); err != nil {
+			s.logger.Errorf("fail to mark keysign complete: %v", err)
+		}
+	} else {
+		s.logger.Errorf("fail to key sign: %v", err)
+		sigResp, err := client.CheckKeysignComplete(req.SessionID, messageID)
+		if err == nil && sigResp != nil {
+			signature = sigResp
+		}
+	}
 
 	return signature, nil
 }

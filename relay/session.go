@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/common"
 )
@@ -87,9 +88,6 @@ func (c *Client) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
-			c.logger.WithFields(logrus.Fields{
-				"session": sessionID,
-			}).Info("Waiting for session start")
 			resp, err := c.client.Get(sessionURL)
 			if err != nil {
 				return nil, fmt.Errorf("fail to get session: %w", err)
@@ -228,6 +226,50 @@ func (c *Client) CheckCompletedParties(sessionID string, partiesJoined []string)
 	return false, nil
 }
 
+func (c *Client) MarkKeysignComplete(sessionID string, messageID string, sig tss.KeysignResponse) error {
+	sessionURL := c.relayServer + "/complete/" + sessionID + "/keysign"
+	body, err := json.Marshal(sig)
+	if err != nil {
+		return fmt.Errorf("fail to marshal keysign to json: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, sessionURL, bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("fail to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("message_id", messageID)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("fail to mark keysign complete: %w", err)
+	}
+	defer c.bodyCloser(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("fail to mark keysign complete: %s", resp.Status)
+	}
+	return nil
+}
+func (c *Client) CheckKeysignComplete(sessionID string, messageID string) (*tss.KeysignResponse, error) {
+	sessionURL := c.relayServer + "/complete/" + sessionID + "/keysign"
+	req, err := http.NewRequest(http.MethodGet, sessionURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("message_id", messageID)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fail to check keysign complete: %w", err)
+	}
+	defer c.bodyCloser(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fail to check keysign complete: %s", resp.Status)
+	}
+	var sig tss.KeysignResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sig); err != nil {
+		return nil, fmt.Errorf("fail to unmarshal keysign response: %w", err)
+	}
+	return &sig, nil
+}
 func (c *Client) EndSession(sessionID string) error {
 	sessionURL := c.relayServer + "/" + sessionID
 	req, err := http.NewRequest(http.MethodDelete, sessionURL, nil)

@@ -19,7 +19,6 @@ func main() {
 	workerServce, err := service.NewWorker(*cfg)
 	if err != nil {
 		panic(err)
-		return
 	}
 
 	redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port

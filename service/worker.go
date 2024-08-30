@@ -63,7 +63,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 	s.logger.WithFields(logrus.Fields{
 		"keyECDSA": keyECDSA,
 		"keyEDDSA": keyEDDSA,
-	}).Info("Key generation completed")
+	}).Info("localPartyID generation completed")
 
 	result := KeyGenerationTaskResult{
 		EDDSAPublicKey: keyEDDSA,
@@ -86,28 +86,26 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
 	}
-
 	var p types.KeysignRequest
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	s.logger.WithFields(logrus.Fields{
-		"PublicKey":        p.PublicKey,
-		"session":          p.SessionID,
-		"Messages":         p.Messages,
-		"HexEncryptionKey": p.HexEncryptionKey,
-		"DerivePath":       p.DerivePath,
-		"IsECDSA":          p.IsECDSA,
-	}).Info("Joining keysign")
+		"PublicKey":  p.PublicKey,
+		"session":    p.SessionID,
+		"Messages":   p.Messages,
+		"DerivePath": p.DerivePath,
+		"IsECDSA":    p.IsECDSA,
+	}).Info("joining keysign")
 
 	signatures, err := s.JoinKeySign(p)
 	if err != nil {
-		return fmt.Errorf("keysign.JoinKeySign failed: %v: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("join keysign failed: %v: %w", err, asynq.SkipRetry)
 	}
 
 	s.logger.WithFields(logrus.Fields{
 		"Signatures": signatures,
-	}).Info("Key sign completed")
+	}).Info("localPartyID sign completed")
 
 	resultBytes, err := json.Marshal(signatures)
 	if err != nil {
