@@ -240,6 +240,7 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		Email:       req.Email,
 		FileName:    common.GetVaultName(vault),
 		FileContent: base64VaultContent,
+		VaultName:   vault.Name,
 	}
 	buf, err := json.Marshal(emailRequest)
 	if err != nil {

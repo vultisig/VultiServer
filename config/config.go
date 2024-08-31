@@ -8,10 +8,10 @@ import (
 
 type Config struct {
 	Server struct {
-		Port           int64
-		Host           string
-		VaultsFilePath string
-	}
+		Port           int64  `mapstructure:"port" json:"port,omitempty"`
+		Host           string `mapstructure:"host" json:"host,omitempty"`
+		VaultsFilePath string `mapstructure:"vaults_file_path" json:"vaults_file_path,omitempty"`
+	} `mapstructure:"server" json:"server"`
 
 	Redis struct {
 		Host     string `mapstructure:"host" json:"host,omitempty"`
@@ -27,7 +27,7 @@ type Config struct {
 
 	EmailServer struct {
 		ApiKey string `mapstructure:"api_key" json:"api_key"`
-	} `mapstructure:"eamil_server" json:"email_server"`
+	} `mapstructure:"email_server" json:"email_server"`
 }
 
 func GetConfigure() (*Config, error) {

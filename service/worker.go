@@ -1,13 +1,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"time"
+	"io"
+	"net/http"
 
 	"github.com/hibiken/asynq"
-	"github.com/mailgun/mailgun-go/v4"
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
@@ -134,22 +136,70 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 		"email":    req.Email,
 		"filename": req.FileName,
 	}).Info("sending email")
-
-	mg := mailgun.NewMailgun("vultisig.com", s.cfg.EmailServer.ApiKey)
-	msg := mg.NewMessage("fastvault@vultisig.com", "Vault Backup ", "Your vault backup is ready", req.Email)
-	msg.AddBufferAttachment(req.FileName, []byte(req.FileContent))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-	resp, id, err := mg.Send(ctx, msg)
-	if err != nil {
-		return fmt.Errorf("mg.Send failed: %v", err)
+	emailServer := "https://mandrillapp.com/api/1.0/messages/send-template"
+	payload := MandrillPayload{
+		Key:          s.cfg.EmailServer.ApiKey,
+		TemplateName: "fastvault",
+		TemplateContent: []MandrilMergeVarContent{
+			{
+				Name:    "VAULT_NAME",
+				Content: req.VaultName,
+			},
+		},
+		Message: MandrillMessage{
+			To: []MandrillTo{
+				{
+					Email: req.Email,
+					Type:  "to",
+				},
+			},
+			MergeVars: []MandrillVar{
+				{
+					Rcpt: req.Email,
+					Vars: []MandrilMergeVarContent{
+						{
+							Name:    "VAULT_NAME",
+							Content: req.VaultName,
+						},
+					},
+				},
+			},
+			SendingDomain: "vultisig.com",
+			Attachments: []MandrillAttachment{
+				{
+					Type:    "application/octet-stream",
+					Name:    req.FileName,
+					Content: base64.StdEncoding.EncodeToString([]byte(req.FileContent)),
+				},
+			},
+		},
 	}
-	s.logger.WithFields(logrus.Fields{
-		"resp": resp,
-		"id":   id,
-	}).Info("email sent")
-
-	if _, err := t.ResultWriter().Write([]byte("email sent:" + resp + ",id:" + id)); err != nil {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		s.logger.Errorf("json.Marshal failed: %v", err)
+		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	resp, err := http.Post(emailServer, "application/json", bytes.NewReader(payloadBytes))
+	if err != nil {
+		s.logger.Errorf("http.Post failed: %v", err)
+		return fmt.Errorf("http.Post failed: %v: %w", err, asynq.SkipRetry)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			s.logger.Errorf("failed to close body: %v", err)
+		}
+	}()
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Errorf("http.Post failed: %s", resp.Status)
+		return fmt.Errorf("http.Post failed: %s: %w", resp.Status, asynq.SkipRetry)
+	}
+	result, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Errorf("io.ReadAll failed: %v", err)
+		return fmt.Errorf("io.ReadAll failed: %v: %w", err, asynq.SkipRetry)
+	}
+	s.logger.Info(string(result))
+	if _, err := t.ResultWriter().Write([]byte("email sent")); err != nil {
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
 	}
 	return nil
