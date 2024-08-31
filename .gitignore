@@ -5,3 +5,5 @@ spawner
 demo/app/node_modules
 *.DS_Store
 *.dat
+config.yml
+config-example.yaml
