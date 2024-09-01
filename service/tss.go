@@ -11,21 +11,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/vultisig/vultisigner/common"
-	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
 
@@ -196,67 +190,10 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		LocalPartyId:  req.LocalPartyId,
 		ResharePrefix: "",
 	}
-
-	isEncrypted := req.EncryptionPassword != ""
-	vaultData, err := proto.Marshal(vault)
-	if err != nil {
-		return fmt.Errorf("failed to Marshal vault: %w", err)
-	}
-
-	if isEncrypted {
-		vaultData, err = common.EncryptVault(req.EncryptionPassword, vaultData)
-		if err != nil {
-			return fmt.Errorf("common.EncryptVault failed: %w", err)
-		}
-	}
-	vaultBackup := &vaultType.VaultContainer{
-		Version:     1,
-		Vault:       base64.StdEncoding.EncodeToString(vaultData),
-		IsEncrypted: isEncrypted,
-	}
-	filePathName := filepath.Join(s.cfg.Server.VaultsFilePath, ecdsaPubkey+".bak")
-	file, err := os.Create(filePathName)
-
-	if err != nil {
-		return fmt.Errorf("fail to create file, err: %w", err)
-	}
-
-	defer func() {
-		if err := file.Close(); err != nil {
-			s.logger.Errorf("fail to close file, err: %v", err)
-		}
-	}()
-
-	vaultBackupData, err := proto.Marshal(vaultBackup)
-	if err != nil {
-		return fmt.Errorf("failed to Marshal vaultBackup: %w", err)
-	}
-	base64VaultContent := base64.StdEncoding.EncodeToString(vaultBackupData)
-	if _, err := file.Write([]byte(base64VaultContent)); err != nil {
-		return fmt.Errorf("fail to write file, err: %w", err)
-	}
-
-	emailRequest := types.EmailRequest{
-		Email:       req.Email,
-		FileName:    common.GetVaultName(vault),
-		FileContent: base64VaultContent,
-		VaultName:   vault.Name,
-	}
-	buf, err := json.Marshal(emailRequest)
-	if err != nil {
-		return fmt.Errorf("json.Marshal failed: %w", err)
-	}
-	taskInfo, err := s.queueClient.Enqueue(asynq.NewTask(tasks.TypeEmailVaultBackup, buf),
-		asynq.Retention(10*time.Minute),
-		asynq.Queue(tasks.EMAIL_QUEUE_NAME))
-	if err != nil {
-		s.logger.Errorf("fail to enqueue email task: %v", err)
-	}
-	s.logger.Info("Email task enqueued: ", taskInfo.ID)
-	return nil
+	return s.SaveVaultAndScheduleEmail(vault, req.EncryptionPassword, req.Email)
 }
 
-func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool) (tss.Service, error) {
+func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool) (*tss.ServiceImpl, error) {
 	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey)
 	tssService, err := tss.NewService(messenger, localStateAccessor, createPreParam)
 	if err != nil {

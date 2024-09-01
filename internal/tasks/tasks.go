@@ -6,4 +6,5 @@ const (
 	TypeKeyGeneration    = "key:generation"
 	TypeKeySign          = "key:sign"
 	TypeEmailVaultBackup = "key:email"
+	TypeReshare          = "key:reshare"
 )
