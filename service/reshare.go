@@ -42,6 +42,10 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 		return fmt.Errorf("serverURL is empty")
 	}
 	client := relay.NewRelayClient(serverURL)
+	// Let's register session here
+	if err := client.RegisterSession(sessionID, vault.LocalPartyId); err != nil {
+		return fmt.Errorf("failed to register session: %w", err)
+	}
 	// wait longer for keygen start
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
