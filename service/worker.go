@@ -11,10 +11,12 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
 )
 
@@ -202,5 +204,54 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 	if _, err := t.ResultWriter().Write([]byte("email sent")); err != nil {
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
 	}
+	return nil
+}
+
+func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+
+	var req types.ReshareRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	s.logger.WithFields(logrus.Fields{
+		"name":           req.Name,
+		"session":        req.SessionID,
+		"local_party_id": req.LocalPartyId,
+		"email":          req.Email,
+	}).Info("reshare request")
+
+	localState, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword)
+	if err != nil {
+		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)
+	}
+	var vault *vaultType.Vault
+	if localState.Vault != nil {
+		// reshare vault
+		vault = localState.Vault
+
+	} else {
+		vault = &vaultType.Vault{
+			Name:           req.Name,
+			PublicKeyEcdsa: "",
+			PublicKeyEddsa: "",
+			HexChainCode:   req.HexChainCode,
+			LocalPartyId:   req.LocalPartyId,
+		}
+		// create new vault
+	}
+	if err := s.Reshare(vault,
+		req.SessionID,
+		req.HexEncryptionKey,
+		s.cfg.Relay.Server,
+		req.EncryptionPassword,
+		req.Email); err != nil {
+		s.logger.Errorf("reshare failed: %v", err)
+		return fmt.Errorf("reshare failed: %v: %w", err, asynq.SkipRetry)
+	}
+
 	return nil
 }
