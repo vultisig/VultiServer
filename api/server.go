@@ -58,6 +58,7 @@ func (s *Server) StartServer() error {
 	grp := e.Group("/vault")
 
 	grp.POST("/create", s.CreateVault)
+	grp.POST("/reshare", s.ReshareVault)
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
@@ -111,6 +112,30 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
+		asynq.MaxRetry(-1),
+		asynq.Timeout(7*time.Minute),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
+	if err != nil {
+		return fmt.Errorf("fail to enqueue task, err: %w", err)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+// ReshareVault is a handler to reshare a vault
+func (s *Server) ReshareVault(c echo.Context) error {
+	var req types.ReshareRequest
+	if err := c.Bind(&req); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid request, err: %w", err)
+	}
+	buf, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
