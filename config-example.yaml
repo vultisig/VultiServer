@@ -1,5 +1,5 @@
 server:
-  port: "8181"
+  port: "8080"
   host: "0.0.0.0"
   vaultsFilePath: "vaults"
 
@@ -8,8 +8,7 @@ redis:
   port: "6379"
   password: ""
 
-encryption:
-  privatekey: "test"
-
 relay:
   server: "http://localhost:8080/router"
+email_server:
+  api_key: "key-1234567890"
