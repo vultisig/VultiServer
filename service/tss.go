@@ -113,6 +113,7 @@ func (s *WorkerService) keygenWithRetry(serverURL string, req types.VaultCreateR
 }
 
 func (s *WorkerService) generateECDSAKey(tssService tss.Service, req types.VaultCreateRequest, partiesJoined []string) (*tss.KeygenResponse, error) {
+	defer s.measureTime("worker.vault.create.ECDSA.latency", time.Now(), []string{})
 	s.logger.WithFields(logrus.Fields{
 		"local_party_id": req.LocalPartyId,
 		"chain_code":     req.HexChainCode,
@@ -135,6 +136,7 @@ func (s *WorkerService) generateECDSAKey(tssService tss.Service, req types.Vault
 }
 
 func (s *WorkerService) generateEDDSAKey(tssService tss.Service, req types.VaultCreateRequest, partiesJoined []string) (*tss.KeygenResponse, error) {
+	defer s.measureTime("worker.vault.create.EDDSA.latency", time.Now(), []string{})
 	s.logger.WithFields(logrus.Fields{
 		"local_party_id": req.LocalPartyId,
 		"chain_code":     req.HexChainCode,

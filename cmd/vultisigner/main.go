@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 
 	"github.com/vultisig/vultisigner/api"
@@ -12,6 +13,11 @@ import (
 
 func main() {
 	cfg, err := config.GetConfigure()
+	if err != nil {
+		panic(err)
+	}
+
+	sdClient, err := statsd.New("127.0.0.1:8125")
 	if err != nil {
 		panic(err)
 	}
@@ -38,11 +44,12 @@ func main() {
 		panic("vaults file path is empty")
 
 	}
+
 	server := api.NewServer(port,
 		redisStorage,
 		client,
 		inspector,
-		cfg.Server.VaultsFilePath)
+		cfg.Server.VaultsFilePath, sdClient)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}

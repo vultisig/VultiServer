@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
@@ -25,10 +27,11 @@ type WorkerService struct {
 	redis       *storage.RedisStorage
 	logger      *logrus.Logger
 	queueClient *asynq.Client
+	sdClient    *statsd.Client
 }
 
 // NewWorker creates a new worker service
-func NewWorker(cfg config.Config, queueClient *asynq.Client) (*WorkerService, error) {
+func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client) (*WorkerService, error) {
 	redis, err := storage.NewRedisStorage(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
@@ -39,6 +42,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client) (*WorkerService, er
 		cfg:         cfg,
 		logger:      logrus.WithField("service", "worker").Logger,
 		queueClient: queueClient,
+		sdClient:    sdClient,
 	}, nil
 }
 
@@ -47,11 +51,21 @@ type KeyGenerationTaskResult struct {
 	ECDSAPublicKey string
 }
 
+func (s *WorkerService) incCounter(name string, tags []string) {
+	if err := s.sdClient.Count(name, 1, tags, 1); err != nil {
+		s.logger.Errorf("fail to count metric, err: %v", err)
+	}
+}
+func (s *WorkerService) measureTime(name string, start time.Time, tags []string) {
+	if err := s.sdClient.Timing(name, time.Since(start), tags, 1); err != nil {
+		s.logger.Errorf("fail to measure time metric, err: %v", err)
+	}
+}
 func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
 	}
-
+	defer s.measureTime("worker.vault.create.latency", time.Now(), []string{})
 	var req types.VaultCreateRequest
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
@@ -62,9 +76,11 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 		"local_party_id": req.LocalPartyId,
 		"email":          req.Email,
 	}).Info("Joining keygen")
+	s.incCounter("worker.vault.create", []string{})
 
 	keyECDSA, keyEDDSA, err := s.JoinKeyGeneration(req)
 	if err != nil {
+		_ = s.sdClient.Count("worker.vault.create.error", 1, nil, 1)
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
@@ -98,6 +114,8 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
+	defer s.measureTime("worker.vault.sign.latency", time.Now(), []string{})
+	s.incCounter("worker.vault.sign", []string{})
 	s.logger.WithFields(logrus.Fields{
 		"PublicKey":  p.PublicKey,
 		"session":    p.SessionID,
@@ -130,6 +148,7 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
 	}
+	s.incCounter("worker.vault.backup.email", []string{})
 	var req types.EmailRequest
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
@@ -211,11 +230,12 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
 	}
-
 	var req types.ReshareRequest
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
+	defer s.measureTime("worker.vault.reshare.latency", time.Now(), []string{})
+	s.incCounter("worker.vault.reshare", []string{})
 	s.logger.WithFields(logrus.Fields{
 		"name":           req.Name,
 		"session":        req.SessionID,

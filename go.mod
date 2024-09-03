@@ -14,7 +14,11 @@ require (
 	google.golang.org/protobuf v1.34.2
 )
 
-require github.com/google/uuid v1.6.0 // indirect
+require (
+	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
+	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+)
 
 require (
 	github.com/agl/ed25519 v0.0.0-20200225211852-fd4d107ace12 // indirect
