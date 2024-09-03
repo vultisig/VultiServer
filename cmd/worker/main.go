@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 
 	"github.com/vultisig/vultisigner/config"
@@ -15,9 +16,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	sdClient, err := statsd.New("127.0.0.1:8125")
+	if err != nil {
+		panic(err)
+	}
 	redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
 	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
-	workerServce, err := service.NewWorker(*cfg, client)
+	workerServce, err := service.NewWorker(*cfg, client, sdClient)
 	if err != nil {
 		panic(err)
 	}

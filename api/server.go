@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
+	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/common"
@@ -27,6 +29,8 @@ type Server struct {
 	client        *asynq.Client
 	inspector     *asynq.Inspector
 	vaultFilePath string
+	sdClient      *statsd.Client
+	logger        *logrus.Logger
 }
 
 // NewServer returns a new server.
@@ -34,13 +38,16 @@ func NewServer(port int64,
 	redis *storage.RedisStorage,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
-	vaultFilePath string) *Server {
+	vaultFilePath string,
+	sdClient *statsd.Client) *Server {
 	return &Server{
 		port:          port,
 		redis:         redis,
 		client:        client,
 		inspector:     inspector,
 		vaultFilePath: vaultFilePath,
+		sdClient:      sdClient,
+		logger:        logrus.WithField("service", "api").Logger,
 	}
 }
 
@@ -67,6 +74,20 @@ func (s *Server) StartServer() error {
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 
+func (s *Server) statsdMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		start := time.Now()
+		err := next(c)
+		duration := time.Since(start).Milliseconds()
+
+		// Send metrics to statsd
+		_ = s.sdClient.Incr("http.requests", []string{"path:" + c.Path()}, 1)
+		_ = s.sdClient.Timing("http.response_time", time.Duration(duration)*time.Millisecond, []string{"path:" + c.Path()}, 1)
+		_ = s.sdClient.Incr("http.status."+fmt.Sprint(c.Response().Status), []string{"path:" + c.Path(), "method:" + c.Request().Method}, 1)
+
+		return err
+	}
+}
 func (s *Server) Ping(c echo.Context) error {
 	return c.String(http.StatusOK, "Vultisigner is running")
 }
@@ -110,6 +131,9 @@ func (s *Server) CreateVault(c echo.Context) error {
 	buf, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
+	}
+	if err := s.sdClient.Count("vault.create", 1, nil, 1); err != nil {
+		s.logger.Errorf("fail to count metric, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
 		asynq.MaxRetry(-1),
