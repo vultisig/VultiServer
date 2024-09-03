@@ -58,7 +58,7 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
-
+	e.Use(s.statsdMiddleware)
 	e.Use(middleware.CORS())
 	e.GET("/ping", s.Ping)
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
