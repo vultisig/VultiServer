@@ -69,6 +69,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
+	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault)  // Delete Vault Data
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
@@ -272,6 +273,39 @@ func (s *Server) GetVault(c echo.Context) error {
 		HexChainCode:   vault.HexChainCode,
 		LocalPartyId:   vault.LocalPartyId,
 	})
+}
+func (s *Server) DeleteVault(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return fmt.Errorf("public key is required")
+	}
+
+	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
+	_, err := os.Stat(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to get file info, err: %w", err)
+	}
+	passwd := c.Request().Header.Get("x-password")
+	if passwd == "" {
+		return fmt.Errorf("vault backup password is required")
+	}
+
+	content, err := os.ReadFile(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to read file, err: %w", err)
+	}
+
+	vault, err := common.DecryptVaultFromBackup(passwd, content)
+	if err != nil {
+		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
+	}
+	s.logger.Info("removing vault file %s per request", vault.PublicKeyEcdsa)
+	err = os.Remove(filePathName)
+	if err != nil {
+		return fmt.Errorf("fail to remove file, err: %w", err)
+	}
+
+	return c.NoContent(http.StatusOK)
 }
 
 // SignMessages is a handler to process Keysing request

@@ -88,7 +88,7 @@ Note:
 - Make sure set `x-password` header with the password to decrypt the vault share , if the password is empty or incorrect , client will not able to upload the vault backup
 
 ## Get Vault
-`GET` `/vault/{publicKeyECDSA}` , this endpoint allow user to get the vault information
+`GET` `/vault/get/{publicKeyECDSA}` , this endpoint allow user to get the vault information
 
 Note: please set `x-password` header with the password to decrypt the vault share , if the password is empty or incorrect, server will return an error
 ### Response
@@ -126,6 +126,11 @@ Note: please set `x-password` header with the password to decrypt the vault shar
 - local_party_id: Identifier for VultiServer in the reshare session
 - encryption_password: Password to encrypt the vault share
 - email: Email to send the encrypted vault share
+
+## Delete Vault
+`DELETE` `/vault/delete/{publicKeyECDSA}` , this endpoint allow user to delete their vault share from vultiserver
+
+Note: please set `x-password` header with the password to decrypt the vault share , if the password is empty or incorrect, server will return an error
 
 ## How to setup vultisigner to run locally?
 
