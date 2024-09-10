@@ -96,6 +96,10 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 
 func (s *WorkerService) keygenWithRetry(serverURL string, req types.VaultCreateRequest, partiesJoined []string, tssService tss.Service) (string, string, error) {
 	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, req.LocalPartyId, req.HexEncryptionKey, tssService, "")
+	defer func() {
+		close(endCh)
+		wg.Wait()
+	}()
 	resp, err := s.generateECDSAKey(tssService, req, partiesJoined)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate ECDSA key: %w", err)
@@ -105,10 +109,6 @@ func (s *WorkerService) keygenWithRetry(serverURL string, req types.VaultCreateR
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate EDDSA key: %w", err)
 	}
-
-	close(endCh)
-	wg.Wait()
-
 	return resp.PubKey, respEDDSA.PubKey, nil
 }
 
@@ -439,6 +439,10 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 	}
 	messageToSign := base64.StdEncoding.EncodeToString(msgBuf)
 	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, localPartyId, req.HexEncryptionKey, tssService, messageID)
+	defer func() {
+		close(endCh)
+		wg.Wait()
+	}()
 	var signature *tss.KeysignResponse
 	if req.IsECDSA {
 		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
@@ -458,8 +462,6 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 		})
 	}
 
-	close(endCh)
-	wg.Wait()
 	client := relay.NewRelayClient(serverURL)
 	if err == nil {
 		if err := client.MarkKeysignComplete(req.SessionID, messageID, *signature); err != nil {
