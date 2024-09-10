@@ -299,7 +299,7 @@ func (s *Server) DeleteVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
-	s.logger.Info("removing vault file %s per request", vault.PublicKeyEcdsa)
+	s.logger.Infof("removing vault file %s per request", vault.PublicKeyEcdsa)
 	err = os.Remove(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to remove file, err: %w", err)
