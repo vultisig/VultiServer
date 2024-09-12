@@ -388,7 +388,7 @@ func (s *Server) GetKeysignResult(c echo.Context) error {
 	return fmt.Errorf("task state is invalid")
 }
 func (s *Server) isValidHash(hash string) bool {
-	if len(hash) != 64 {
+	if len(hash) != 66 {
 		return false
 	}
 	_, err := hex.DecodeString(hash)
