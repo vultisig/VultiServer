@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,6 +70,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/upload", s.UploadVault)
 	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
+	grp.GET("/exist/:publicKeyECDSA", s.ExistVault)       // Check if Vault exists
 	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault)  // Delete Vault Data
 	grp.POST("/sign", s.SignMessages)                     // Sign messages
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
@@ -213,7 +215,9 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	if publicKeyECDSA == "" {
 		return fmt.Errorf("public key is required")
 	}
-
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
 	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
@@ -244,7 +248,9 @@ func (s *Server) GetVault(c echo.Context) error {
 	if publicKeyECDSA == "" {
 		return fmt.Errorf("public key is required")
 	}
-
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
 	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
@@ -279,7 +285,9 @@ func (s *Server) DeleteVault(c echo.Context) error {
 	if publicKeyECDSA == "" {
 		return fmt.Errorf("public key is required")
 	}
-
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
 	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
@@ -317,7 +325,9 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
-
+	if !s.isValidHash(req.PublicKey) {
+		return c.NoContent(http.StatusBadRequest)
+	}
 	filePathName := filepath.Join(s.vaultFilePath, req.PublicKey+".bak")
 	_, err := os.Stat(filePathName)
 	if err != nil {
@@ -376,4 +386,27 @@ func (s *Server) GetKeysignResult(c echo.Context) error {
 	}
 
 	return fmt.Errorf("task state is invalid")
+}
+func (s *Server) isValidHash(hash string) bool {
+	if len(hash) != 66 {
+		return false
+	}
+	_, err := hex.DecodeString(hash)
+	return err == nil
+}
+func (s *Server) ExistVault(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return fmt.Errorf("public key is required")
+	}
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
+	_, err := os.Stat(filePathName)
+	if err != nil {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	return c.NoContent(http.StatusOK)
 }
