@@ -81,6 +81,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 	keyECDSA, keyEDDSA, err := s.JoinKeyGeneration(req)
 	if err != nil {
 		_ = s.sdClient.Count("worker.vault.create.error", 1, nil, 1)
+		s.logger.Errorf("keygen.JoinKeyGeneration failed: %v", err)
 		return fmt.Errorf("keygen.JoinKeyGeneration failed: %v: %w", err, asynq.SkipRetry)
 	}
 
@@ -96,10 +97,12 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
+		s.logger.Errorf("json.Marshal failed: %v", err)
 		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
 	if _, err := t.ResultWriter().Write(resultBytes); err != nil {
+		s.logger.Errorf("t.ResultWriter.Write failed: %v", err)
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
 	}
 
@@ -112,6 +115,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 	}
 	var p types.KeysignRequest
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	defer s.measureTime("worker.vault.sign.latency", time.Now(), []string{})
@@ -126,6 +130,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 
 	signatures, err := s.JoinKeySign(p)
 	if err != nil {
+		s.logger.Errorf("join keysign failed: %v", err)
 		return fmt.Errorf("join keysign failed: %v: %w", err, asynq.SkipRetry)
 	}
 
@@ -135,10 +140,12 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 
 	resultBytes, err := json.Marshal(signatures)
 	if err != nil {
+		s.logger.Errorf("json.Marshal failed: %v", err)
 		return fmt.Errorf("json.Marshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 
 	if _, err := t.ResultWriter().Write(resultBytes); err != nil {
+		s.logger.Errorf("t.ResultWriter.Write failed: %v", err)
 		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
 	}
 
@@ -151,6 +158,7 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 	s.incCounter("worker.vault.backup.email", []string{})
 	var req types.EmailRequest
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	s.logger.WithFields(logrus.Fields{
@@ -232,6 +240,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	}
 	var req types.ReshareRequest
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	defer s.measureTime("worker.vault.reshare.latency", time.Now(), []string{})

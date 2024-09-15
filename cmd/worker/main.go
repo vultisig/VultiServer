@@ -5,6 +5,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
+	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -30,6 +31,7 @@ func main() {
 	srv := asynq.NewServer(
 		asynq.RedisClientOpt{Addr: redisAddr},
 		asynq.Config{
+			Logger:      logrus.StandardLogger(),
 			Concurrency: 10,
 			Queues: map[string]int{
 				tasks.QUEUE_NAME:       10,
