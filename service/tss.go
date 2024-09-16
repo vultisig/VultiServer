@@ -406,7 +406,13 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 	for _, message := range req.Messages {
 		var signature *tss.KeysignResponse
 		for attempt := 0; attempt < 3; attempt++ {
-			signature, err = s.keysignWithRetry(serverURL, localPartyId, req, partiesJoined, tssServerImp, message)
+			signature, err = s.keysignWithRetry(serverURL,
+				localPartyId,
+				req,
+				partiesJoined,
+				tssServerImp,
+				message,
+				localStateAccessor.Vault.PublicKeyEddsa)
 			if err == nil {
 				break
 			}
@@ -431,7 +437,11 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 }
 
 func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
-	req types.KeysignRequest, partiesJoined []string, tssService tss.Service, msg string) (*tss.KeysignResponse, error) {
+	req types.KeysignRequest,
+	partiesJoined []string,
+	tssService tss.Service,
+	msg string,
+	publicKeyEdDSA string) (*tss.KeysignResponse, error) {
 	messageID := hex.EncodeToString(md5.New().Sum([]byte(msg)))
 	msgBuf, err := hex.DecodeString(msg)
 	if err != nil {
@@ -454,7 +464,7 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 		})
 	} else {
 		signature, err = tssService.KeysignEdDSA(&tss.KeysignRequest{
-			PubKey:               req.PublicKey,
+			PubKey:               publicKeyEdDSA, // request public key should be EdDSA public key
 			MessageToSign:        messageToSign,
 			LocalPartyKey:        localPartyId,
 			KeysignCommitteeKeys: strings.Join(partiesJoined, ","),
