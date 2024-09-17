@@ -88,13 +88,12 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 			"attempt": attempt,
 		}).Error(err)
 	}
+	close(endCh)
+	wg.Wait()
 
 	if err != nil {
 		return err
 	}
-
-	close(endCh)
-	wg.Wait()
 
 	if err := client.CompleteSession(sessionID, localPartyID); err != nil {
 		s.logger.WithFields(logrus.Fields{
