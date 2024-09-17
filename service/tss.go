@@ -60,13 +60,15 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 	}
 
 	ecdsaPubkey, eddsaPubkey := "", ""
+	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, req.LocalPartyId, req.HexEncryptionKey, tssServerImp, "")
 	for attempt := 0; attempt < 3; attempt++ {
-		ecdsaPubkey, eddsaPubkey, err = s.keygenWithRetry(serverURL, req, partiesJoined, tssServerImp)
+		ecdsaPubkey, eddsaPubkey, err = s.keygenWithRetry(req, partiesJoined, tssServerImp)
 		if err == nil {
 			break
 		}
 	}
-
+	close(endCh)
+	wg.Wait()
 	if err != nil {
 		return "", "", err
 	}
@@ -94,12 +96,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 	return ecdsaPubkey, eddsaPubkey, nil
 }
 
-func (s *WorkerService) keygenWithRetry(serverURL string, req types.VaultCreateRequest, partiesJoined []string, tssService tss.Service) (string, string, error) {
-	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, req.LocalPartyId, req.HexEncryptionKey, tssService, "")
-	defer func() {
-		close(endCh)
-		wg.Wait()
-	}()
+func (s *WorkerService) keygenWithRetry(req types.VaultCreateRequest, partiesJoined []string, tssService tss.Service) (string, string, error) {
 	resp, err := s.generateECDSAKey(tssService, req, partiesJoined)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate ECDSA key: %w", err)
@@ -229,6 +226,7 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 	for {
 		select {
 		case <-endCh: // we are done
+			logger.Info("Stop downloading messages")
 			return
 		case <-time.After(time.Second):
 
@@ -449,10 +447,7 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 	}
 	messageToSign := base64.StdEncoding.EncodeToString(msgBuf)
 	endCh, wg := s.startMessageDownload(serverURL, req.SessionID, localPartyId, req.HexEncryptionKey, tssService, messageID)
-	defer func() {
-		close(endCh)
-		wg.Wait()
-	}()
+
 	var signature *tss.KeysignResponse
 	if req.IsECDSA {
 		signature, err = tssService.KeysignECDSA(&tss.KeysignRequest{
@@ -484,6 +479,7 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 			signature = sigResp
 		}
 	}
-
+	close(endCh)
+	wg.Wait()
 	return signature, nil
 }
