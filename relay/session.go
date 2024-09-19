@@ -61,6 +61,22 @@ func (c *Client) StartSession(sessionID string, parties []string) error {
 	return nil
 }
 
+func (c *Client) RegisterSessionWithRetry(sessionID string, key string) error {
+	for i := 0; i < 3; i++ {
+		if err := c.RegisterSession(sessionID, key); err != nil {
+			c.logger.WithFields(logrus.Fields{
+				"session": sessionID,
+				"key":     key,
+				"error":   err,
+				"attempt": i,
+			}).Error("Failed to register session")
+			time.Sleep(100 * time.Millisecond)
+		} else {
+			return nil
+		}
+	}
+	return fmt.Errorf("fail to register session after 3 retries")
+}
 func (c *Client) RegisterSession(sessionID string, key string) error {
 	sessionURL := c.relayServer + "/" + sessionID
 	body := []byte("[\"" + key + "\"]")
@@ -69,6 +85,7 @@ func (c *Client) RegisterSession(sessionID string, key string) error {
 		"key":     key,
 		"body":    string(body),
 	}).Info("Registering session")
+
 	resp, err := c.client.Post(sessionURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("fail to register session: %w", err)
