@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	coinType := core.CoinTypeBitcoin
-	name := coinType.GetName()
+	coinType := core.CoinTypeTHORChain
+	name := coinType.ChainID()
 	fmt.Print(name)
 }

@@ -10,7 +10,7 @@ require (
 	github.com/redis/go-redis/v9 v9.5.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
-	github.com/vultisig/commondata v0.0.0-20240717101530-8c7353d5335d
+	github.com/vultisig/commondata v0.0.0-20240726234042-f852277b23eb
 	github.com/vultisig/mobile-tss-lib v0.0.0-20240621002938-ee58dda07286
 	google.golang.org/protobuf v1.34.2
 )

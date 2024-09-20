@@ -39,3 +39,8 @@ func (c CoinType) GetName() string {
 func (c CoinType) Decimals() int {
 	return int(C.TWCoinTypeConfigurationGetDecimals(C.enum_TWCoinType(c)))
 }
+func (c CoinType) ChainID() string {
+	chainID := C.TWCoinTypeChainId(C.enum_TWCoinType(c))
+	defer C.TWStringDelete(chainID)
+	return types.TWStringGoString(chainID)
+}
