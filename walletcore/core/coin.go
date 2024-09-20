@@ -11,10 +11,23 @@ import "github.com/vultisig/vultisigner/walletcore/types"
 type CoinType uint32
 
 const (
-	CoinTypeBitcoin  CoinType = C.TWCoinTypeBitcoin
-	CoinTypeBinance  CoinType = C.TWCoinTypeBinance
-	CoinTypeEthereum CoinType = C.TWCoinTypeEthereum
-	CoinTypeTron     CoinType = C.TWCoinTypeTron
+	CoinTypeBitcoin     CoinType = C.TWCoinTypeBitcoin
+	CoinTypeBitcoinCash CoinType = C.TWCoinTypeBitcoinCash
+	CoinTypeLitecoin    CoinType = C.TWCoinTypeLitecoin
+	CoinTypeDash        CoinType = C.TWCoinTypeDash
+	CoinTypeDogecoin    CoinType = C.TWCoinTypeDogecoin
+	CoinTypeZcash       CoinType = C.TWCoinTypeZcash
+	CoinTypeKujira      CoinType = C.TWCoinTypeKujira
+	CoinTypeBinance     CoinType = C.TWCoinTypeBinance
+	CoinTypeEthereum    CoinType = C.TWCoinTypeEthereum
+	CoinTypeTron        CoinType = C.TWCoinTypeTron
+	CoinTypeTHORChain   CoinType = C.TWCoinTypeTHORChain
+	CoinTypeCosmos      CoinType = C.TWCoinTypeCosmos
+	CoinTypeSmartChain  CoinType = C.TWCoinTypeSmartChain
+	CoinTypeSolana      CoinType = C.TWCoinTypeSolana
+	CoinTypePolkadot    CoinType = C.TWCoinTypePolkadot
+	CoinTypePolygon     CoinType = C.TWCoinTypePolygon
+	CoinTypeSui         CoinType = C.TWCoinTypeSui
 )
 
 func (c CoinType) GetName() string {
