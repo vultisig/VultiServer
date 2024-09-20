@@ -3,6 +3,7 @@ module github.com/vultisig/vultisigner
 go 1.22.2
 
 require (
+	github.com/DataDog/datadog-go v4.8.3+incompatible
 	github.com/hibiken/asynq v0.24.1
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/labstack/gommon v0.4.2
@@ -15,7 +16,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 )
