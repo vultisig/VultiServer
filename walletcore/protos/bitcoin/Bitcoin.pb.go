@@ -7,6 +7,7 @@
 package bitcoin
 
 import (
+	bitcoinv2 "github.com/vultisig/vultisigner/walletcore/protos/bitcoinv2"
 	common "github.com/vultisig/vultisigner/walletcore/protos/common"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -605,7 +606,7 @@ type SigningInput struct {
 	Time uint32 `protobuf:"varint,17,opt,name=time,proto3" json:"time,omitempty"`
 	// If set, uses Bitcoin 2.0 Signing protocol.
 	// As a result, `Bitcoin.Proto.SigningOutput.signing_result_v2` is set.
-	SigningV2 *SigningInput `protobuf:"bytes,21,opt,name=signing_v2,json=signingV2,proto3" json:"signing_v2,omitempty"`
+	SigningV2 *bitcoinv2.SigningInput `protobuf:"bytes,21,opt,name=signing_v2,json=signingV2,proto3" json:"signing_v2,omitempty"`
 	// One of the "Dust" amount policies.
 	// Later, we plan to add support for `DynamicDust` policy with a `min_relay_fee` amount.
 	//
@@ -773,7 +774,7 @@ func (x *SigningInput) GetTime() uint32 {
 	return 0
 }
 
-func (x *SigningInput) GetSigningV2() *SigningInput {
+func (x *SigningInput) GetSigningV2() *bitcoinv2.SigningInput {
 	if x != nil {
 		return x.SigningV2
 	}
@@ -836,7 +837,7 @@ type TransactionPlan struct {
 	Preblockheight int64 `protobuf:"varint,10,opt,name=preblockheight,proto3" json:"preblockheight,omitempty"`
 	// Result of a transaction planning using the Bitcoin 2.0 protocol.
 	// Set if `Bitcoin.Proto.SigningInput.planning_v2` used.
-	PlanningResultV2 *TransactionPlan `protobuf:"bytes,12,opt,name=planning_result_v2,json=planningResultV2,proto3" json:"planning_result_v2,omitempty"`
+	PlanningResultV2 *bitcoinv2.TransactionPlan `protobuf:"bytes,12,opt,name=planning_result_v2,json=planningResultV2,proto3" json:"planning_result_v2,omitempty"`
 }
 
 func (x *TransactionPlan) Reset() {
@@ -948,7 +949,7 @@ func (x *TransactionPlan) GetPreblockheight() int64 {
 	return 0
 }
 
-func (x *TransactionPlan) GetPlanningResultV2() *TransactionPlan {
+func (x *TransactionPlan) GetPlanningResultV2() *bitcoinv2.TransactionPlan {
 	if x != nil {
 		return x.PlanningResultV2
 	}
@@ -974,7 +975,7 @@ type SigningOutput struct {
 	ErrorMessage string `protobuf:"bytes,5,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	// Result of a transaction signing using the Bitcoin 2.0 protocol.
 	// Set if `Bitcoin.Proto.SigningInput.signing_v2` used.
-	SigningResultV2 *SigningOutput `protobuf:"bytes,7,opt,name=signing_result_v2,json=signingResultV2,proto3" json:"signing_result_v2,omitempty"`
+	SigningResultV2 *bitcoinv2.SigningOutput `protobuf:"bytes,7,opt,name=signing_result_v2,json=signingResultV2,proto3" json:"signing_result_v2,omitempty"`
 }
 
 func (x *SigningOutput) Reset() {
@@ -1044,7 +1045,7 @@ func (x *SigningOutput) GetErrorMessage() string {
 	return ""
 }
 
-func (x *SigningOutput) GetSigningResultV2() *SigningOutput {
+func (x *SigningOutput) GetSigningResultV2() *bitcoinv2.SigningOutput {
 	if x != nil {
 		return x.SigningResultV2
 	}
@@ -1123,7 +1124,7 @@ type PreSigningOutput struct {
 	ErrorMessage string `protobuf:"bytes,3,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	// Result of a transaction pre-signing using the Bitcoin 2.0 protocol.
 	// Set if `Bitcoin.Proto.SigningInput.signing_v2` used.
-	PreSigningResultV2 *PreSigningOutput `protobuf:"bytes,7,opt,name=pre_signing_result_v2,json=preSigningResultV2,proto3" json:"pre_signing_result_v2,omitempty"`
+	PreSigningResultV2 *bitcoinv2.PreSigningOutput `protobuf:"bytes,7,opt,name=pre_signing_result_v2,json=preSigningResultV2,proto3" json:"pre_signing_result_v2,omitempty"`
 }
 
 func (x *PreSigningOutput) Reset() {
@@ -1179,7 +1180,7 @@ func (x *PreSigningOutput) GetErrorMessage() string {
 	return ""
 }
 
-func (x *PreSigningOutput) GetPreSigningResultV2() *PreSigningOutput {
+func (x *PreSigningOutput) GetPreSigningResultV2() *bitcoinv2.PreSigningOutput {
 	if x != nil {
 		return x.PreSigningResultV2
 	}
@@ -1412,25 +1413,25 @@ func file_Bitcoin_proto_rawDescGZIP() []byte {
 var file_Bitcoin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_Bitcoin_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_Bitcoin_proto_goTypes = []interface{}{
-	(TransactionVariant)(0),    // 0: TW.Bitcoin.Proto.TransactionVariant
-	(*Transaction)(nil),        // 1: TW.Bitcoin.Proto.Transaction
-	(*TransactionInput)(nil),   // 2: TW.Bitcoin.Proto.TransactionInput
-	(*OutPoint)(nil),           // 3: TW.Bitcoin.Proto.OutPoint
-	(*TransactionOutput)(nil),  // 4: TW.Bitcoin.Proto.TransactionOutput
-	(*UnspentTransaction)(nil), // 5: TW.Bitcoin.Proto.UnspentTransaction
-	(*OutputAddress)(nil),      // 6: TW.Bitcoin.Proto.OutputAddress
-	(*OutputIndex)(nil),        // 7: TW.Bitcoin.Proto.OutputIndex
-	(*SigningInput)(nil),       // 8: TW.Bitcoin.Proto.SigningInput
-	(*TransactionPlan)(nil),    // 9: TW.Bitcoin.Proto.TransactionPlan
-	(*SigningOutput)(nil),      // 10: TW.Bitcoin.Proto.SigningOutput
-	(*HashPublicKey)(nil),      // 11: TW.Bitcoin.Proto.HashPublicKey
-	(*PreSigningOutput)(nil),   // 12: TW.Bitcoin.Proto.PreSigningOutput
-	nil,                        // 13: TW.Bitcoin.Proto.SigningInput.ScriptsEntry
-	(*SigningInput)(nil),       // 14: TW.BitcoinV2.Proto.SigningInput
-	(common.SigningError)(0),   // 15: TW.Common.Proto.SigningError
-	(*TransactionPlan)(nil),    // 16: TW.BitcoinV2.Proto.TransactionPlan
-	(*SigningOutput)(nil),      // 17: TW.BitcoinV2.Proto.SigningOutput
-	(*PreSigningOutput)(nil),   // 18: TW.BitcoinV2.Proto.PreSigningOutput
+	(TransactionVariant)(0),            // 0: TW.Bitcoin.Proto.TransactionVariant
+	(*Transaction)(nil),                // 1: TW.Bitcoin.Proto.Transaction
+	(*TransactionInput)(nil),           // 2: TW.Bitcoin.Proto.TransactionInput
+	(*OutPoint)(nil),                   // 3: TW.Bitcoin.Proto.OutPoint
+	(*TransactionOutput)(nil),          // 4: TW.Bitcoin.Proto.TransactionOutput
+	(*UnspentTransaction)(nil),         // 5: TW.Bitcoin.Proto.UnspentTransaction
+	(*OutputAddress)(nil),              // 6: TW.Bitcoin.Proto.OutputAddress
+	(*OutputIndex)(nil),                // 7: TW.Bitcoin.Proto.OutputIndex
+	(*SigningInput)(nil),               // 8: TW.Bitcoin.Proto.SigningInput
+	(*TransactionPlan)(nil),            // 9: TW.Bitcoin.Proto.TransactionPlan
+	(*SigningOutput)(nil),              // 10: TW.Bitcoin.Proto.SigningOutput
+	(*HashPublicKey)(nil),              // 11: TW.Bitcoin.Proto.HashPublicKey
+	(*PreSigningOutput)(nil),           // 12: TW.Bitcoin.Proto.PreSigningOutput
+	nil,                                // 13: TW.Bitcoin.Proto.SigningInput.ScriptsEntry
+	(*bitcoinv2.SigningInput)(nil),     // 14: TW.BitcoinV2.Proto.SigningInput
+	(common.SigningError)(0),           // 15: TW.Common.Proto.SigningError
+	(*bitcoinv2.TransactionPlan)(nil),  // 16: TW.BitcoinV2.Proto.TransactionPlan
+	(*bitcoinv2.SigningOutput)(nil),    // 17: TW.BitcoinV2.Proto.SigningOutput
+	(*bitcoinv2.PreSigningOutput)(nil), // 18: TW.BitcoinV2.Proto.PreSigningOutput
 }
 var file_Bitcoin_proto_depIdxs = []int32{
 	2,  // 0: TW.Bitcoin.Proto.Transaction.inputs:type_name -> TW.Bitcoin.Proto.TransactionInput
@@ -1466,7 +1467,6 @@ func file_Bitcoin_proto_init() {
 	if File_Bitcoin_proto != nil {
 		return
 	}
-	file_BitcoinV2_proto_init()
 	if !protoimpl.UnsafeEnabled {
 		file_Bitcoin_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Transaction); i {

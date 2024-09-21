@@ -4,7 +4,7 @@
 // 	protoc        v5.26.1
 // source: BitcoinV2.proto
 
-package bitcoin
+package bitcoinv2
 
 import (
 	common "github.com/vultisig/vultisigner/walletcore/protos/common"
