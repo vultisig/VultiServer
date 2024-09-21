@@ -28,8 +28,10 @@ jobs:
       run: go build -v ./...
       env:
         CGO_ENABLED: 1
+        CC: clang
 
     - name: Test
       run: go test -v ./...
       env:
         CGO_ENABLED: 1
+        CC: clang
