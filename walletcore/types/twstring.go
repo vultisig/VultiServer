@@ -1,7 +1,5 @@
 package types
 
-// #cgo CFLAGS: -I../../../wallet-core/include
-// #cgo LDFLAGS: -L../../../wallet-core/build -L../../../wallet-core/build/local/lib -L../../../wallet-core/build/trezor-crypto -lTrustWalletCore -lwallet_core_rs -lprotobuf -lTrezorCrypto -lstdc++ -lm
 // #include <TrustWalletCore/TWString.h>
 import "C"
 

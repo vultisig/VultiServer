@@ -1,13 +1,13 @@
 package core
 
-// #cgo CFLAGS: -I../../../wallet-core/include
-// #cgo LDFLAGS: -L../../../wallet-core/build -L../../../wallet-core/build/local/lib -L../../../wallet-core/build/trezor-crypto -lTrustWalletCore -lwallet_core_rs -lprotobuf -lTrezorCrypto -lstdc++ -lm
 // #include <TrustWalletCore/TWCoinType.h>
 // #include <TrustWalletCore/TWBitcoinScript.h>
 // #include <TrustWalletCore/TWBitcoinSigHashType.h>
 import "C"
 
-import "github.com/vultisig/vultisigner/walletcore/types"
+import (
+	"github.com/vultisig/vultisigner/walletcore/types"
+)
 
 const (
 	BitcoinSigHashTypeAll          = C.TWBitcoinSigHashTypeAll

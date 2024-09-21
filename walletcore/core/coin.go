@@ -1,7 +1,5 @@
 package core
 
-// #cgo CFLAGS: -I../../../wallet-core/include
-// #cgo LDFLAGS: -L../../../wallet-core/build -L../../../wallet-core/build/local/lib -L../../../wallet-core/build/trezor-crypto -lTrustWalletCore -lwallet_core_rs -lprotobuf -lTrezorCrypto -lstdc++ -lm
 // #include <TrustWalletCore/TWCoinType.h>
 // #include <TrustWalletCore/TWCoinTypeConfiguration.h>
 import "C"
@@ -38,4 +36,9 @@ func (c CoinType) GetName() string {
 
 func (c CoinType) Decimals() int {
 	return int(C.TWCoinTypeConfigurationGetDecimals(C.enum_TWCoinType(c)))
+}
+func (c CoinType) ChainID() string {
+	chainID := C.TWCoinTypeChainId(C.enum_TWCoinType(c))
+	defer C.TWStringDelete(chainID)
+	return types.TWStringGoString(chainID)
 }
