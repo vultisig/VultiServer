@@ -1,7 +1,6 @@
 package core
 
 // #include <TrustWalletCore/TWAnyAddress.h>
-// #include <TrustWalletCore/TWCoinType.h>
 import "C"
 import (
 	"github.com/vultisig/vultisigner/walletcore/types"
