@@ -379,7 +379,7 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 	server := relay.NewRelayClient(serverURL)
 
 	// Let's register session here
-	if err := server.RegisterSession(req.SessionID, localPartyId); err != nil {
+	if err := server.RegisterSessionWithRetry(req.SessionID, localPartyId); err != nil {
 		return nil, fmt.Errorf("failed to register session: %w", err)
 	}
 	// wait longer for keysign start
