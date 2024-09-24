@@ -42,6 +42,18 @@ func BitcoinScriptBuildPayToPublicKeyHash(hash []byte) []byte {
 	return types.TWDataGoBytes(scriptData)
 }
 
+func BitcoinScriptBuildPayToWitnessPublicKeyHash(hash []byte) []byte {
+	hashData := types.TWDataCreateWithGoBytes(hash)
+	defer C.TWDataDelete(hashData)
+
+	script := C.TWBitcoinScriptBuildPayToWitnessPubkeyHash(hashData)
+	scriptData := C.TWBitcoinScriptData(script)
+	defer C.TWBitcoinScriptDelete(script)
+	defer C.TWDataDelete(scriptData)
+
+	return types.TWDataGoBytes(scriptData)
+}
+
 func BitcoinScriptMatchPayToWitnessPublicKeyHash(script []byte) []byte {
 	scriptData := types.TWDataCreateWithGoBytes(script)
 	defer C.TWDataDelete(scriptData)
@@ -51,4 +63,19 @@ func BitcoinScriptMatchPayToWitnessPublicKeyHash(script []byte) []byte {
 	hash := C.TWBitcoinScriptMatchPayToWitnessPublicKeyHash(scriptObj)
 	defer C.TWDataDelete(hash)
 	return types.TWDataGoBytes(hash)
+}
+
+func BitcoinScriptMatchPayToPublicKeyHash(script []byte) []byte {
+	scriptData := types.TWDataCreateWithGoBytes(script)
+	defer C.TWDataDelete(scriptData)
+	scriptObj := C.TWBitcoinScriptCreateWithData(scriptData)
+	defer C.TWBitcoinScriptDelete(scriptObj)
+
+	hash := C.TWBitcoinScriptMatchPayToPubkeyHash(scriptObj)
+	defer C.TWDataDelete(hash)
+	return types.TWDataGoBytes(hash)
+}
+
+func HashTypeForCoin(coinType CoinType) uint32 {
+	return uint32(C.TWBitcoinScriptHashTypeForCoin(C.enum_TWCoinType(coinType)))
 }

@@ -7,6 +7,11 @@ import (
 	v1 "github.com/vultisig/commondata/go/vultisig/keysign/v1"
 )
 
+func TestTHORChainDerivationPath(t *testing.T) {
+	helper := NewTHORChainHelper()
+	result := helper.coinType.DerivationPath()
+	assert.Equal(t, result, "m/44'/931'/0'/0/0")
+}
 func getTestKeysignPayload() v1.KeysignPayload {
 	return v1.KeysignPayload{
 		Coin: &v1.Coin{

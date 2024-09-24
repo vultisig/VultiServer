@@ -24,3 +24,13 @@ func CreateSignedTx(inputData proto.Message, ct CoinType, outputData proto.Messa
 	}
 	return nil
 }
+
+func AnySignerPlan(inputData []byte, ct CoinType) ([]byte, error) {
+	idata := types.TWDataCreateWithGoBytes(inputData)
+	defer C.TWDataDelete(idata)
+
+	odata := C.TWAnySignerPlan(idata, C.enum_TWCoinType(ct))
+	defer C.TWDataDelete(odata)
+
+	return types.TWDataGoBytes(odata), nil
+}
