@@ -14,6 +14,8 @@ import (
 	"github.com/vultisig/vultisigner/walletcore/protos/transactioncompiler"
 )
 
+var _ ChainHelper = &THORChainHelper{}
+
 type THORChainHelper struct {
 	coinType core.CoinType
 }
@@ -26,6 +28,31 @@ func NewTHORChainHelper() *THORChainHelper {
 
 var ErrInvalidChain = errors.New("invalid chain")
 
+func (h *THORChainHelper) GetSwapPreSignedInputData(payload *v1.KeysignPayload, signingInput *cosmos.SigningInput) ([]byte, error) {
+	if payload.Coin.Chain != string(THORChain) {
+		return nil, ErrInvalidChain
+	}
+	thorChainSpecific := payload.GetThorchainSpecific()
+	if thorChainSpecific == nil {
+		return nil, errors.New("missing thorchain specific")
+	}
+	publicKeyBytes, err := hex.DecodeString(payload.Coin.HexPublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+	input := signingInput
+	input.ChainId = h.coinType.ChainID()
+	input.PublicKey = publicKeyBytes
+	input.AccountNumber = thorChainSpecific.AccountNumber
+	input.Sequence = thorChainSpecific.Sequence
+	input.Mode = cosmos.BroadcastMode_SYNC
+	input.Fee = &cosmos.Fee{
+		Gas: 20000000,
+	}
+	return proto.Marshal(input)
+}
+
+// GetPreSignedInputData returns the pre-signed input data for the given payload.
 func (h *THORChainHelper) GetPreSignedInputData(payload *v1.KeysignPayload) ([]byte, error) {
 	if payload.Coin.Chain != string(THORChain) {
 		return nil, ErrInvalidChain
@@ -103,6 +130,8 @@ func (h *THORChainHelper) GetPreSignedInputData(payload *v1.KeysignPayload) ([]b
 	}
 	return proto.Marshal(&input)
 }
+
+// GetPreSignedImageHash returns the pre-signed image hash for the given payload.
 func (h *THORChainHelper) GetPreSignedImageHash(payload *v1.KeysignPayload) ([]string, error) {
 	input, err := h.GetPreSignedInputData(payload)
 	if err != nil {

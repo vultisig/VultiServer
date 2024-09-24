@@ -2,6 +2,7 @@ package core
 
 // #include <TrustWalletCore/TWCoinType.h>
 // #include <TrustWalletCore/TWCoinTypeConfiguration.h>
+// #include <TrustWalletCore/TWBitcoinScript.h>
 import "C"
 
 import "github.com/vultisig/vultisigner/walletcore/types"
@@ -41,4 +42,9 @@ func (c CoinType) ChainID() string {
 	chainID := C.TWCoinTypeChainId(C.enum_TWCoinType(c))
 	defer C.TWStringDelete(chainID)
 	return types.TWStringGoString(chainID)
+}
+func (c CoinType) DerivationPath() string {
+	derivationPath := C.TWCoinTypeDerivationPath(C.enum_TWCoinType(c))
+	defer C.TWStringDelete(derivationPath)
+	return types.TWStringGoString(derivationPath)
 }
