@@ -70,6 +70,7 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
+
 	s.logger.WithFields(logrus.Fields{
 		"name":           req.Name,
 		"session":        req.SessionID,
@@ -77,7 +78,9 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 		"email":          req.Email,
 	}).Info("Joining keygen")
 	s.incCounter("worker.vault.create", []string{})
-
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid vault create request: %s: %w", err, asynq.SkipRetry)
+	}
 	keyECDSA, keyEDDSA, err := s.JoinKeyGeneration(req)
 	if err != nil {
 		_ = s.sdClient.Count("worker.vault.create.error", 1, nil, 1)
@@ -243,6 +246,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 		s.logger.Errorf("json.Unmarshal failed: %v", err)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
+
 	defer s.measureTime("worker.vault.reshare.latency", time.Now(), []string{})
 	s.incCounter("worker.vault.reshare", []string{})
 	s.logger.WithFields(logrus.Fields{
@@ -251,7 +255,9 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 		"local_party_id": req.LocalPartyId,
 		"email":          req.Email,
 	}).Info("reshare request")
-
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid reshare request: %s: %w", err, asynq.SkipRetry)
+	}
 	localState, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword)
 	if err != nil {
 		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)

@@ -61,19 +61,23 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
 	e.Use(s.statsdMiddleware)
 	e.Use(middleware.CORS())
+	limiterStore := middleware.NewRateLimiterMemoryStoreWithConfig(
+		middleware.RateLimiterMemoryStoreConfig{Rate: 5, Burst: 30, ExpiresIn: 5 * time.Minute},
+	)
+	e.Use(middleware.RateLimiter(limiterStore))
 	e.GET("/ping", s.Ping)
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
 
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
-	grp.POST("/upload", s.UploadVault)
-	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
-	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
-	grp.GET("/exist/:publicKeyECDSA", s.ExistVault)       // Check if Vault exists
-	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault)  // Delete Vault Data
-	grp.POST("/sign", s.SignMessages)                     // Sign messages
-	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
+	//grp.POST("/upload", s.UploadVault)
+	//grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	grp.GET("/get/:publicKeyECDSA", s.GetVault)          // Get Vault Data
+	grp.GET("/exist/:publicKeyECDSA", s.ExistVault)      // Check if Vault exists
+	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
+	grp.POST("/sign", s.SignMessages)                    // Sign messages
+	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 
@@ -138,6 +142,15 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := s.sdClient.Count("vault.create", 1, nil, 1); err != nil {
 		s.logger.Errorf("fail to count metric, err: %v", err)
 	}
+
+	result, err := s.redis.Get(c.Request().Context(), req.SessionID)
+	if err == nil && result != "" {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID); err != nil {
+		s.logger.Errorf("fail to set session, err: %v", err)
+	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
@@ -161,6 +174,14 @@ func (s *Server) ReshareVault(c echo.Context) error {
 	buf, err := json.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
+	}
+	result, err := s.redis.Get(c.Request().Context(), req.SessionID)
+	if err == nil && result != "" {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID); err != nil {
+		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
 		asynq.MaxRetry(-1),
@@ -328,8 +349,17 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if !s.isValidHash(req.PublicKey) {
 		return c.NoContent(http.StatusBadRequest)
 	}
+	result, err := s.redis.Get(c.Request().Context(), req.SessionID)
+	if err == nil && result != "" {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID); err != nil {
+		s.logger.Errorf("fail to set session, err: %v", err)
+	}
+
 	filePathName := filepath.Join(s.vaultFilePath, req.PublicKey+".bak")
-	_, err := os.Stat(filePathName)
+	_, err = os.Stat(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to get file info, err: %w", err)
 	}
