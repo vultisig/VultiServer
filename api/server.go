@@ -61,19 +61,23 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
 	e.Use(s.statsdMiddleware)
 	e.Use(middleware.CORS())
+	limiterStore := middleware.NewRateLimiterMemoryStoreWithConfig(
+		middleware.RateLimiterMemoryStoreConfig{Rate: 5, Burst: 30, ExpiresIn: 5 * time.Minute},
+	)
+	e.Use(middleware.RateLimiter(limiterStore))
 	e.GET("/ping", s.Ping)
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	grp := e.Group("/vault")
 
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
-	grp.POST("/upload", s.UploadVault)
-	grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
-	grp.GET("/get/:publicKeyECDSA", s.GetVault)           // Get Vault Data
-	grp.GET("/exist/:publicKeyECDSA", s.ExistVault)       // Check if Vault exists
-	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault)  // Delete Vault Data
-	grp.POST("/sign", s.SignMessages)                     // Sign messages
-	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
+	//grp.POST("/upload", s.UploadVault)
+	//grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	grp.GET("/get/:publicKeyECDSA", s.GetVault)          // Get Vault Data
+	grp.GET("/exist/:publicKeyECDSA", s.ExistVault)      // Check if Vault exists
+	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
+	grp.POST("/sign", s.SignMessages)                    // Sign messages
+	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 

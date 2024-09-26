@@ -1,7 +1,10 @@
 package types
 
 import (
+	"encoding/hex"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 // VaultCreateRequest is a struct that represents a request to create a new vault from integration.
@@ -15,6 +18,10 @@ type VaultCreateRequest struct {
 	Email              string `json:"email" validate:"required"`               // this is the email of the user that the vault backup will be sent to
 }
 
+func isValidHexString(s string) bool {
+	buf, err := hex.DecodeString(s)
+	return err == nil && len(buf) == 32
+}
 func (req *VaultCreateRequest) IsValid() error {
 	if req.Name == "" {
 		return fmt.Errorf("name is required")
@@ -22,11 +29,21 @@ func (req *VaultCreateRequest) IsValid() error {
 	if req.SessionID == "" {
 		return fmt.Errorf("session_id is required")
 	}
+	if _, err := uuid.Parse(req.SessionID); err != nil {
+		return fmt.Errorf("session_id is not valid")
+	}
+
 	if req.HexEncryptionKey == "" {
 		return fmt.Errorf("hex_encryption_key is required")
 	}
+	if !isValidHexString(req.HexEncryptionKey) {
+		return fmt.Errorf("hex_encryption_key is not valid")
+	}
 	if req.HexChainCode == "" {
 		return fmt.Errorf("hex_chain_code is required")
+	}
+	if !isValidHexString(req.HexChainCode) {
+		return fmt.Errorf("hex_chain_code is not valid")
 	}
 	if req.EncryptionPassword == "" {
 		return fmt.Errorf("encryption_password is required")
