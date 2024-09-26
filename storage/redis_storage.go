@@ -2,10 +2,12 @@ package storage
 
 import (
 	"context"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/contexthelper"
 )
 
 type RedisStorage struct {
@@ -30,6 +32,18 @@ func NewRedisStorage(cfg config.Config) (*RedisStorage, error) {
 	}, nil
 }
 
+func (r *RedisStorage) Get(ctx context.Context, key string) (string, error) {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return "", err
+	}
+	return r.client.Get(ctx, key).Result()
+}
+func (r *RedisStorage) Set(ctx context.Context, key string, value string) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	return r.client.Set(ctx, key, value, time.Minute*5).Err()
+}
 func (r *RedisStorage) Close() error {
 	return r.client.Close()
 }
