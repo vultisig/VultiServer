@@ -118,6 +118,7 @@ func encrypt(plainText, hexKey string) (string, error) {
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
 		return "", err
 	}
+
 	mode := cipher.NewCBCEncrypter(block, iv)
 	ciphertext := make([]byte, len(plainByte))
 	mode.CryptBlocks(ciphertext, plainByte)
