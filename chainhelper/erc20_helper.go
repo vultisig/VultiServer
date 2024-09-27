@@ -21,6 +21,11 @@ type ERC20ChainHelper struct {
 	coinType core.CoinType
 }
 
+func NewERC20ChainHelper(coinType core.CoinType) *ERC20ChainHelper {
+	return &ERC20ChainHelper{
+		coinType: coinType,
+	}
+}
 func (h *ERC20ChainHelper) getPreSignedInputData(payload *v1.KeysignPayload) ([]byte, error) {
 	intChainID, err := strconv.Atoi(h.coinType.ChainID())
 	if err != nil {
@@ -64,7 +69,7 @@ func (h *ERC20ChainHelper) getPreSignedInputData(payload *v1.KeysignPayload) ([]
 		GasLimit:              big.NewInt(gasLimit).Bytes(),
 		MaxInclusionFeePerGas: big.NewInt(priorityFee).Bytes(),
 		MaxFeePerGas:          big.NewInt(maxFeePerGasWei).Bytes(),
-		ToAddress:             payload.ToAddress,
+		ToAddress:             payload.Coin.ContractAddress,
 		Transaction:           tx,
 	}
 	return proto.Marshal(input)

@@ -22,6 +22,11 @@ type EVMChainHelper struct {
 	coinType core.CoinType
 }
 
+func NewEVMChainHelper(coinType core.CoinType) *EVMChainHelper {
+	return &EVMChainHelper{
+		coinType: coinType,
+	}
+}
 func (h *EVMChainHelper) getPreSignedInputData(payload *v1.KeysignPayload) ([]byte, error) {
 	intChainID, err := strconv.Atoi(h.coinType.ChainID())
 	if err != nil {
