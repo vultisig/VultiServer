@@ -22,11 +22,19 @@ const (
 	CoinTypeTron        CoinType = C.TWCoinTypeTron
 	CoinTypeTHORChain   CoinType = C.TWCoinTypeTHORChain
 	CoinTypeCosmos      CoinType = C.TWCoinTypeCosmos
+	CoinTypeDydx        CoinType = C.TWCoinTypeDydx
 	CoinTypeSmartChain  CoinType = C.TWCoinTypeSmartChain
 	CoinTypeSolana      CoinType = C.TWCoinTypeSolana
 	CoinTypePolkadot    CoinType = C.TWCoinTypePolkadot
 	CoinTypePolygon     CoinType = C.TWCoinTypePolygon
 	CoinTypeSui         CoinType = C.TWCoinTypeSui
+	CoinTypeBlast       CoinType = C.TWCoinTypeBlast
+	CoinTypeBase        CoinType = C.TWCoinTypeBase
+	CoinTypeArbitrum    CoinType = C.TWCoinTypeArbitrum
+	CoinTypeOptimism    CoinType = C.TWCoinTypeOptimism
+	CoinTypeAvalanche   CoinType = C.TWCoinTypeAvalancheCChain
+	CoinTypeCronos      CoinType = C.TWCoinTypeCronosChain
+	CoinTypeZKSync      CoinType = C.TWCoinTypeZkSync
 )
 
 func (c CoinType) GetName() string {

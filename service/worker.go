@@ -275,6 +275,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 			PublicKeyEddsa: "",
 			HexChainCode:   req.HexChainCode,
 			LocalPartyId:   req.LocalPartyId,
+			Signers:        req.OldParties,
 		}
 		// create new vault
 	}
