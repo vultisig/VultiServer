@@ -67,26 +67,6 @@ Status Code: OK
 - is_ecdsa: Boolean indicating if the key sign is for ECDSA
 - vault_password: Password to decrypt the vault share
 
-## Download Vault
-`GET` `/vault/download/{publicKeyECDSA}`
-
-this endpoint allow user to download the vault  backup file.
-
-Note: please set `x-password` header with the password to decrypt the vault share , if the password is empty or incorrect , client will not able to download the vault backup
-
-- Download vault backup file is a standard password encrypted vault backup file(.bak) , it can be imported directly into MacOS/IOS/Android application
-- publicKeyECDSA: it is the ECDSA public key of the vault
-
-## Upload Vault
-`POST` `/vault/upload` , this endpoint allow user to upload the vault backup file.
-
-In the case that user already created their vault using mobile devices locally , but they would like to upload a vault backup to VultiServer , so that they can sign transactions with one mobile device and VultiServer. 
-User can upload one vault backup file to VultiServer using this endpoint.
-
-Note: 
-- The vault backup file need to be password encrypted , unencrypted vault backup file will be rejected by the server
-- Make sure set `x-password` header with the password to decrypt the vault share , if the password is empty or incorrect , client will not able to upload the vault backup
-
 ## Get Vault
 `GET` `/vault/get/{publicKeyECDSA}` , this endpoint allow user to get the vault information
 
@@ -114,6 +94,7 @@ Note: please set `x-password` header with the password to decrypt the vault shar
   "hex_encryption_key": "hex encoded encryption key",
   "hex_chain_code": "hex encoded chain code",
   "local_party_id": "local party id",
+  "old_parties": ["old party id 1", "old party id 2"], 
   "encryption_password": "password to encryption the generated vault share",
   "email": "email of the user"
 }
@@ -124,13 +105,10 @@ Note: please set `x-password` header with the password to decrypt the vault shar
 - hex_encryption_key: 32-byte hex encoded string for encryption/decryption
 - hex_chain_code: 32-byte hex encoded string
 - local_party_id: Identifier for VultiServer in the reshare session
+- old_parties: List of old party IDs
 - encryption_password: Password to encrypt the vault share
 - email: Email to send the encrypted vault share
 
-## Delete Vault
-`DELETE` `/vault/delete/{publicKeyECDSA}` , this endpoint allow user to delete their vault share from vultiserver
-
-Note: please set `x-password` header with the password to decrypt the vault share , if the password is empty or incorrect, server will return an error
 
 ## How to setup vultisigner to run locally?
 

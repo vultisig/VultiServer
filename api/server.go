@@ -73,10 +73,10 @@ func (s *Server) StartServer() error {
 	grp.POST("/reshare", s.ReshareVault)
 	//grp.POST("/upload", s.UploadVault)
 	//grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
-	grp.GET("/get/:publicKeyECDSA", s.GetVault)          // Get Vault Data
-	grp.GET("/exist/:publicKeyECDSA", s.ExistVault)      // Check if Vault exists
-	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
-	grp.POST("/sign", s.SignMessages)                    // Sign messages
+	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
+	grp.GET("/exist/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
+	//	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
+	grp.POST("/sign", s.SignMessages) // Sign messages
 	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
