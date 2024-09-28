@@ -34,7 +34,7 @@ const (
 	CoinTypeOptimism    CoinType = C.TWCoinTypeOptimism
 	CoinTypeAvalanche   CoinType = C.TWCoinTypeAvalancheCChain
 	CoinTypeCronos      CoinType = C.TWCoinTypeCronosChain
-	CoinTypeZKSync      CoinType = C.TWCoinTypeZkSync
+	CoinTypeZKSync      CoinType = C.TWCoinTypeZksync
 )
 
 func (c CoinType) GetName() string {
