@@ -1,0 +1,3 @@
+[submodule "demo/app/src/commondata"]
+	path = demo/app/src/commondata
+	url = git@github.com:vultisig/commondata.git
