@@ -72,7 +72,7 @@ func (s *Server) StartServer() error {
 
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
-	grp.POST("/upload", s.UploadVault)
+	//grp.POST("/upload", s.UploadVault)
 	//grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
 	grp.GET("/exist/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
