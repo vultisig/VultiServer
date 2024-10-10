@@ -23,26 +23,28 @@ import (
 )
 
 type WorkerService struct {
-	cfg         config.Config
-	redis       *storage.RedisStorage
-	logger      *logrus.Logger
-	queueClient *asynq.Client
-	sdClient    *statsd.Client
+	cfg          config.Config
+	redis        *storage.RedisStorage
+	logger       *logrus.Logger
+	queueClient  *asynq.Client
+	sdClient     *statsd.Client
+	blockStorage *storage.BlockStorage
 }
 
 // NewWorker creates a new worker service
-func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client) (*WorkerService, error) {
+func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, blockStorage *storage.BlockStorage) (*WorkerService, error) {
 	redis, err := storage.NewRedisStorage(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
 	}
 
 	return &WorkerService{
-		redis:       redis,
-		cfg:         cfg,
-		logger:      logrus.WithField("service", "worker").Logger,
-		queueClient: queueClient,
-		sdClient:    sdClient,
+		redis:        redis,
+		cfg:          cfg,
+		logger:       logrus.WithField("service", "worker").Logger,
+		queueClient:  queueClient,
+		sdClient:     sdClient,
+		blockStorage: blockStorage,
 	}, nil
 }
 
@@ -258,7 +260,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid reshare request: %s: %w", err, asynq.SkipRetry)
 	}
-	localState, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword)
+	localState, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
 	if err != nil {
 		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
 		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)

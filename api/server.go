@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -32,6 +30,7 @@ type Server struct {
 	vaultFilePath string
 	sdClient      *statsd.Client
 	logger        *logrus.Logger
+	blockStorage  *storage.BlockStorage
 }
 
 // NewServer returns a new server.
@@ -40,7 +39,8 @@ func NewServer(port int64,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
 	vaultFilePath string,
-	sdClient *statsd.Client) *Server {
+	sdClient *statsd.Client,
+	blockStorage *storage.BlockStorage) *Server {
 	return &Server{
 		port:          port,
 		redis:         redis,
@@ -49,6 +49,7 @@ func NewServer(port int64,
 		vaultFilePath: vaultFilePath,
 		sdClient:      sdClient,
 		logger:        logrus.WithField("service", "api").Logger,
+		blockStorage:  blockStorage,
 	}
 }
 
@@ -211,21 +212,8 @@ func (s *Server) UploadVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
-
-	filePathName := filepath.Join(s.vaultFilePath, vault.PublicKeyEcdsa+".bak")
-	file, err := os.Create(filePathName)
-	if err != nil {
-		return fmt.Errorf("fail to create file, err: %w", err)
-	}
-
-	defer func() {
-		if err := file.Close(); err != nil {
-			c.Logger().Errorf("fail to close file, err: %v", err)
-		}
-	}()
-
-	if _, err := file.Write(content); err != nil {
-		return fmt.Errorf("fail to write file, err: %w", err)
+	if err := s.blockStorage.UploadFile(content, vault.PublicKeyEcdsa+".bak"); err != nil {
+		return fmt.Errorf("fail to upload file, err: %w", err)
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -239,18 +227,13 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	if !s.isValidHash(publicKeyECDSA) {
 		return c.NoContent(http.StatusBadRequest)
 	}
-	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
-	_, err := os.Stat(filePathName)
-	if err != nil {
-		return fmt.Errorf("fail to get file info, err: %w", err)
-	}
 
 	passwd := c.Request().Header.Get("x-password")
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
 
-	content, err := os.ReadFile(filePathName)
+	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
@@ -259,9 +242,8 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
+	return c.Blob(http.StatusOK, "application/octet-stream", content)
 
-	// when we get to this point, the vault file is valid and can be decoded by the client , so pass it to them
-	return c.File(filePathName)
 }
 
 func (s *Server) GetVault(c echo.Context) error {
@@ -272,18 +254,11 @@ func (s *Server) GetVault(c echo.Context) error {
 	if !s.isValidHash(publicKeyECDSA) {
 		return c.NoContent(http.StatusBadRequest)
 	}
-	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
-	_, err := os.Stat(filePathName)
-	if err != nil {
-		return fmt.Errorf("fail to get file info, err: %w", err)
-	}
-
 	passwd := c.Request().Header.Get("x-password")
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
-
-	content, err := os.ReadFile(filePathName)
+	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
@@ -309,17 +284,13 @@ func (s *Server) DeleteVault(c echo.Context) error {
 	if !s.isValidHash(publicKeyECDSA) {
 		return c.NoContent(http.StatusBadRequest)
 	}
-	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
-	_, err := os.Stat(filePathName)
-	if err != nil {
-		return fmt.Errorf("fail to get file info, err: %w", err)
-	}
+
 	passwd := c.Request().Header.Get("x-password")
 	if passwd == "" {
 		return fmt.Errorf("vault backup password is required")
 	}
 
-	content, err := os.ReadFile(filePathName)
+	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
@@ -329,7 +300,7 @@ func (s *Server) DeleteVault(c echo.Context) error {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
 	s.logger.Infof("removing vault file %s per request", vault.PublicKeyEcdsa)
-	err = os.Remove(filePathName)
+	err = s.blockStorage.DeleteFile(publicKeyECDSA + ".bak")
 	if err != nil {
 		return fmt.Errorf("fail to remove file, err: %w", err)
 	}
@@ -358,13 +329,8 @@ func (s *Server) SignMessages(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, req.PublicKey+".bak")
-	_, err = os.Stat(filePathName)
-	if err != nil {
-		return fmt.Errorf("fail to get file info, err: %w", err)
-	}
-
-	content, err := os.ReadFile(filePathName)
+	filePathName := req.PublicKey + ".bak"
+	content, err := s.blockStorage.GetFile(filePathName)
 	if err != nil {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
@@ -433,9 +399,8 @@ func (s *Server) ExistVault(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	filePathName := filepath.Join(s.vaultFilePath, publicKeyECDSA+".bak")
-	_, err := os.Stat(filePathName)
-	if err != nil {
+	exist, err := s.blockStorage.FileExist(publicKeyECDSA + ".bak")
+	if err != nil || !exist {
 		return c.NoContent(http.StatusBadRequest)
 	}
 	return c.NoContent(http.StatusOK)
