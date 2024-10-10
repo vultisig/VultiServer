@@ -49,7 +49,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, keyFolder, "", "")
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, keyFolder, "", "", s.blockStorage)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
@@ -370,7 +370,7 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 	result := map[string]tss.KeysignResponse{}
 	keyFolder := s.cfg.Server.VaultsFilePath
 	serverURL := s.cfg.Relay.Server
-	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, req.PublicKey, req.VaultPassword)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, req.PublicKey, req.VaultPassword, s.blockStorage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}

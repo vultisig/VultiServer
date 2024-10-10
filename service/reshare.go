@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -62,7 +60,7 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 	for _, share := range vault.KeyShares {
 		keyShares[share.PublicKey] = share.Keyshare
 	}
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(vault.LocalPartyId, s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(vault.LocalPartyId, s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword, s.blockStorage)
 	if err != nil {
 		return fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
@@ -160,25 +158,15 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 		Vault:       base64.StdEncoding.EncodeToString(vaultData),
 		IsEncrypted: true,
 	}
-	filePathName := filepath.Join(s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa+".bak")
-	file, err := os.Create(filePathName)
-
-	if err != nil {
-		return fmt.Errorf("fail to create file, err: %w", err)
-	}
-
-	defer func() {
-		if err := file.Close(); err != nil {
-			s.logger.Errorf("fail to close file, err: %v", err)
-		}
-	}()
+	filePathName := vault.PublicKeyEcdsa + ".bak"
 
 	vaultBackupData, err := proto.Marshal(vaultBackup)
 	if err != nil {
 		return fmt.Errorf("failed to Marshal vaultBackup: %w", err)
 	}
+
 	base64VaultContent := base64.StdEncoding.EncodeToString(vaultBackupData)
-	if _, err := file.Write([]byte(base64VaultContent)); err != nil {
+	if err := s.blockStorage.UploadFile([]byte(base64VaultContent), filePathName); err != nil {
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/service"
+	"github.com/vultisig/vultisigner/storage"
 )
 
 func main() {
@@ -21,9 +22,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	blockStorage, err := storage.NewBlockStorage(*cfg)
+	if err != nil {
+		panic(err)
+	}
 	redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
 	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
-	workerServce, err := service.NewWorker(*cfg, client, sdClient)
+	workerServce, err := service.NewWorker(*cfg, client, sdClient, blockStorage)
 	if err != nil {
 		panic(err)
 	}

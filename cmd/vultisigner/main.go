@@ -44,12 +44,15 @@ func main() {
 		panic("vaults file path is empty")
 
 	}
-
+	blockStorage, err := storage.NewBlockStorage(*cfg)
+	if err != nil {
+		panic(err)
+	}
 	server := api.NewServer(port,
 		redisStorage,
 		client,
 		inspector,
-		cfg.Server.VaultsFilePath, sdClient)
+		cfg.Server.VaultsFilePath, sdClient, blockStorage)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}

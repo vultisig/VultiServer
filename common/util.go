@@ -9,11 +9,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/ulikunitz/xz"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
-	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -166,8 +164,13 @@ func IsSubset(subset, set []string) bool {
 }
 
 func GetVaultName(vault *vaultType.Vault) string {
-	strDate := time.Now().Format("2006-01")
 	lastFourCharOfPubKey := vault.PublicKeyEcdsa[len(vault.PublicKeyEcdsa)-4:]
-	threshold, _ := tss.GetThreshold(len(vault.Signers))
-	return fmt.Sprintf("vultisig-%s-%s-%dof%d-%s-%s.bak", vault.Name, strDate, threshold+1, len(vault.Signers), lastFourCharOfPubKey, vault.LocalPartyId)
+	partIndex := 0
+	for idx, item := range vault.Signers {
+		if item == vault.LocalPartyId {
+			partIndex = idx
+			break
+		}
+	}
+	return fmt.Sprintf("%s-%s-part%dof%d.bak", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
 }

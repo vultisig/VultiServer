@@ -28,6 +28,14 @@ type Config struct {
 	EmailServer struct {
 		ApiKey string `mapstructure:"api_key" json:"api_key"`
 	} `mapstructure:"email_server" json:"email_server"`
+
+	BlockStorage struct {
+		Host      string `mapstructure:"host" json:"host"`
+		Region    string `mapstructure:"region" json:"region"`
+		AccessKey string `mapstructure:"access_key" json:"access_key"`
+		SecretKey string `mapstructure:"secret" json:"secret"`
+		Bucket    string `mapstructure:"bucket" json:"bucket"`
+	} `mapstructure:"block_storage" json:"block_storage"`
 }
 
 func GetConfigure() (*Config, error) {

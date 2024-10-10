@@ -3,11 +3,11 @@ package relay
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 
 	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/storage"
 )
 
 type LocalStateAccessorImp struct {
@@ -15,14 +15,17 @@ type LocalStateAccessorImp struct {
 	Folder       string
 	Vault        *vaultType.Vault
 	cache        map[string]string
+	blockStorage *storage.BlockStorage
 }
 
-func NewLocalStateAccessorImp(localPartyID, folder, vaultFileName, vaultPasswd string) (*LocalStateAccessorImp, error) {
+func NewLocalStateAccessorImp(localPartyID, folder, vaultFileName, vaultPasswd string,
+	storage *storage.BlockStorage) (*LocalStateAccessorImp, error) {
 	localStateAccessor := &LocalStateAccessorImp{
 		localPartyID: localPartyID,
 		Folder:       folder,
 		Vault:        nil,
 		cache:        make(map[string]string),
+		blockStorage: storage,
 	}
 
 	var err error
@@ -34,16 +37,10 @@ func NewLocalStateAccessorImp(localPartyID, folder, vaultFileName, vaultPasswd s
 	}
 
 	if vaultFileName != "" {
-		fileName := filepath.Join(localStateAccessor.Folder, vaultFileName+".bak")
-		if _, err := os.Stat(fileName); os.IsNotExist(err) {
-			return nil, fmt.Errorf("file %s does not exist", fileName)
-		}
-
-		buf, err := os.ReadFile(fileName)
+		buf, err := storage.GetFile(vaultFileName + ".bak")
 		if err != nil {
-			return nil, fmt.Errorf("fail to read file %s: %w", fileName, err)
+			return nil, fmt.Errorf("fail to get vault file: %w", err)
 		}
-
 		localStateAccessor.Vault, err = common.DecryptVaultFromBackup(vaultPasswd, buf)
 		if err != nil {
 			return nil, fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
