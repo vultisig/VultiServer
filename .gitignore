@@ -10,3 +10,4 @@ config-example.yaml
 *.bak
 config.json
 .trunk/
+cmd/worker/worker

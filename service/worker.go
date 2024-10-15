@@ -278,6 +278,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 			HexChainCode:   req.HexChainCode,
 			LocalPartyId:   req.LocalPartyId,
 			Signers:        req.OldParties,
+			ResharePrefix:  req.OldResharePrefix,
 		}
 		// create new vault
 	}
