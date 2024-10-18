@@ -121,15 +121,6 @@ func (c *Client) WaitForSessionStart(ctx context.Context, sessionID string) ([]s
 			if err := json.Unmarshal(buff, &parties); err != nil {
 				return nil, fmt.Errorf("fail to unmarshal session body: %w", err)
 			}
-			//remove duplicates from parties
-			distinctParties := make(map[string]struct{})
-			for _, party := range parties {
-				distinctParties[party] = struct{}{}
-			}
-			parties = make([]string, 0, len(distinctParties))
-			for party := range distinctParties {
-				parties = append(parties, party)
-			}
 			// We need to hold expected parties to start session
 			if len(parties) > 1 {
 				c.logger.WithFields(logrus.Fields{
