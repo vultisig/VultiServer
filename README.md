@@ -52,7 +52,7 @@ Status Code: OK
     "hex encoded message 2",
     "hex encoded message N"
   ], 
-  "session_id": "session id for this key sign", 
+  "session": "session id for this key sign", 
   "hex_encryption_key": "hex encoded encryption key",
   "derive_path": "derive path for the key sign",
   "is_ecdsa": "is the key sign ECDSA or not",
@@ -96,7 +96,8 @@ Note: please set `x-password` header with the password to decrypt the vault shar
   "local_party_id": "local party id",
   "old_parties": ["old party id 1", "old party id 2"], 
   "encryption_password": "password to encryption the generated vault share",
-  "email": "email of the user"
+  "email": "email of the user",
+  "old_reshare_prefix":"old reshare prefix"
 }
 ```
 - name: Vault name
