@@ -134,7 +134,6 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
-	s.logger.Infof("create vault request: %v", req)
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid request, err: %w", err)
 	}
