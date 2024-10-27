@@ -259,7 +259,7 @@ func (s *Server) extractXPassword(c echo.Context) (string, error) {
 	} else {
 		s.logger.Infof("fail to unescape password, err: %v", err)
 	}
-	s.logger.Infof("password: %s", passwd)
+
 	return passwd, nil
 }
 func (s *Server) GetVault(c echo.Context) error {
