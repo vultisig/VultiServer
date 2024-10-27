@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -203,9 +204,9 @@ func (s *Server) UploadVault(c echo.Context) error {
 		return fmt.Errorf("fail to read body, err: %w", err)
 	}
 
-	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
+	passwd, err := s.extractXPassword(c)
+	if err != nil {
+		return fmt.Errorf("fail to extract password, err: %w", err)
 	}
 
 	vault, err := common.DecryptVaultFromBackup(passwd, content)
@@ -228,9 +229,9 @@ func (s *Server) DownloadVault(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
+	passwd, err := s.extractXPassword(c)
+	if err != nil {
+		return fmt.Errorf("fail to extract password, err: %w", err)
 	}
 
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
@@ -245,7 +246,21 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	return c.Blob(http.StatusOK, "application/octet-stream", content)
 
 }
+func (s *Server) extractXPassword(c echo.Context) (string, error) {
+	passwd := c.Request().Header.Get("x-password")
+	if passwd == "" {
+		return "", fmt.Errorf("vault backup password is required")
+	}
 
+	rawPwd, err := base64.StdEncoding.DecodeString(passwd)
+	if err == nil && len(rawPwd) > 0 {
+		passwd = string(rawPwd)
+	} else {
+		s.logger.Infof("fail to unescape password, err: %v", err)
+	}
+
+	return passwd, nil
+}
 func (s *Server) GetVault(c echo.Context) error {
 	publicKeyECDSA := c.Param("publicKeyECDSA")
 	if publicKeyECDSA == "" {
@@ -254,9 +269,9 @@ func (s *Server) GetVault(c echo.Context) error {
 	if !s.isValidHash(publicKeyECDSA) {
 		return c.NoContent(http.StatusBadRequest)
 	}
-	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
+	passwd, err := s.extractXPassword(c)
+	if err != nil {
+		return fmt.Errorf("fail to extract password, err: %w", err)
 	}
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
@@ -285,9 +300,9 @@ func (s *Server) DeleteVault(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	passwd := c.Request().Header.Get("x-password")
-	if passwd == "" {
-		return fmt.Errorf("vault backup password is required")
+	passwd, err := s.extractXPassword(c)
+	if err != nil {
+		return fmt.Errorf("fail to extract password, err: %w", err)
 	}
 
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
