@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -166,7 +167,10 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	}
 
 	base64VaultContent := base64.StdEncoding.EncodeToString(vaultBackupData)
-	if err := s.blockStorage.UploadFile([]byte(base64VaultContent), filePathName); err != nil {
+	if err := s.blockStorage.UploadFileWithRetry([]byte(base64VaultContent), filePathName, 5); err != nil {
+		if err := os.WriteFile(s.cfg.Server.VaultsFilePath+"/"+filePathName, []byte(base64VaultContent), 0644); err != nil {
+			s.logger.Errorf("fail to write file: %s", err)
+		}
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
 

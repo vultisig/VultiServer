@@ -54,7 +54,17 @@ func (bs *BlockStorage) FileExist(fileName string) (bool, error) {
 	}
 	return true, nil
 }
-
+func (bs *BlockStorage) UploadFileWithRetry(fileContent []byte, fileName string, retry int) error {
+	var err error
+	for i := 0; i < retry; i++ {
+		err = bs.UploadFile(fileContent, fileName)
+		if err == nil {
+			return nil
+		}
+		bs.logger.Error(err)
+	}
+	return err
+}
 func (bs *BlockStorage) UploadFile(fileContent []byte, fileName string) error {
 	bs.logger.Infoln("upload file", fileName, "bucket", bs.cfg.BlockStorage.Bucket, "content length", len(fileContent))
 	output, err := bs.s3Client.PutObjectWithContext(context.TODO(), &s3.PutObjectInput{
