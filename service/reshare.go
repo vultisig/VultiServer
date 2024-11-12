@@ -5,8 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,6 +143,17 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 	}
 	return s.SaveVaultAndScheduleEmail(newVault, encryptionPassword, email)
 }
+func (s *WorkerService) createVerificationCode(publicKeyECDSA string) (string, error) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	code := rnd.Intn(9000) + 1000
+	verificationCode := strconv.Itoa(code)
+	key := fmt.Sprintf("verification_code_%s", publicKeyECDSA)
+	// verification code will be valid for 1 hour
+	if err := s.redis.Set(context.Background(), key, verificationCode, time.Hour); err != nil {
+		return "", fmt.Errorf("failed to set cache: %w", err)
+	}
+	return verificationCode, nil
+}
 func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	encryptionPassword string,
 	email string) error {
@@ -173,12 +186,16 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 		}
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
-
+	code, err := s.createVerificationCode(vault.PublicKeyEcdsa)
+	if err != nil {
+		return fmt.Errorf("failed to create verification code: %w", err)
+	}
 	emailRequest := types.EmailRequest{
 		Email:       email,
 		FileName:    common.GetVaultName(vault),
 		FileContent: base64VaultContent,
 		VaultName:   vault.Name,
+		Code:        code,
 	}
 	buf, err := json.Marshal(emailRequest)
 	if err != nil {

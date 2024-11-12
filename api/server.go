@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
@@ -78,7 +81,9 @@ func (s *Server) StartServer() error {
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
 	grp.GET("/exist/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
 	//	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
-	grp.POST("/sign", s.SignMessages) // Sign messages
+	grp.POST("/sign", s.SignMessages)        // Sign messages
+	grp.POST("/re-send", s.ResendVaultEmail) // request server to send vault share , code through email again
+	grp.GET("/verify/:publicKeyECDSA/:code", s.VerifyCode)
 	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
@@ -98,7 +103,7 @@ func (s *Server) statsdMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 func (s *Server) Ping(c echo.Context) error {
-	return c.String(http.StatusOK, "Vultisigner is running")
+	return c.String(http.StatusOK, "Vultiserver is running")
 }
 
 // GetDerivedPublicKey is a handler to get the derived public key
@@ -150,7 +155,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
-	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID); err != nil {
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
@@ -182,7 +187,7 @@ func (s *Server) ReshareVault(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
-	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID); err != nil {
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
@@ -340,7 +345,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return c.NoContent(http.StatusOK)
 	}
 
-	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID); err != nil {
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 30*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 
@@ -417,6 +422,116 @@ func (s *Server) ExistVault(c echo.Context) error {
 	exist, err := s.blockStorage.FileExist(publicKeyECDSA + ".bak")
 	if err != nil || !exist {
 		return c.NoContent(http.StatusBadRequest)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+// ResendVaultEmail is a handler to request server to send vault share , code through email again
+func (s *Server) ResendVaultEmail(c echo.Context) error {
+	var req types.VaultResendRequest
+	if err := c.Bind(&req); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+	publicKeyECDSA := req.PublicKeyECDSA
+	if publicKeyECDSA == "" {
+		s.logger.Errorln("public key is required")
+		return c.NoContent(http.StatusBadRequest)
+	}
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	key := fmt.Sprintf("resend_%s", publicKeyECDSA)
+	result, err := s.redis.Get(c.Request().Context(), key)
+	if err == nil && result != "" {
+		return c.NoContent(http.StatusTooManyRequests)
+	}
+	// user will allow to request once per minute
+	if err := s.redis.Set(c.Request().Context(), key, key, 3*time.Minute); err != nil {
+		s.logger.Errorf("fail to set , err: %v", err)
+	}
+	if err := s.sdClient.Count("vault.resend", 1, nil, 1); err != nil {
+		s.logger.Errorf("fail to count metric, err: %v", err)
+	}
+	if req.Password == "" {
+		s.logger.Errorln("password is required")
+		return c.NoContent(http.StatusBadRequest)
+	}
+	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
+	if err != nil {
+		s.logger.Errorf("fail to read file, err: %v", err)
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	vault, err := common.DecryptVaultFromBackup(req.Password, content)
+	if err != nil {
+		s.logger.Errorf("fail to decrypt vault from the backup, err: %v", err)
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	code, err := s.createVerificationCode(c.Request().Context(), publicKeyECDSA)
+	if err != nil {
+		return fmt.Errorf("failed to create verification code: %w", err)
+	}
+	emailRequest := types.EmailRequest{
+		Email:       req.Email,
+		FileName:    common.GetVaultName(vault),
+		FileContent: string(content),
+		VaultName:   vault.Name,
+		Code:        code,
+	}
+	buf, err := json.Marshal(emailRequest)
+	if err != nil {
+		return fmt.Errorf("json.Marshal failed: %w", err)
+	}
+	taskInfo, err := s.client.Enqueue(asynq.NewTask(tasks.TypeEmailVaultBackup, buf),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.EMAIL_QUEUE_NAME))
+	if err != nil {
+		s.logger.Errorf("fail to enqueue email task: %v", err)
+	}
+	s.logger.Info("Email task enqueued: ", taskInfo.ID)
+	return nil
+}
+func (s *Server) createVerificationCode(ctx context.Context, publicKeyECDSA string) (string, error) {
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+	code := rnd.Intn(9000) + 1000
+	verificationCode := strconv.Itoa(code)
+	key := fmt.Sprintf("verification_code_%s", publicKeyECDSA)
+	// verification code will be valid for 1 hour
+	if err := s.redis.Set(context.Background(), key, verificationCode, time.Hour); err != nil {
+		return "", fmt.Errorf("failed to set cache: %w", err)
+	}
+	return verificationCode, nil
+}
+
+// VerifyCode is a handler to verify the code
+func (s *Server) VerifyCode(c echo.Context) error {
+	publicKeyECDSA := c.Param("publicKeyECDSA")
+	if publicKeyECDSA == "" {
+		return fmt.Errorf("public key is required")
+	}
+	if !s.isValidHash(publicKeyECDSA) {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	code := c.Param("code")
+	if code == "" {
+		s.logger.Errorln("code is required")
+		return c.NoContent(http.StatusBadRequest)
+	}
+	if err := s.sdClient.Count("vault.verify", 1, nil, 1); err != nil {
+		s.logger.Errorf("fail to count metric, err: %v", err)
+	}
+	key := fmt.Sprintf("verification_code_%s", publicKeyECDSA)
+	result, err := s.redis.Get(c.Request().Context(), key)
+	if err != nil {
+		s.logger.Errorf("fail to get code, err: %v", err)
+		return c.NoContent(http.StatusBadRequest)
+	}
+	if result != code {
+		return c.NoContent(http.StatusBadRequest)
+	}
+	if err := s.redis.Delete(c.Request().Context(), key); err != nil {
+		s.logger.Errorf("fail to delete code, err: %v", err)
 	}
 	return c.NoContent(http.StatusOK)
 }

@@ -172,5 +172,5 @@ func GetVaultName(vault *vaultType.Vault) string {
 			break
 		}
 	}
-	return fmt.Sprintf("%s-%s-part%dof%d.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
+	return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
 }

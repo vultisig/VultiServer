@@ -5,4 +5,5 @@ type EmailRequest struct {
 	FileName    string `json:"file_name"`
 	FileContent string `json:"file_content"`
 	VaultName   string `json:"vault_name"`
+	Code        string `json:"code"`
 }
