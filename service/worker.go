@@ -199,6 +199,10 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 							Name:    "VAULT_NAME",
 							Content: req.VaultName,
 						},
+						{
+							Name:    "VERIFICATION_CODE",
+							Content: req.Code,
+						},
 					},
 				},
 			},
