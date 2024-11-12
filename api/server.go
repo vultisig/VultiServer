@@ -81,8 +81,8 @@ func (s *Server) StartServer() error {
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
 	grp.GET("/exist/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
 	//	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
-	grp.POST("/sign", s.SignMessages)        // Sign messages
-	grp.POST("/re-send", s.ResendVaultEmail) // request server to send vault share , code through email again
+	grp.POST("/sign", s.SignMessages)       // Sign messages
+	grp.POST("/resend", s.ResendVaultEmail) // request server to send vault share , code through email again
 	grp.GET("/verify/:publicKeyECDSA/:code", s.VerifyCode)
 	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
