@@ -111,6 +111,22 @@ Note: please set `x-password` header with the password to decrypt the vault shar
 - email: Email to send the encrypted vault share
 
 
+## Resend vault share and verification code
+`POST` `/vault/resend` , this endpoint allow user to resend the vault share and verification code
+Note: user can only request a resend every three minutes
+
+### Resend Request
+```json
+{
+  "public_key_ecdsa": "ECDSA public key of the vault",
+  "password": "password to decrypt the vault share",
+  "email": "email of the user"
+}
+```
+## Verify code
+`GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
+if server return http status code 200, it means the code is valid , other status code means the code is invalid
+
 ## How to setup vultisigner to run locally?
 
 ### Prerequisites

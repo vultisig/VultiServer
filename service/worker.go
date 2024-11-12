@@ -179,6 +179,10 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 				Name:    "VAULT_NAME",
 				Content: req.VaultName,
 			},
+			{
+				Name:    "VERIFICATION_CODE",
+				Content: req.Code,
+			},
 		},
 		Message: MandrillMessage{
 			To: []MandrillTo{
@@ -194,6 +198,10 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 						{
 							Name:    "VAULT_NAME",
 							Content: req.VaultName,
+						},
+						{
+							Name:    "VERIFICATION_CODE",
+							Content: req.Code,
 						},
 					},
 				},
@@ -216,7 +224,7 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 	resp, err := http.Post(emailServer, "application/json", bytes.NewReader(payloadBytes))
 	if err != nil {
 		s.logger.Errorf("http.Post failed: %v", err)
-		return fmt.Errorf("http.Post failed: %v: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("http.Post failed: %w", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -230,11 +238,11 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 	result, err := io.ReadAll(resp.Body)
 	if err != nil {
 		s.logger.Errorf("io.ReadAll failed: %v", err)
-		return fmt.Errorf("io.ReadAll failed: %v: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("io.ReadAll failed: %w", err)
 	}
 	s.logger.Info(string(result))
 	if _, err := t.ResultWriter().Write([]byte("email sent")); err != nil {
-		return fmt.Errorf("t.ResultWriter.Write failed: %v: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("t.ResultWriter.Write failed: %v", err)
 	}
 	return nil
 }

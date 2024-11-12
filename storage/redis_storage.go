@@ -38,11 +38,18 @@ func (r *RedisStorage) Get(ctx context.Context, key string) (string, error) {
 	}
 	return r.client.Get(ctx, key).Result()
 }
-func (r *RedisStorage) Set(ctx context.Context, key string, value string) error {
+func (r *RedisStorage) Set(ctx context.Context, key string, value string, expiry time.Duration) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
 	}
-	return r.client.Set(ctx, key, value, time.Minute*5).Err()
+	return r.client.Set(ctx, key, value, expiry).Err()
+}
+
+func (r *RedisStorage) Delete(ctx context.Context, key string) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	return r.client.Del(ctx, key).Err()
 }
 func (r *RedisStorage) Close() error {
 	return r.client.Close()
