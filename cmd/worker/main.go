@@ -26,15 +26,20 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	redisAddr := cfg.Redis.Host + ":" + cfg.Redis.Port
-	client := asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})
+	redisOptions := asynq.RedisClientOpt{
+		Addr:     cfg.Redis.Host + ":" + cfg.Redis.Port,
+		Username: cfg.Redis.User,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+	}
+	client := asynq.NewClient(redisOptions)
 	workerServce, err := service.NewWorker(*cfg, client, sdClient, blockStorage)
 	if err != nil {
 		panic(err)
 	}
 
 	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: redisAddr},
+		redisOptions,
 		asynq.Config{
 			Logger:      logrus.StandardLogger(),
 			Concurrency: 10,
