@@ -12,4 +12,4 @@ config.json
 .trunk/
 cmd/worker/worker
 .devenv/
-.sw*
+.*.sw?
