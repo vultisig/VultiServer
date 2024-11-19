@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/viper"
 )
@@ -39,7 +40,12 @@ type Config struct {
 }
 
 func GetConfigure() (*Config, error) {
-	viper.SetConfigName("config")
+	configName := os.Getenv("VS_CONFIG_NAME")
+	if configName == "" {
+		configName = "config"
+	}
+
+	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 
