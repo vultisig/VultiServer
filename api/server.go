@@ -1,18 +1,25 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	gcommon "github.com/ethereum/go-ethereum/common"
+	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -90,6 +97,8 @@ func (s *Server) StartServer() error {
 	pluginGroup.POST("/sign", s.SignPluginMessages)
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 	pluginGroup.GET("/configure", s.ConfigurePlugin)
+
+	go s.runPluginTest()
 
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
@@ -540,4 +549,164 @@ func (s *Server) VerifyCode(c echo.Context) error {
 		s.logger.Errorf("fail to delete code, err: %v", err)
 	}
 	return c.NoContent(http.StatusOK)
+}
+
+func (s *Server) runPluginTest() {
+	if s.port == 8081 {
+		return
+	}
+	// Wait 5 seconds after startup
+	time.Sleep(5 * time.Second)
+
+	s.logger.Info("Starting plugin signing test")
+
+	// 1. Create test policy
+	policyID := uuid.New().String()
+	policy := types.PluginPolicy{
+		ID:            policyID,
+		PublicKey:     "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+		PluginID:      "erc20-transfer",
+		PluginVersion: "1.0.0",
+		PolicyVersion: "1.0.0",
+		PluginType:    "payroll",
+		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
+		Policy: json.RawMessage(`{
+			"chain_id": "1",
+			"token_id": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+			"recipients": [{
+				"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+				"amount": "1000000"
+			}]
+		}`),
+	}
+
+	policyBytes, err := json.Marshal(policy)
+	if err != nil {
+		s.logger.Errorf("Failed to marshal policy: %v", err)
+		return
+	}
+
+	// Create policy
+	policyResp, err := http.Post(
+		fmt.Sprintf("http://localhost:%d/plugin/policy", 8081),
+		"application/json",
+		bytes.NewBuffer(policyBytes),
+	)
+	if err != nil {
+		s.logger.Errorf("Failed to create policy: %v", err)
+		return
+	}
+	defer policyResp.Body.Close()
+
+	if policyResp.StatusCode != http.StatusOK {
+		s.logger.Errorf("Failed to create policy, status: %d", policyResp.StatusCode)
+		return
+	}
+
+	// 2. Create ERC20 transfer transaction
+	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+	if err != nil {
+		s.logger.Errorf("Failed to parse ABI: %v", err)
+		return
+	}
+
+	// Create transfer data
+	amount := new(big.Int)
+	amount.SetString("1000000", 10) // 1 USDC
+	recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
+
+	inputData, err := parsedABI.Pack("transfer", recipient, amount)
+	if err != nil {
+		s.logger.Errorf("Failed to pack transfer data: %v", err)
+		return
+	}
+
+	// Create transaction
+	tx := gtypes.NewTransaction(
+		0, // nonce
+		gcommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC contract
+		big.NewInt(0),          // value
+		100000,                 // gas limit
+		big.NewInt(2000000000), // gas price (2 gwei)
+		inputData,
+	)
+
+	// Get the raw transaction bytes
+	rawTx, err := tx.MarshalBinary()
+	if err != nil {
+		s.logger.Errorf("Failed to marshal transaction: %v", err)
+		return
+	}
+
+	// Calculate transaction hash
+	txHash := tx.Hash().Hex()[2:]
+
+	// 3. Create signing request
+	signRequest := types.PluginKeysignRequest{
+		KeysignRequest: types.KeysignRequest{
+			PublicKey:        "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+			Messages:         []string{txHash},
+			SessionID:        uuid.New().String(),
+			HexEncryptionKey: "0123456789abcdef0123456789abcdef",
+			DerivePath:       "m/44/60/0/0/0",
+			IsECDSA:          true,
+			VaultPassword:    "your-secure-password",
+		},
+		Transactions: []string{hex.EncodeToString(rawTx)},
+		PluginID:     "erc20-transfer",
+		PolicyID:     policyID,
+	}
+
+	signBytes, err := json.Marshal(signRequest)
+	if err != nil {
+		s.logger.Errorf("Failed to marshal sign request: %v", err)
+		return
+	}
+
+	// Make signing request
+	signResp, err := http.Post(
+		fmt.Sprintf("http://localhost:%d/plugin/sign", 8081),
+		"application/json",
+		bytes.NewBuffer(signBytes),
+	)
+	if err != nil {
+		s.logger.Errorf("Failed to make sign request: %v", err)
+		return
+	}
+	defer signResp.Body.Close()
+
+	// Read and log response
+	respBody, err := io.ReadAll(signResp.Body)
+	if err != nil {
+		s.logger.Errorf("Failed to read response: %v", err)
+		return
+	}
+
+	if signResp.StatusCode == http.StatusOK {
+		// Enqueue the same signing request locally
+		signRequest.KeysignRequest.StartSession = true
+		signRequest.KeysignRequest.Parties = []string{"1", "2"}
+		buf, err := json.Marshal(signRequest.KeysignRequest)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal local sign request: %v", err)
+			return
+		}
+
+		ti, err := s.client.Enqueue(
+			asynq.NewTask(tasks.TypeKeySign, buf),
+			asynq.MaxRetry(-1),
+			asynq.Timeout(2*time.Minute),
+			asynq.Retention(5*time.Minute),
+			asynq.Queue(tasks.QUEUE_NAME))
+
+		if err != nil {
+			s.logger.Errorf("Failed to enqueue local task: %v", err)
+			return
+		}
+
+		s.logger.Infof("Local signing task enqueued with ID: %s", ti.ID)
+	}
+
+	s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
+		signResp.StatusCode, string(respBody))
 }

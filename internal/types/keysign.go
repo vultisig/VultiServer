@@ -12,6 +12,8 @@ type KeysignRequest struct {
 	DerivePath       string   `json:"derive_path"`        // Derive Path
 	IsECDSA          bool     `json:"is_ecdsa"`           // indicate use ECDSA or EDDSA key to sign the messages
 	VaultPassword    string   `json:"vault_password"`     // password used to decrypt the vault file
+	StartSession     bool     `json:"start_session"`      // indicate start a new session or not
+	Parties          []string `json:"parties"`            // parties to join the session
 }
 
 // IsValid checks if the keysign request is valid
@@ -33,4 +35,11 @@ func (r KeysignRequest) IsValid() error {
 	}
 
 	return nil
+}
+
+type PluginKeysignRequest struct {
+	KeysignRequest
+	Transactions []string `json:"transactions"`
+	PluginID     string   `json:"plugin_id"`
+	PolicyID     string   `json:"policy_id"`
 }
