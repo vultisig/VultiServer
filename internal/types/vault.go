@@ -9,19 +9,22 @@ import (
 
 // VaultCreateRequest is a struct that represents a request to create a new vault from integration.
 type VaultCreateRequest struct {
-	Name               string `json:"name" validate:"required"`
-	SessionID          string `json:"session_id" validate:"required"`
-	HexEncryptionKey   string `json:"hex_encryption_key" validate:"required"` // this is the key used to encrypt and decrypt the keygen communications
-	HexChainCode       string `json:"hex_chain_code" validate:"required"`
-	LocalPartyId       string `json:"local_party_id"`                          // when this field is empty , then server will generate a random local party id
-	EncryptionPassword string `json:"encryption_password" validate:"required"` // password used to encrypt the vault file
-	Email              string `json:"email" validate:"required"`               // this is the email of the user that the vault backup will be sent to
+	Name               string   `json:"name" validate:"required"`
+	SessionID          string   `json:"session_id" validate:"required"`
+	HexEncryptionKey   string   `json:"hex_encryption_key" validate:"required"` // this is the key used to encrypt and decrypt the keygen communications
+	HexChainCode       string   `json:"hex_chain_code" validate:"required"`
+	LocalPartyId       string   `json:"local_party_id"`                          // when this field is empty , then server will generate a random local party id
+	EncryptionPassword string   `json:"encryption_password" validate:"required"` // password used to encrypt the vault file
+	Email              string   `json:"email" validate:"required"`               // this is the email of the user that the vault backup will be sent to
+	StartSession       bool     `json:"start_session"`                           // if this is true, then the session will be started by this server
+	Parties            []string `json:"parties"`                                 // list of party IDs that are expected to join the keygen process
 }
 
 func isValidHexString(s string) bool {
 	buf, err := hex.DecodeString(s)
 	return err == nil && len(buf) == 32
 }
+
 func (req *VaultCreateRequest) IsValid() error {
 	if req.Name == "" {
 		return fmt.Errorf("name is required")
@@ -50,6 +53,9 @@ func (req *VaultCreateRequest) IsValid() error {
 	}
 	if req.Email == "" {
 		return fmt.Errorf("email is required")
+	}
+	if req.StartSession && len(req.Parties) == 0 {
+		return fmt.Errorf("parties is required when start_session is true")
 	}
 	return nil
 }
