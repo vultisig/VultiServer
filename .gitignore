@@ -11,3 +11,5 @@ config-example.yaml
 config.json
 .trunk/
 cmd/worker/worker
+.devenv/
+.sw*
