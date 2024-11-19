@@ -85,6 +85,12 @@ func (s *Server) StartServer() error {
 	grp.POST("/resend", s.ResendVaultEmail) // request server to send vault share , code through email again
 	grp.GET("/verify/:publicKeyECDSA/:code", s.VerifyCode)
 	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
+
+	pluginGroup := e.Group("/plugin")
+	pluginGroup.POST("/sign", s.SignPluginMessages)
+	pluginGroup.POST("/policy", s.CreatePluginPolicy)
+	pluginGroup.GET("/configure", s.ConfigurePlugin)
+
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 
