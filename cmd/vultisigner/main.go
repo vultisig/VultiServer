@@ -52,7 +52,8 @@ func main() {
 		redisStorage,
 		client,
 		inspector,
-		cfg.Server.VaultsFilePath, sdClient, blockStorage)
+		cfg.Server.VaultsFilePath, sdClient, blockStorage,
+		cfg.Server.Mode, cfg.Plugin.Type)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}

@@ -12,7 +12,13 @@ type Config struct {
 		Port           int64  `mapstructure:"port" json:"port,omitempty"`
 		Host           string `mapstructure:"host" json:"host,omitempty"`
 		VaultsFilePath string `mapstructure:"vaults_file_path" json:"vaults_file_path,omitempty"`
+		Mode           string `mapstructure:"mode" json:"mode,omitempty"`
 	} `mapstructure:"server" json:"server"`
+
+	Plugin struct {
+		Type         string                 `mapstructure:"type" json:"type,omitempty"`
+		PluginConfig map[string]interface{} `mapstructure:"plugin_config" json:"plugin_config,omitempty"`
+	} `mapstructure:"plugin" json:"plugin,omitempty"`
 
 	Redis struct {
 		Host     string `mapstructure:"host" json:"host,omitempty"`
@@ -52,6 +58,7 @@ func GetConfigure() (*Config, error) {
 	viper.SetDefault("Server.Port", 8080)
 	viper.SetDefault("Server.Host", "localhost")
 	viper.SetDefault("Server.VaultsFilePath", "vaults")
+	viper.SetDefault("Server.Mode", "vultiserver")
 	viper.SetDefault("Redis.Host", "localhost")
 	viper.SetDefault("Redis.Port", "6379")
 	viper.SetDefault("Redis.User", "")

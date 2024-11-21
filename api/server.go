@@ -30,6 +30,8 @@ import (
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/storage"
 )
 
@@ -42,6 +44,8 @@ type Server struct {
 	sdClient      *statsd.Client
 	logger        *logrus.Logger
 	blockStorage  *storage.BlockStorage
+	mode          string
+	plugin        plugin.Plugin
 }
 
 // NewServer returns a new server.
@@ -51,7 +55,18 @@ func NewServer(port int64,
 	inspector *asynq.Inspector,
 	vaultFilePath string,
 	sdClient *statsd.Client,
-	blockStorage *storage.BlockStorage) *Server {
+	blockStorage *storage.BlockStorage,
+	mode string,
+	pluginType string) *Server {
+	var plugin plugin.Plugin
+	if mode == "pluginserver" {
+		switch pluginType {
+		case "payroll":
+			plugin = payroll.NewPayrollPlugin()
+		default:
+			logrus.Fatalf("Invalid plugin type: %s", pluginType)
+		}
+	}
 	return &Server{
 		port:          port,
 		redis:         redis,
@@ -61,6 +76,8 @@ func NewServer(port int64,
 		sdClient:      sdClient,
 		logger:        logrus.WithField("service", "api").Logger,
 		blockStorage:  blockStorage,
+		mode:          mode,
+		plugin:        plugin,
 	}
 }
 
@@ -94,9 +111,13 @@ func (s *Server) StartServer() error {
 	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 
 	pluginGroup := e.Group("/plugin")
-	pluginGroup.POST("/sign", s.SignPluginMessages)
+	// Only enable plugin signing routes if the server is running in plugin mode
+	if s.mode == "pluginserver" {
+		pluginGroup.POST("/sign", s.SignPluginMessages)
+		pluginGroup.GET("/configure", s.ConfigurePlugin)
+	}
+	// policy mode is always available since it is used by both vultiserver and pluginserver
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
-	pluginGroup.GET("/configure", s.ConfigurePlugin)
 
 	go s.runPluginTest()
 
