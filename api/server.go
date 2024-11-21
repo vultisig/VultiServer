@@ -84,7 +84,6 @@ func NewServer(port int64,
 func (s *Server) StartServer() error {
 	e := echo.New()
 	e.Logger.SetLevel(log.DEBUG)
-	e.Pre(middleware.RemoveTrailingSlash())
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.BodyLimit("2M")) // set maximum allowed size for a request body to 2M
@@ -114,7 +113,16 @@ func (s *Server) StartServer() error {
 	// Only enable plugin signing routes if the server is running in plugin mode
 	if s.mode == "pluginserver" {
 		pluginGroup.POST("/sign", s.SignPluginMessages)
-		pluginGroup.GET("/configure", s.ConfigurePlugin)
+
+		configGroup := pluginGroup.Group("/configure")
+
+		configGroup.Use(middleware.StaticWithConfig(middleware.StaticConfig{
+			Root:       "frontend",
+			Index:      "index.html",
+			Browse:     false,
+			HTML5:      true,
+			Filesystem: http.FS(s.plugin.Frontend()),
+		}))
 	}
 	// policy mode is always available since it is used by both vultiserver and pluginserver
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
