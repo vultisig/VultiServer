@@ -127,18 +127,207 @@ Note: user can only request a resend every three minutes
 `GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
 if server return http status code 200, it means the code is valid , other status code means the code is invalid
 
-## How to setup vultisigner to run locally?
 
-### Prerequisites
-- Docker
-- Golang
+# Setup Guide
 
-### Setup redis using docker
+## Prerequisites
+- Go 1.21 or higher
+- Docker and Docker Compose
+- MinIO client (mc)
 
-`docker compose up -d --remove-orphans`
+## 1. Start Infrastructure Services
 
-### Configuration
+First, start the required infrastructure services using Docker Compose:
 
-see config-example.yaml
+```
+docker compose up -d --remove-orphans
+```
+
+## 2. Configure MinIO
+
+Set up MinIO buckets and access:
+
+### Configure MinIO client
+
+```
+mc alias set local http://localhost:9000 minioadmin minioadmin
+```
+
+### Create required buckets
+
+```
+mc mb local/vultiserver
+mc mb local/vultiplugin
+```
+
+You can verify the buckets were created by visiting the MinIO Console:
+- URL: http://localhost:9001
+- Username: minioadmin
+- Password: minioadmin
+
+## 3. Create Required Directories
+
+### Create directories for vault storage
+```
+mkdir -p /tmp/vultisigner/server/vaults
+mkdir -p /tmp/vultisigner/plugin/vaults
+```
+
+### Set appropriate permissions
+
+```
+sudo chmod 777 /tmp/vultisigner/server/vaults
+sudo chmod 777 /tmp/vultisigner/plugin/vaults
+```
+
+## 4. Start Services
+
+Start the services in the following order, each one in a different terminal:
+
+### 4.1. Start Vultisigner Server
+
+```
+export VS_CONFIG_NAME=config-server
+go run cmd/vultisigner/main.go
+```
+### 4.2. Start Vultisigner Plugin
+
+```
+export VS_CONFIG_NAME=config-plugin
+go run cmd/vultisigner/main.go
+```
+
+### 4.3. Start Server Worker
+
+```
+export VS_CONFIG_NAME=config-server
+go run cmd/worker/main.go
+```
+
+### 4.4. Start Plugin Worker
+
+```
+export VS_CONFIG_NAME=config-plugin
+go run cmd/worker/main.go
+```
+
+## 5 Run keyGen
+
+On a 5th terminal, run : 
+
+```
+curl -X POST http://localhost:8081/vault/create \
+-H "Content-Type: application/json" \
+-d '{
+    "name": "Server2Server-Vault",
+    "session_id": "650e8400-e29b-41d4-a716-446655440000",
+    "hex_encryption_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "hex_chain_code": "2023456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "local_party_id": "2",
+    "encryption_password": "your-secure-password",
+    "email": "admin2@example.com",
+    "start_session": true,
+    "parties": ["1", "2"]
+}'
+```
+Then 
+
+```
+curl -X POST http://localhost:8080/vault/create \
+-H "Content-Type: application/json" \
+-d '{
+    "name": "Server2Server-Vault",
+    "session_id": "650e8400-e29b-41d4-a716-446655440000",
+    "hex_encryption_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "hex_chain_code": "2023456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "local_party_id": "1",
+    "encryption_password": "your-secure-password",
+    "email": "admin@example.com",
+    "start_session": false
+}'
+```
+
+## 6 Run keysign 
+
+Once keyGen is done, you can start keysign. You have to replace the ecdsa key by the one appearing in the logs of the keygen.
+```
+curl -X POST http://localhost:8081/vault/sign \
+-H "Content-Type: application/json" \
+-d @- << 'EOF'
+{
+  "public_key": "03b015e2ae364d8f6fff7f2b9fe1760a91e2d41c4a8e91c8750827cea4c3204e5d",
+  "messages": ["68656c6c6f"],
+  "session": "650e8400-e29b-41d4-a716-446655440000",
+  "hex_encryption_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "derive_path": "m/44'/0'/0'/0/0",
+  "is_ecdsa": true,
+  "vault_password": "your-secure-password"
+}
+EOF
+```
+
+Then 
+
+```
+curl -X POST http://localhost:8080/vault/sign \
+-H "Content-Type: application/json" \
+-d @- << 'EOF'
+{
+  "public_key": "03b015e2ae364d8f6fff7f2b9fe1760a91e2d41c4a8e91c8750827cea4c3204e5d",
+  "messages": ["68656c6c6f"],
+  "session": "650e8400-e29b-41d4-a716-446655440000",
+  "hex_encryption_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "derive_path": "m/44'/0'/0'/0/0",
+  "is_ecdsa": true,
+  "vault_password": "your-secure-password"
+}
+EOF
+```
+
+# Restart everything : 
+
+```
+docker compose down
+docker compose up -d --remove-orphans
+```
+
+Restart all in order : 
+
+```
+# Start servers
+export VS_CONFIG_NAME=config-server
+go run cmd/vultisigner/main.go
+
+export VS_CONFIG_NAME=config-plugin
+go run cmd/vultisigner/main.go
+
+# Start workers
+export VS_CONFIG_NAME=config-server
+go run cmd/worker/main.go
+
+export VS_CONFIG_NAME=config-plugin
+go run cmd/worker/main.go
+```
+
+
+
+## Verification
+
+To verify everything is running correctly:
+
+1. Check Docker containers:
+
+```
+docker ps
+```
+
+2. Verify MinIO buckets:
+```
+mc ls local
+```
+
+
+
+
 
 

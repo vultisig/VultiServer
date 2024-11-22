@@ -1,0 +1,27 @@
+server:
+  port: "8080"
+  host: "localhost"
+  vaults_file_path: "/tmp/vultisigner/server/vaults"
+
+redis:
+  host: "localhost"
+  port: "6379"
+  password: ""
+  db: "0"
+
+block_storage:
+  type: "s3"
+  endpoint: "http://localhost:9000"
+  bucket: "vultiserver"  
+  access_key: "minioadmin"
+  secret: "minioadmin"
+  region: "us-east-1"
+  host: "http://localhost:9000"
+  force_path_style: true
+  disable_ssl: true
+
+relay:
+  server: "https://api.vultisig.com/router"
+
+email_server:
+  api_key: "your-mandrill-api-key"
