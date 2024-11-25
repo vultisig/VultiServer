@@ -44,7 +44,12 @@ func (r *RedisStorage) Set(ctx context.Context, key string, value string, expiry
 	}
 	return r.client.Set(ctx, key, value, expiry).Err()
 }
-
+func (r *RedisStorage) Expire(ctx context.Context, key string, expiry time.Duration) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	return r.client.Expire(ctx, key, expiry).Err()
+}
 func (r *RedisStorage) Delete(ctx context.Context, key string) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
