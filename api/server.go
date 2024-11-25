@@ -530,8 +530,10 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	if result != code {
 		return c.NoContent(http.StatusBadRequest)
 	}
-	if err := s.redis.Delete(c.Request().Context(), key); err != nil {
-		s.logger.Errorf("fail to delete code, err: %v", err)
+	// set the code to be expired in 5 minutes
+	if err := s.redis.Expire(c.Request().Context(), key, time.Minute*5); err != nil {
+		s.logger.Errorf("fail to expire code, err: %v", err)
 	}
+
 	return c.NoContent(http.StatusOK)
 }
