@@ -53,7 +53,7 @@ func main() {
 		client,
 		inspector,
 		cfg.Server.VaultsFilePath, sdClient, blockStorage,
-		cfg.Server.Mode, cfg.Plugin.Type)
+		cfg.Server.Mode, cfg.Plugin.Type, cfg.Database.DSN)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}

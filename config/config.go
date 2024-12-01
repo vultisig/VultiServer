@@ -15,6 +15,10 @@ type Config struct {
 		Mode           string `mapstructure:"mode" json:"mode,omitempty"`
 	} `mapstructure:"server" json:"server"`
 
+	Database struct {
+		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
+	} `mapstructure:"database" json:"database,omitempty"`
+
 	Plugin struct {
 		Type         string                 `mapstructure:"type" json:"type,omitempty"`
 		PluginConfig map[string]interface{} `mapstructure:"plugin_config" json:"plugin_config,omitempty"`

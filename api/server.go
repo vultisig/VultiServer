@@ -33,6 +33,7 @@ import (
 	"github.com/vultisig/vultisigner/plugin"
 	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/storage"
+	"github.com/vultisig/vultisigner/storage/postgres"
 )
 
 type Server struct {
@@ -57,12 +58,18 @@ func NewServer(port int64,
 	sdClient *statsd.Client,
 	blockStorage *storage.BlockStorage,
 	mode string,
-	pluginType string) *Server {
+	pluginType string,
+	dsn string) *Server {
+	db, err := postgres.NewPostgresBackend(false, dsn)
+	if err != nil {
+		logrus.Fatalf("Failed to connect to database: %v", err)
+	}
+
 	var plugin plugin.Plugin
 	if mode == "pluginserver" {
 		switch pluginType {
 		case "payroll":
-			plugin = payroll.NewPayrollPlugin()
+			plugin = payroll.NewPayrollPlugin(db)
 		default:
 			logrus.Fatalf("Invalid plugin type: %s", pluginType)
 		}

@@ -5,15 +5,20 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/storage"
 )
 
 //go:embed frontend
 var frontend embed.FS
 
-type PayrollPlugin struct{}
+type PayrollPlugin struct {
+	db storage.DatabaseStorage
+}
 
-func NewPayrollPlugin() *PayrollPlugin {
-	return &PayrollPlugin{}
+func NewPayrollPlugin(db storage.DatabaseStorage) *PayrollPlugin {
+	return &PayrollPlugin{
+		db: db,
+	}
 }
 
 func (p *PayrollPlugin) SignPluginMessages(e echo.Context) error {
