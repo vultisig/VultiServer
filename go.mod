@@ -7,12 +7,12 @@ require (
 	github.com/aws/aws-sdk-go v1.55.5
 	github.com/ethereum/go-ethereum v1.13.12
 	github.com/google/uuid v1.6.0
-	github.com/hibiken/asynq v0.24.1
+	github.com/hibiken/asynq v0.25.0
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/labstack/gommon v0.4.2
 	github.com/pressly/goose/v3 v3.23.0
-	github.com/redis/go-redis/v9 v9.5.2
+	github.com/redis/go-redis/v9 v9.7.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
@@ -76,7 +76,7 @@ require (
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.6.0 // indirect
+	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/ulikunitz/xz v0.5.12
@@ -89,7 +89,7 @@ require (
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
+	golang.org/x/time v0.7.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
