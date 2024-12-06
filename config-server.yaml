@@ -1,29 +1,34 @@
-plugin:
-  type: "payroll"
+# plugin:
+#   type: "payroll"
 
 server:
-  mode: "vultiserver"
+  # mode: "vultiserver"
   port: "8080"
-  host: "0.0.0.0"
-  vaults_file_path: "vaults"
+  host: "localhost"
+  vaults_file_path: "/tmp/vultisigner/server/vaults"
 
 relay:
-  server: "http://localhost:8080/router"
+  server: "https://api.vultisig.com/router"
 
 redis:
   host: "localhost"
   port: "6379"
   password: ""
+  db: "0"
 
 database:
   dsn: "postgres://myuser:mypassword@localhost:5432/mydatabase?sslmode=disable"
 
 block_storage:
-  host: "http://localhost:9000"
-  region: "us-east-1"
+  type: "s3"
+  endpoint: "http://localhost:9000"
+  bucket: "vultiserver"  
   access_key: "minioadmin"
   secret: "minioadmin"
-  bucket: "local/vultiserver"
+  region: "us-east-1"
+  host: "http://localhost:9000"
+  force_path_style: true
+  disable_ssl: true
 
 email_server:
   api_key: "key-1234567890"
