@@ -2,10 +2,8 @@ plugin:
   type: "payroll"
 
 server:
-  # mode: "pluginserver"
-  # port: "8081"
-  # mode: "vultiserver"
-  # port: "8080"
+  mode: "vultiserver"
+  port: "8080"
   host: "0.0.0.0"
   vaults_file_path: "vaults"
 
@@ -25,7 +23,7 @@ block_storage:
   region: "us-east-1"
   access_key: "minioadmin"
   secret: "minioadmin"
-  bucket: "local-bucket"
+  bucket: "local/vultiserver"
 
 email_server:
   api_key: "key-1234567890"

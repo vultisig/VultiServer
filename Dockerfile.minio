@@ -1,0 +1,7 @@
+FROM minio/minio
+
+COPY create_buckets.sh /usr/bin/create_buckets.sh
+
+RUN chmod +x /usr/bin/create_buckets.sh
+
+ENTRYPOINT ["/bin/bash", "-c", "minio server /data --console-address ':9090' & /usr/bin/create_buckets.sh && wait"]

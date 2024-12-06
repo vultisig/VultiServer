@@ -21,7 +21,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	port := cfg.Server.Port
 
 	redisStorage, err := storage.NewRedisStorage(*cfg)
 	if err != nil {
@@ -48,13 +47,19 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	server := api.NewServer(port,
+	server := api.NewServer(
+		cfg.Server.Port,
 		redisStorage,
 		redisOptions,
 		client,
 		inspector,
-		cfg.Server.VaultsFilePath, sdClient, blockStorage,
-		cfg.Server.Mode, cfg.Plugin.Type, cfg.Database.DSN)
+		cfg.Server.VaultsFilePath,
+		sdClient,
+		blockStorage,
+		cfg.Server.Mode,
+		cfg.Plugin.Type,
+		cfg.Database.DSN,
+	)
 	if err := server.StartServer(); err != nil {
 		panic(err)
 	}

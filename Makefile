@@ -1,2 +1,25 @@
-generate-demo:
-	yes | rm -rf demo/generated/* && cd demo/app && npm i && REACT_APP_VULTISIGNER_BASE_URL="http://127.0.0.1:8080/" REACT_APP_VULTISIG_RELAYER_URL="https://api.vultisig.com/" REACT_APP_MINIMUM_DEVICES=2  REACT_APP_VULTISIGNER_USER="username" REACT_APP_VULTISIGNER_PASSWORD="password"  npm run build && mv build/* ../generated
+gen-vault-dirs:
+	mkdir -p tmp/vultisigner/server/vaults
+	mkdir -p tmp/vultisigner/plugin/vaults
+	sudo chmod 777 tmp/vultisigner/server/vaults
+	sudo chmod 777 tmp/vultisigner/plugin/vaults
+
+up:
+	@docker compose up -d --remove-orphans;
+
+down:
+	@docker compose down
+
+# start servers/workers in this order
+
+signer-server:
+	VS_CONFIG_NAME=config-server go run cmd/vultisigner/main.go
+
+plugin-server:
+	VS_CONFIG_NAME=config-plugin go run cmd/vultisigner/main.go
+
+signer-worker:
+	VS_CONFIG_NAME=config-server go run cmd/worker/main.go
+
+plugin-worker:
+	VS_CONFIG_NAME=config-plugin go run cmd/worker/main.go
