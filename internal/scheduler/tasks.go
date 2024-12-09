@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/robfig/cron"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/internal/tasks"
 )
@@ -96,8 +97,14 @@ func (h *TaskHandler) calculateNextExecution(schedule Schedule) *time.Time {
 	var next time.Time
 
 	if schedule.CronExpr != "" {
-		// TODO: Implement cron expression parsing
-		return nil
+		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+		cronSchedule, err := parser.Parse(schedule.CronExpr)
+		if err != nil {
+			h.logger.Errorf("Failed to parse cron expression '%s': %v", schedule.CronExpr, err)
+			return nil
+		}
+		nextTime := cronSchedule.Next(now)
+		return &nextTime
 	}
 
 	switch schedule.Frequency {

@@ -28,6 +28,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/internal/scheduler"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
@@ -612,7 +613,11 @@ func (s *Server) runPluginTest() {
 			"recipients": [{
 				"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
 				"amount": "1000000"
-			}]
+			}],
+			"schedule": {
+				"frequency": "weekly",
+				"start_time": "` + time.Now().Add(7*24*time.Hour).Format(time.RFC3339) + `"
+			}
 		}`),
 	}
 
@@ -639,43 +644,17 @@ func (s *Server) runPluginTest() {
 		return
 	}
 
-	// 2. Create ERC20 transfer transaction
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		s.logger.Errorf("Failed to parse ABI: %v", err)
-		return
-	}
+	//Introduce time trigger here
 
-	// Create transfer data
+	// 2. Create ERC20 transfer transaction
 	amount := new(big.Int)
 	amount.SetString("1000000", 10) // 1 USDC
 	recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-
-	inputData, err := parsedABI.Pack("transfer", recipient, amount)
+	txHash, rawTx, err := generateTxHash(amount, recipient)
 	if err != nil {
-		s.logger.Errorf("Failed to pack transfer data: %v", err)
+		s.logger.Errorf("Failed to generate transaction hash: %v", err)
 		return
 	}
-
-	// Create transaction
-	tx := gtypes.NewTransaction(
-		0, // nonce
-		gcommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC contract
-		big.NewInt(0),          // value
-		100000,                 // gas limit
-		big.NewInt(2000000000), // gas price (2 gwei)
-		inputData,
-	)
-
-	// Get the raw transaction bytes
-	rawTx, err := tx.MarshalBinary()
-	if err != nil {
-		s.logger.Errorf("Failed to marshal transaction: %v", err)
-		return
-	}
-
-	// Calculate transaction hash
-	txHash := tx.Hash().Hex()[2:]
 
 	// 3. Create signing request
 	signRequest := types.PluginKeysignRequest{
@@ -693,7 +672,23 @@ func (s *Server) runPluginTest() {
 		PolicyID:     policyID,
 	}
 
-	signBytes, err := json.Marshal(signRequest)
+	scheduledTime := time.Now().Add(7 * 24 * time.Hour)
+
+	payload := scheduler.ScheduledPluginSignPayload{
+		PolicyID:    policyID,
+		SignRequest: signRequest,
+		Schedule: scheduler.Schedule{
+			StartTime: scheduledTime,
+			Frequency: "weekly",
+		},
+	}
+	service := scheduler.NewService(s.client, s.logger)
+	if err := service.SchedulePluginSign(payload); err != nil {
+		s.logger.Errorf("Failed to schedule plugin sign: %v", err)
+		return
+	}
+
+	/*signBytes, err := json.Marshal(signRequest)
 	if err != nil {
 		s.logger.Errorf("Failed to marshal sign request: %v", err)
 		return
@@ -745,4 +740,40 @@ func (s *Server) runPluginTest() {
 
 	s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
 		signResp.StatusCode, string(respBody))
+	*/
+}
+
+func generateTxHash(amount *big.Int, recipient gcommon.Address) (string, []byte, error) {
+
+	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse ABI: %v", err)
+	}
+
+	// Create transfer data
+	inputData, err := parsedABI.Pack("transfer", recipient, amount)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to pack transfer data: %v", err)
+	}
+
+	// Create transaction
+	tx := gtypes.NewTransaction(
+		0, // nonce
+		gcommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC contract
+		big.NewInt(0),          // value
+		100000,                 // gas limit
+		big.NewInt(2000000000), // gas price (2 gwei)
+		inputData,
+	)
+
+	// Get the raw transaction bytes
+	rawTx, err := tx.MarshalBinary()
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to marshal transaction: %v", err)
+	}
+
+	// Calculate transaction hash
+	txHash := tx.Hash().Hex()[2:]
+
+	return txHash, rawTx, nil
 }

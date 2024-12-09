@@ -38,6 +38,7 @@ require (
 	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/supranational/blst v0.3.11 // indirect
 	golang.org/x/sync v0.9.0 // indirect

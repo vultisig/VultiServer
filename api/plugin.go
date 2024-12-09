@@ -109,6 +109,8 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
 
+	//Todo : check that tx is done only once per period
+
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
 		asynq.MaxRetry(-1),
