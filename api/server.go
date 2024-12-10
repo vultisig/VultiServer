@@ -48,6 +48,8 @@ type Server struct {
 	blockStorage  *storage.BlockStorage
 	mode          string
 	plugin        plugin.Plugin
+	db            *postgres.PostgresBackend
+	scheduler     *scheduler.SchedulerService
 }
 
 // NewServer returns a new server.
@@ -61,12 +63,17 @@ func NewServer(port int64,
 	mode string,
 	pluginType string,
 	dsn string) *Server {
+
+	logrus.Info("Initializing new server...")
+	logrus.Infof("Server mode: %s, plugin type: %s", mode, pluginType)
+
 	db, err := postgres.NewPostgresBackend(false, dsn)
 	if err != nil {
 		logrus.Fatalf("Failed to connect to database: %v", err)
 	}
 
 	var plugin plugin.Plugin
+	var schedulerService *scheduler.SchedulerService
 	if mode == "pluginserver" {
 		switch pluginType {
 		case "payroll":
@@ -74,6 +81,11 @@ func NewServer(port int64,
 		default:
 			logrus.Fatalf("Invalid plugin type: %s", pluginType)
 		}
+		schedulerService = scheduler.NewSchedulerService(
+			db,
+			logrus.WithField("service", "scheduler").Logger,
+			client,
+		)
 	}
 	return &Server{
 		port:          port,
@@ -86,6 +98,8 @@ func NewServer(port int64,
 		blockStorage:  blockStorage,
 		mode:          mode,
 		plugin:        plugin,
+		db:            db,
+		scheduler:     schedulerService,
 	}
 }
 
@@ -135,7 +149,8 @@ func (s *Server) StartServer() error {
 	// policy mode is always available since it is used by both vultiserver and pluginserver
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 
-	go s.runPluginTest()
+	//go s.runPluginTest()
+	go s.runPluginTestSchedule()
 
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
@@ -588,8 +603,8 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func (s *Server) runPluginTest() {
-	if s.port == 8081 {
+/*func (s *Server) runPluginTest() {
+	if s.port == 8080 { //8080 is vultiserver, and vultiserver does not create plugins.
 		return
 	}
 	// Wait 5 seconds after startup
@@ -613,11 +628,7 @@ func (s *Server) runPluginTest() {
 			"recipients": [{
 				"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
 				"amount": "1000000"
-			}],
-			"schedule": {
-				"frequency": "weekly",
-				"start_time": "` + time.Now().Add(7*24*time.Hour).Format(time.RFC3339) + `"
-			}
+			}]
 		}`),
 	}
 
@@ -629,7 +640,7 @@ func (s *Server) runPluginTest() {
 
 	// Create policy
 	policyResp, err := http.Post(
-		fmt.Sprintf("http://localhost:%d/plugin/policy", 8081),
+		fmt.Sprintf("http://localhost:%d/plugin/policy", 8080),
 		"application/json",
 		bytes.NewBuffer(policyBytes),
 	)
@@ -672,23 +683,7 @@ func (s *Server) runPluginTest() {
 		PolicyID:     policyID,
 	}
 
-	scheduledTime := time.Now().Add(7 * 24 * time.Hour)
-
-	payload := scheduler.ScheduledPluginSignPayload{
-		PolicyID:    policyID,
-		SignRequest: signRequest,
-		Schedule: scheduler.Schedule{
-			StartTime: scheduledTime,
-			Frequency: "weekly",
-		},
-	}
-	service := scheduler.NewService(s.client, s.logger)
-	if err := service.SchedulePluginSign(payload); err != nil {
-		s.logger.Errorf("Failed to schedule plugin sign: %v", err)
-		return
-	}
-
-	/*signBytes, err := json.Marshal(signRequest)
+	signBytes, err := json.Marshal(signRequest)
 	if err != nil {
 		s.logger.Errorf("Failed to marshal sign request: %v", err)
 		return
@@ -740,8 +735,8 @@ func (s *Server) runPluginTest() {
 
 	s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
 		signResp.StatusCode, string(respBody))
-	*/
-}
+
+}*/
 
 func generateTxHash(amount *big.Int, recipient gcommon.Address) (string, []byte, error) {
 
@@ -777,3 +772,101 @@ func generateTxHash(amount *big.Int, recipient gcommon.Address) (string, []byte,
 
 	return txHash, rawTx, nil
 }
+
+func (s *Server) runPluginTestSchedule() {
+	if s.port == 8080 { //8080 is vultiserver, and vultiserver does not create plugins.
+		return
+	}
+	// Wait 5 seconds after startup
+	time.Sleep(5 * time.Second)
+
+	s.logger.Info("Starting plugin signing test")
+
+	// 1. Create test policy
+	policyID := uuid.New().String()
+	policy := types.PluginPolicy{
+		ID:            policyID,
+		PublicKey:     "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+		PluginID:      "erc20-transfer",
+		PluginVersion: "1.0.0",
+		PolicyVersion: "1.0.0",
+		PluginType:    "payroll",
+		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
+		Policy: json.RawMessage(`{
+			"chain_id": "1",
+			"token_id": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+			"recipients": [{
+				"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+				"amount": "1000000"
+			}],
+			"schedule": {
+				"frequency": "weekly",
+				"start_time": "` + time.Now().Add(7*24*time.Hour).Format(time.RFC3339) + `"
+			}
+		}`),
+	}
+
+	policyBytes, err := json.Marshal(policy)
+	if err != nil {
+		s.logger.Errorf("Failed to marshal policy: %v", err)
+		return
+	}
+
+	// Create policy
+	policyResp, err := http.Post( //plugins tells to vultiserver to create that policy, but once this is done, plugin server does not save the policy in its own db. Change this
+		fmt.Sprintf("http://localhost:%d/plugin/policy", 8080),
+		"application/json",
+		bytes.NewBuffer(policyBytes),
+	)
+	if err != nil {
+		s.logger.Errorf("Failed to create policy: %v", err)
+		return
+	}
+	defer policyResp.Body.Close()
+
+	s.logger.Info("Policy sent to vultiserver")
+
+	if policyResp.StatusCode != http.StatusOK {
+		s.logger.Errorf("Failed to create policy, status: %d", policyResp.StatusCode)
+		return
+	}
+
+	s.logger.Info("Creating time trigger for the policy")
+
+	// Create time trigger for the policy
+	if err := s.scheduler.CreateTimeTrigger(policy); err != nil {
+		s.logger.Errorf("Failed to create time trigger: %v", err)
+		return
+	}
+
+	s.logger.Info("Successfully created policy and scheduled trigger")
+
+	//Introduce time trigger here
+	//now, a policy was successfully created.
+	// The schedule has to be downloaded, and we have to query it to see what can be sent in queue
+
+	//another function :
+	//- see that the time is correct
+	//- generates tx hash
+	//- create signing request
+	//- waits for validation from vultiserver, and then enqueue task locally in reddis
+
+}
+
+/*
+scheduledTime := time.Now().Add(7 * 24 * time.Hour)
+
+payload := scheduler.ScheduledPluginSignPayload{
+	PolicyID:    policyID,
+	SignRequest: signRequest,
+	Schedule: scheduler.Schedule{
+		StartTime: scheduledTime,
+		Frequency: "once",
+	},
+}
+service := scheduler.NewService(s.client, s.logger)
+if err := service.SchedulePluginSign(payload); err != nil {
+	s.logger.Errorf("Failed to schedule plugin sign: %v", err)
+	return
+}
+*/

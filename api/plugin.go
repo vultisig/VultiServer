@@ -131,6 +131,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
 
+	// Original policy storage logic
 	policyPath := fmt.Sprintf("policies/%s.json", policy.ID)
 	content, err := json.Marshal(policy)
 	if err != nil {
@@ -139,6 +140,12 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 
 	if err := s.blockStorage.UploadFile(content, policyPath); err != nil {
 		return fmt.Errorf("fail to upload file, err: %w", err)
+	}
+
+	if s.scheduler != nil {
+		if err := s.scheduler.CreateTimeTrigger(policy); err != nil {
+			s.logger.Errorf("Failed to create time trigger: %v", err)
+		}
 	}
 
 	return c.NoContent(http.StatusOK)
