@@ -47,6 +47,11 @@ type Config struct {
 		SecretKey string `mapstructure:"secret" json:"secret"`
 		Bucket    string `mapstructure:"bucket" json:"bucket"`
 	} `mapstructure:"block_storage" json:"block_storage"`
+
+	Datadog struct {
+		Host string `mapstructure:"host" json:"host,omitempty"`
+		Port string `mapstructure:"port" json:"port,omitempty"`
+	} `mapstructure:"datadog" json:"datadog"`
 }
 
 func GetConfigure() (*Config, error) {

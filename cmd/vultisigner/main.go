@@ -16,8 +16,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	sdClient, err := statsd.New("127.0.0.1:8125")
+	sdClient, err := statsd.New(cfg.Datadog.Host + ":" + cfg.Datadog.Port)
 	if err != nil {
 		panic(err)
 	}
