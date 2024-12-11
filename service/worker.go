@@ -302,3 +302,59 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 
 	return nil
 }
+
+func (s *WorkerService) HandleScheduledPluginSign(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+
+	defer s.measureTime("worker.plugin.scheduled_sign.latency", time.Now(), []string{})
+	s.incCounter("worker.plugin.scheduled_sign", []string{})
+
+	var payload ScheduledPluginSignPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"policy_id": payload.PolicyID,
+	}).Info("Processing scheduled plugin sign")
+
+	// Get policy from database
+	policy, err := s.db.GetPluginPolicy(payload.PolicyID)
+	if err != nil {
+		s.logger.Errorf("Failed to get policy: %v", err)
+		return fmt.Errorf("failed to get policy: %v: %w", err, asynq.SkipRetry)
+	}
+
+	// Create signing request
+	signingReq := types.PluginKeysignRequest{
+		PolicyID: policy.ID,
+		PluginID: policy.PluginID,
+		// Add other required fields based on your policy
+	}
+
+	// Send to vultiserver for signing
+	signingBytes, err := json.Marshal(signingReq)
+	if err != nil {
+		return fmt.Errorf("failed to marshal signing request: %v: %w", err, asynq.SkipRetry)
+	}
+
+	resp, err := http.Post(
+		fmt.Sprintf("http://localhost:8080/plugin/sign"),
+		"application/json",
+		bytes.NewBuffer(signingBytes),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to send signing request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("signing request failed with status: %d", resp.StatusCode)
+	}
+
+	s.logger.Info("Successfully processed scheduled plugin sign")
+	return nil
+}

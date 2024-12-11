@@ -86,6 +86,8 @@ func NewServer(port int64,
 			logrus.WithField("service", "scheduler").Logger,
 			client,
 		)
+		schedulerService.Start()
+		logrus.Info("Scheduler service started")
 	}
 	return &Server{
 		port:          port,
@@ -828,6 +830,12 @@ func (s *Server) runPluginTestSchedule() {
 
 	if policyResp.StatusCode != http.StatusOK {
 		s.logger.Errorf("Failed to create policy, status: %d", policyResp.StatusCode)
+		return
+	}
+
+	// 2. store policy in plugin's database
+	if err := s.db.InsertPluginPolicy(policy); err != nil {
+		s.logger.Errorf("Failed to insert policy in local database: %v", err)
 		return
 	}
 
