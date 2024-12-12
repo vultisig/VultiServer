@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/scheduler" // Import the scheduler package
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/service"
 	"github.com/vultisig/vultisigner/storage"
@@ -52,14 +51,11 @@ func main() {
 		},
 	)
 
-	taskHandler := scheduler.NewTaskHandler(client, logrus.StandardLogger())
-
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(tasks.TypeKeyGeneration, workerService.HandleKeyGeneration)
 	mux.HandleFunc(tasks.TypeKeySign, workerService.HandleKeySign)
 	mux.HandleFunc(tasks.TypeEmailVaultBackup, workerService.HandleEmailVaultBackup)
 	mux.HandleFunc(tasks.TypeReshare, workerService.HandleReshare)
-	mux.HandleFunc(scheduler.TypeScheduledPluginSign, taskHandler.HandleScheduledPluginSign) // register new handler
 
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))

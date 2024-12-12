@@ -1,13 +1,18 @@
 package scheduler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/vultisigner/internal/request"
+	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage/postgres"
 )
@@ -40,12 +45,17 @@ func (s *SchedulerService) Stop() {
 }
 
 func (s *SchedulerService) run() {
-	ticker := time.NewTicker(1 * time.Minute)
+	//ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	s.logger.Info("Scheduler service RUN started")
+
 	for {
+		s.logger.Info("Scheduler service RUN loop started")
 		select {
 		case <-ticker.C:
+			s.logger.Info("Checking and enqueuing tasks")
 			if err := s.checkAndEnqueueTasks(); err != nil {
 				s.logger.Errorf("Failed to check and enqueue tasks: %v", err)
 			}
@@ -60,6 +70,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 	if err != nil {
 		return fmt.Errorf("failed to get pending triggers: %w", err)
 	}
+	s.logger.Info("Triggers: ", triggers)
 
 	for _, trigger := range triggers {
 		// Parse cron expression
@@ -77,38 +88,83 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 			nextTime = schedule.Next(time.Now().Add(-24 * time.Hour))
 		}
 
+		s.logger.Info("Before checking time: ", time.Now())
+		s.logger.Info("Next time: ", nextTime)
 		if time.Now().After(nextTime) {
-			// Time to execute this policy
-			if err := s.enqueuePolicyExecution(trigger.PolicyID); err != nil {
-				s.logger.Errorf("Failed to enqueue policy execution: %v", err)
+			s.logger.Info("Inside if statement")
+			// Get policy details
+			policy, err := s.db.GetPluginPolicy(trigger.PolicyID)
+			if err != nil {
+				s.logger.Errorf("Failed to get policy: %v", err)
 				continue
 			}
 
-			// Update last_execution
-			if err := s.db.UpdateTriggerExecution(trigger.PolicyID); err != nil {
-				s.logger.Errorf("Failed to update last execution: %v", err)
+			signRequest, err := request.CreateSigningRequest(policy)
+			if err != nil {
+				s.logger.Errorf("Failed to create signing request: %v", err)
+				continue
 			}
+
+			signBytes, err := json.Marshal(signRequest)
+			if err != nil {
+				s.logger.Errorf("Failed to marshal sign request: %v", err)
+				continue
+			}
+
+			signResp, err := http.Post(
+				fmt.Sprintf("http://localhost:%d/plugin/sign", 8081),
+				"application/json",
+				bytes.NewBuffer(signBytes),
+			)
+			if err != nil {
+				s.logger.Errorf("Failed to make sign request: %v", err)
+				return err
+			}
+			defer signResp.Body.Close()
+
+			// Read and log response
+			respBody, err := io.ReadAll(signResp.Body)
+			if err != nil {
+				s.logger.Errorf("Failed to read response: %v", err)
+				return err
+			}
+
+			if signResp.StatusCode == http.StatusOK {
+				signRequest.KeysignRequest.StartSession = true
+				signRequest.KeysignRequest.Parties = []string{"1", "2"}
+				buf, err := json.Marshal(signRequest.KeysignRequest)
+				if err != nil {
+					s.logger.Errorf("Failed to marshal local sign request: %v", err)
+					return err
+				}
+
+				// Enqueue TypeKeySign directly
+				ti, err := s.client.Enqueue(
+					asynq.NewTask(tasks.TypeKeySign, buf),
+					asynq.MaxRetry(-1),
+					asynq.Timeout(2*time.Minute),
+					asynq.Retention(5*time.Minute),
+					asynq.Queue(tasks.QUEUE_NAME),
+				)
+				if err != nil {
+					s.logger.Errorf("Failed to enqueue signing task: %v", err)
+					continue
+				}
+
+				// Update last_execution
+				if err := s.db.UpdateTriggerExecution(trigger.PolicyID); err != nil {
+					s.logger.Errorf("Failed to update last execution: %v", err)
+				}
+				s.logger.Infof("Local signing task enqueued with ID: %s", ti.ID)
+			}
+			//POST tasks to vultiserver here?
+			//First Post, and then if StatusCode==StatusOk then enqueue same task locally
+			s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
+				signResp.StatusCode, string(respBody))
 		}
 	}
 
 	return nil
-}
-
-func (s *SchedulerService) enqueuePolicyExecution(policyID string) error {
-	payload := ScheduledPluginSignPayload{
-		PolicyID: policyID,
-	}
-
-	taskBytes, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("failed to marshal payload: %w", err)
-	}
-
-	_, err = s.client.Enqueue(
-		asynq.NewTask(TypeScheduledPluginSign, taskBytes),
-		asynq.Queue("scheduled_plugin_queue"),
-	)
-	return err
 }
 
 func (s *SchedulerService) CreateTimeTrigger(policy types.PluginPolicy) error {

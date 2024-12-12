@@ -12,13 +12,10 @@ import (
 	"math/rand"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	gcommon "github.com/ethereum/go-ethereum/common"
-	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
@@ -28,6 +25,7 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/internal/request"
 	"github.com/vultisig/vultisigner/internal/scheduler"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
@@ -605,7 +603,7 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-/*func (s *Server) runPluginTest() {
+func (s *Server) runPluginTest() {
 	if s.port == 8080 { //8080 is vultiserver, and vultiserver does not create plugins.
 		return
 	}
@@ -663,7 +661,7 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	amount := new(big.Int)
 	amount.SetString("1000000", 10) // 1 USDC
 	recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-	txHash, rawTx, err := generateTxHash(amount, recipient)
+	txHash, rawTx, err := request.GenerateTxHash(amount, recipient)
 	if err != nil {
 		s.logger.Errorf("Failed to generate transaction hash: %v", err)
 		return
@@ -738,41 +736,6 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
 		signResp.StatusCode, string(respBody))
 
-}*/
-
-func generateTxHash(amount *big.Int, recipient gcommon.Address) (string, []byte, error) {
-
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to parse ABI: %v", err)
-	}
-
-	// Create transfer data
-	inputData, err := parsedABI.Pack("transfer", recipient, amount)
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to pack transfer data: %v", err)
-	}
-
-	// Create transaction
-	tx := gtypes.NewTransaction(
-		0, // nonce
-		gcommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC contract
-		big.NewInt(0),          // value
-		100000,                 // gas limit
-		big.NewInt(2000000000), // gas price (2 gwei)
-		inputData,
-	)
-
-	// Get the raw transaction bytes
-	rawTx, err := tx.MarshalBinary()
-	if err != nil {
-		return "", nil, fmt.Errorf("failed to marshal transaction: %v", err)
-	}
-
-	// Calculate transaction hash
-	txHash := tx.Hash().Hex()[2:]
-
-	return txHash, rawTx, nil
 }
 
 func (s *Server) runPluginTestSchedule() {
@@ -794,6 +757,20 @@ func (s *Server) runPluginTestSchedule() {
 		PolicyVersion: "1.0.0",
 		PluginType:    "payroll",
 		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
+		/*Policy: types.PayrollPolicy{
+			ChainID: "1",
+			TokenID: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+			Recipients: []types.PayrollRecipient{
+				{
+					Address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+					Amount:  "1000000",
+				},
+			},
+			Schedule: types.Schedule{
+				Frequency: "weekly",
+				StartTime: time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
+			},
+		},*/
 		Policy: json.RawMessage(`{
 			"chain_id": "1",
 			"token_id": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
@@ -802,7 +779,7 @@ func (s *Server) runPluginTestSchedule() {
 				"amount": "1000000"
 			}],
 			"schedule": {
-				"frequency": "weekly",
+				"frequency": "monthly",
 				"start_time": "` + time.Now().Add(7*24*time.Hour).Format(time.RFC3339) + `"
 			}
 		}`),

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/vultisigner/internal/types"
 )
 
 //go:embed migrations/*
@@ -136,4 +138,36 @@ type TimeTrigger struct {
 	EndTime        *time.Time
 	Frequency      string
 	LastExecution  *time.Time
+}
+
+func (p *PostgresBackend) GetPluginPolicy(id string) (types.PluginPolicy, error) {
+	if p.pool == nil {
+		return types.PluginPolicy{}, fmt.Errorf("database pool is nil")
+	}
+
+	var policy types.PluginPolicy
+	var policyJSON []byte
+
+	query := `
+        SELECT id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, policy 
+        FROM plugin_policies 
+        WHERE id = $1`
+
+	err := p.pool.QueryRow(context.Background(), query, id).Scan(
+		&policy.ID,
+		&policy.PublicKey,
+		&policy.PluginID,
+		&policy.PluginVersion,
+		&policy.PolicyVersion,
+		&policy.PluginType,
+		&policy.Signature,
+		&policyJSON,
+	)
+
+	if err != nil {
+		return types.PluginPolicy{}, fmt.Errorf("failed to get policy: %w", err)
+	}
+
+	policy.Policy = json.RawMessage(policyJSON)
+	return policy, nil
 }
