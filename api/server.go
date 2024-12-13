@@ -780,7 +780,7 @@ func (s *Server) runPluginTestSchedule() {
 			}],
 			"schedule": {
 				"frequency": "monthly",
-				"start_time": "` + time.Now().Add(7*24*time.Hour).Format(time.RFC3339) + `"
+				"start_time": "` + time.Now(). /*.Add(7*24*time.Hour)*/ Format(time.RFC3339) + `"
 			}
 		}`),
 	}

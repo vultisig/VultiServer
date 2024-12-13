@@ -26,7 +26,7 @@ const erc20ABI = `[{
 func CreateSigningRequest(policy types.PluginPolicy) (types.PluginKeysignRequest, error) {
 	//check policy.pluginType.
 	//depending on the pluginType, create the correct signing request
-	if policy.PluginType == "erc20" {
+	if policy.PluginType == "payroll" {
 		amount := new(big.Int)
 		amount.SetString("1000000", 10) // 1 USDC
 		recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")

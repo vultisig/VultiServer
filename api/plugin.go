@@ -40,13 +40,13 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	// Plugin-specific validations
 	if len(req.Messages) != 1 {
-		return fmt.Errorf("plugin signing requires exactly one message hash")
+		return fmt.Errorf("plugin signing requires exactly one message hash, current: %d", len(req.Messages))
 	}
 	if len(req.Transactions) != 1 {
-		return fmt.Errorf("plugin signing requires exactly one transaction")
+		return fmt.Errorf("plugin signing requires exactly one transaction, current: %d", len(req.Transactions))
 	}
 
-	// Get policy
+	/*// Get policy
 	policyPath := fmt.Sprintf("policies/%s.json", req.PolicyID)
 	policyContent, err := s.blockStorage.GetFile(policyPath)
 	if err != nil {
@@ -56,6 +56,12 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := json.Unmarshal(policyContent, &policy); err != nil {
 		return fmt.Errorf("fail to unmarshal policy, err: %w", err)
+	}*/
+
+	// Get policy from database
+	policy, err := s.db.GetPluginPolicy(req.PolicyID)
+	if err != nil {
+		return fmt.Errorf("failed to get policy from database: %w", err)
 	}
 
 	// Validate policy matches plugin
@@ -93,6 +99,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 
+	//Error here
 	filePathName := req.PublicKey + ".bak"
 	content, err := s.blockStorage.GetFile(filePathName)
 	if err != nil {
