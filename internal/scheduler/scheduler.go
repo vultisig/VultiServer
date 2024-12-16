@@ -104,63 +104,64 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 				s.logger.Errorf("Failed to create signing request: %v", err)
 				continue
 			}
+			for _, signRequest := range signRequest {
 
-			signBytes, err := json.Marshal(signRequest)
-			if err != nil {
-				s.logger.Errorf("Failed to marshal sign request: %v", err)
-				continue
-			}
-
-			signResp, err := http.Post(
-				fmt.Sprintf("http://localhost:%d/plugin/sign", 8081),
-				"application/json",
-				bytes.NewBuffer(signBytes),
-			)
-			if err != nil {
-				s.logger.Errorf("Failed to make sign request: %v", err)
-				return err
-			}
-			defer signResp.Body.Close()
-
-			// Read and log response
-			respBody, err := io.ReadAll(signResp.Body)
-			if err != nil {
-				s.logger.Errorf("Failed to read response: %v", err)
-				return err
-			}
-
-			if signResp.StatusCode == http.StatusOK {
-				signRequest.KeysignRequest.StartSession = true
-				signRequest.KeysignRequest.Parties = []string{"1", "2"}
-				buf, err := json.Marshal(signRequest.KeysignRequest)
+				signBytes, err := json.Marshal(signRequest)
 				if err != nil {
-					s.logger.Errorf("Failed to marshal local sign request: %v", err)
-					return err
-				}
-
-				// Enqueue TypeKeySign directly
-				ti, err := s.client.Enqueue(
-					asynq.NewTask(tasks.TypeKeySign, buf),
-					asynq.MaxRetry(-1),
-					asynq.Timeout(2*time.Minute),
-					asynq.Retention(5*time.Minute),
-					asynq.Queue(tasks.QUEUE_NAME),
-				)
-				if err != nil {
-					s.logger.Errorf("Failed to enqueue signing task: %v", err)
+					s.logger.Errorf("Failed to marshal sign request: %v", err)
 					continue
 				}
 
-				// Update last_execution
-				if err := s.db.UpdateTriggerExecution(trigger.PolicyID); err != nil {
-					s.logger.Errorf("Failed to update last execution: %v", err)
+				signResp, err := http.Post(
+					fmt.Sprintf("http://localhost:%d/plugin/sign", 8081),
+					"application/json",
+					bytes.NewBuffer(signBytes),
+				)
+				if err != nil {
+					s.logger.Errorf("Failed to make sign request: %v", err)
+					return err
 				}
-				s.logger.Infof("Local signing task enqueued with ID: %s", ti.ID)
+				defer signResp.Body.Close()
+
+				// Read and log response
+				respBody, err := io.ReadAll(signResp.Body)
+				if err != nil {
+					s.logger.Errorf("Failed to read response: %v", err)
+					return err
+				}
+
+				if signResp.StatusCode == http.StatusOK {
+					signRequest.KeysignRequest.StartSession = true
+					signRequest.KeysignRequest.Parties = []string{"1", "2"}
+					buf, err := json.Marshal(signRequest.KeysignRequest)
+					if err != nil {
+						s.logger.Errorf("Failed to marshal local sign request: %v", err)
+						return err
+					}
+
+					// Enqueue TypeKeySign directly
+					ti, err := s.client.Enqueue(
+						asynq.NewTask(tasks.TypeKeySign, buf),
+						asynq.MaxRetry(-1),
+						asynq.Timeout(2*time.Minute),
+						asynq.Retention(5*time.Minute),
+						asynq.Queue(tasks.QUEUE_NAME),
+					)
+					if err != nil {
+						s.logger.Errorf("Failed to enqueue signing task: %v", err)
+						continue
+					}
+
+					// Update last_execution
+					if err := s.db.UpdateTriggerExecution(trigger.PolicyID); err != nil {
+						s.logger.Errorf("Failed to update last execution: %v", err)
+					}
+					s.logger.Infof("Local signing task enqueued with ID: %s", ti.ID)
+				}
+				s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
+					signResp.StatusCode, string(respBody))
 			}
-			//POST tasks to vultiserver here?
-			//First Post, and then if StatusCode==StatusOk then enqueue same task locally
-			s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
-				signResp.StatusCode, string(respBody))
+
 		}
 	}
 

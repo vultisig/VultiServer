@@ -8,14 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/big"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
@@ -658,10 +656,7 @@ func (s *Server) runPluginTest() {
 	//Introduce time trigger here
 
 	// 2. Create ERC20 transfer transaction
-	amount := new(big.Int)
-	amount.SetString("1000000", 10) // 1 USDC
-	recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-	txHash, rawTx, err := request.GenerateTxHash(amount, recipient)
+	txHash, rawTx, err := request.GenerateTxHash("1000000", "0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "1", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
 	if err != nil {
 		s.logger.Errorf("Failed to generate transaction hash: %v", err)
 		return

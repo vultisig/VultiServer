@@ -2,6 +2,7 @@ package request
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
@@ -23,11 +24,45 @@ const erc20ABI = `[{
     "outputs": [{"name": "", "type": "bool"}]
 }]`
 
-func CreateSigningRequest(policy types.PluginPolicy) (types.PluginKeysignRequest, error) {
+func CreateSigningRequest(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error) {
 	//check policy.pluginType.
 	//depending on the pluginType, create the correct signing request
 	if policy.PluginType == "payroll" {
-		amount := new(big.Int)
+
+		var payrollPolicy types.PayrollPolicy
+		if err := json.Unmarshal(policy.Policy, &payrollPolicy); err != nil {
+			return []types.PluginKeysignRequest{}, fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
+		}
+
+		signRequests := []types.PluginKeysignRequest{}
+
+		for _, recipient := range payrollPolicy.Recipients {
+			txHash, rawTx, err := GenerateTxHash(recipient.Amount, recipient.Address, payrollPolicy.ChainID, payrollPolicy.TokenID)
+			if err != nil {
+				return []types.PluginKeysignRequest{}, fmt.Errorf("failed to generate transaction hash: %v", err)
+			}
+
+			// Create signing request
+			signRequest := types.PluginKeysignRequest{
+				KeysignRequest: types.KeysignRequest{
+					PublicKey:        "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+					Messages:         []string{txHash}, //check how to correctly construct tx hash which depends on blockchain infos like nounce
+					SessionID:        uuid.New().String(),
+					HexEncryptionKey: "0123456789abcdef0123456789abcdef",
+					DerivePath:       "m/44/60/0/0/0",
+					IsECDSA:          true,
+					VaultPassword:    "your-secure-password",
+				},
+				Transactions: []string{hex.EncodeToString(rawTx)},
+				PluginID:     policy.PluginID,
+				PolicyID:     policy.ID,
+			}
+			signRequests = append(signRequests, signRequest)
+		}
+
+		return signRequests, nil
+
+		/*amount := new(big.Int)
 		amount.SetString("1000000", 10) // 1 USDC
 		recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
 		txHash, rawTx, err := GenerateTxHash(amount, recipient)
@@ -53,13 +88,17 @@ func CreateSigningRequest(policy types.PluginPolicy) (types.PluginKeysignRequest
 
 		fmt.Println("signRequest", signRequest)
 
-		return signRequest, nil
+		return signRequest, nil*/
 	}
 
-	return types.PluginKeysignRequest{}, nil
+	return []types.PluginKeysignRequest{}, nil
 }
 
-func GenerateTxHash(amount *big.Int, recipient gcommon.Address) (string, []byte, error) {
+func GenerateTxHash(amountString string, recipientString string, chainID string, tokenID string) (string, []byte, error) {
+
+	amount := new(big.Int)
+	amount.SetString(amountString, 10)
+	recipient := gcommon.HexToAddress(recipientString)
 
 	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
 	if err != nil {
@@ -74,11 +113,11 @@ func GenerateTxHash(amount *big.Int, recipient gcommon.Address) (string, []byte,
 
 	// Create transaction
 	tx := gtypes.NewTransaction(
-		0, // nonce  //TODO : to be updated.
-		gcommon.HexToAddress("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC contract
-		big.NewInt(0),          // value
-		100000,                 // gas limit
-		big.NewInt(2000000000), // gas price (2 gwei)
+		0,                             // nonce  //TODO : to be updated.
+		gcommon.HexToAddress(tokenID), // USDC contract
+		big.NewInt(0),                 // value, if it is not eth. If it is eth, we have to set the value. How to tell to send eth at plugin creation?
+		100000,                        // gas limit
+		big.NewInt(2000000000),        // gas price (2 gwei)
 		inputData,
 	)
 
