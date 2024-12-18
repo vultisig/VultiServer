@@ -33,6 +33,7 @@ const erc20ABI = `[{
 }]`
 
 func (s *Server) SignPluginMessages(c echo.Context) error {
+	s.logger.Info("Starting SignPluginMessages")
 	var req types.PluginKeysignRequest
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
@@ -99,11 +100,13 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 
-	//Error here
 	filePathName := req.PublicKey + ".bak"
 	content, err := s.blockStorage.GetFile(filePathName)
 	if err != nil {
-		return fmt.Errorf("fail to read file, err: %w", err)
+		wrappedErr := fmt.Errorf("fail to read file, err: %w", err)
+		s.logger.Infof("fail to read file in SignPluginMessages, err: %v", err)
+		s.logger.Error(wrappedErr)
+		return wrappedErr
 	}
 
 	_, err = common.DecryptVaultFromBackup(req.VaultPassword, content)

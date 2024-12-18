@@ -45,7 +45,7 @@ func CreateSigningRequest(policy types.PluginPolicy) ([]types.PluginKeysignReque
 			// Create signing request
 			signRequest := types.PluginKeysignRequest{
 				KeysignRequest: types.KeysignRequest{
-					PublicKey:        "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+					PublicKey:        "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
 					Messages:         []string{txHash}, //check how to correctly construct tx hash which depends on blockchain infos like nounce
 					SessionID:        uuid.New().String(),
 					HexEncryptionKey: "0123456789abcdef0123456789abcdef",
@@ -73,8 +73,8 @@ func CreateSigningRequest(policy types.PluginPolicy) ([]types.PluginKeysignReque
 		// Create signing request
 		signRequest := types.PluginKeysignRequest{
 			KeysignRequest: types.KeysignRequest{
-				PublicKey:        "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
-				Messages:         []string{txHash}, //check how to correctly construct tx hash which depends on blockchain infos like nounce
+				PublicKey:        "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623", //public key of the shared vault
+				Messages:         []string{txHash},                                                     //check how to correctly construct tx hash which depends on blockchain infos like nounce
 				SessionID:        uuid.New().String(),
 				HexEncryptionKey: "0123456789abcdef0123456789abcdef",
 				DerivePath:       "m/44/60/0/0/0",

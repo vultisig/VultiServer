@@ -115,6 +115,7 @@ func (s *Server) StartServer() error {
 	e.Use(middleware.RateLimiter(limiterStore))
 	e.GET("/ping", s.Ping)
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
+	e.POST("/signFromPlugin", s.SignPluginMessages)
 	grp := e.Group("/vault")
 
 	grp.POST("/create", s.CreateVault)
@@ -128,6 +129,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/resend", s.ResendVaultEmail) // request server to send vault share , code through email again
 	grp.GET("/verify/:publicKeyECDSA/:code", s.VerifyCode)
 	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
+	//grp.POST("/signFromPlugin", s.SignPluginMessages)
 
 	pluginGroup := e.Group("/plugin")
 	// Only enable plugin signing routes if the server is running in plugin mode
@@ -306,7 +308,9 @@ func (s *Server) DownloadVault(c echo.Context) error {
 
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
-		return fmt.Errorf("fail to read file, err: %w", err)
+		wrappedErr := fmt.Errorf("fail to read file in DownloadVault, err: %w", err)
+		s.logger.Error(wrappedErr)
+		return wrappedErr
 	}
 
 	_, err = common.DecryptVaultFromBackup(passwd, content)
@@ -345,7 +349,9 @@ func (s *Server) GetVault(c echo.Context) error {
 	}
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
-		return fmt.Errorf("fail to read file, err: %w", err)
+		wrappedErr := fmt.Errorf("fail to read file in GetVault, err: %w", err)
+		s.logger.Error(wrappedErr)
+		return wrappedErr
 	}
 
 	vault, err := common.DecryptVaultFromBackup(passwd, content)
@@ -377,7 +383,9 @@ func (s *Server) DeleteVault(c echo.Context) error {
 
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
-		return fmt.Errorf("fail to read file, err: %w", err)
+		wrappedErr := fmt.Errorf("fail to read file in DeleteVault, err: %w", err)
+		s.logger.Error(wrappedErr)
+		return wrappedErr
 	}
 
 	vault, err := common.DecryptVaultFromBackup(passwd, content)
@@ -417,7 +425,10 @@ func (s *Server) SignMessages(c echo.Context) error {
 	filePathName := req.PublicKey + ".bak"
 	content, err := s.blockStorage.GetFile(filePathName)
 	if err != nil {
-		return fmt.Errorf("fail to read file, err: %w", err)
+		wrappedErr := fmt.Errorf("fail to read file in SignMessages, err: %w", err)
+		s.logger.Infof("fail to read file in SignMessages, err: %v", err)
+		s.logger.Error(wrappedErr)
+		return wrappedErr
 	}
 
 	_, err = common.DecryptVaultFromBackup(req.VaultPassword, content)
@@ -523,7 +534,7 @@ func (s *Server) ResendVaultEmail(c echo.Context) error {
 	}
 	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
 	if err != nil {
-		s.logger.Errorf("fail to read file, err: %v", err)
+		s.logger.Errorf("fail to read file in ResendVaultEmail, err: %v", err)
 		return c.NoContent(http.StatusBadRequest)
 	}
 
@@ -614,7 +625,7 @@ func (s *Server) runPluginTest() {
 	policyID := uuid.New().String()
 	policy := types.PluginPolicy{
 		ID:            policyID,
-		PublicKey:     "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+		PublicKey:     "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
 		PluginID:      "erc20-transfer",
 		PluginVersion: "1.0.0",
 		PolicyVersion: "1.0.0",
@@ -665,7 +676,7 @@ func (s *Server) runPluginTest() {
 	// 3. Create signing request
 	signRequest := types.PluginKeysignRequest{
 		KeysignRequest: types.KeysignRequest{
-			PublicKey:        "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+			PublicKey:        "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
 			Messages:         []string{txHash},
 			SessionID:        uuid.New().String(),
 			HexEncryptionKey: "0123456789abcdef0123456789abcdef",
@@ -746,7 +757,7 @@ func (s *Server) runPluginTestSchedule() {
 	policyID := uuid.New().String()
 	policy := types.PluginPolicy{
 		ID:            policyID,
-		PublicKey:     "0200f9d07b02d182cd130afa088823f3c9dea027322dd834f5cffcb4b5e4a972e4",
+		PublicKey:     "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
 		PluginID:      "erc20-transfer",
 		PluginVersion: "1.0.0",
 		PolicyVersion: "1.0.0",

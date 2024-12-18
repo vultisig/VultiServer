@@ -373,6 +373,15 @@ func unpad(data []byte) ([]byte, error) {
 }
 
 func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.KeysignResponse, error) {
+
+	s.logger.WithFields(logrus.Fields{
+		"derivePath": req.DerivePath,
+		"isECDSA":    req.IsECDSA,
+		"messages":   req.Messages,
+		"publicKey":  req.PublicKey,
+		"session":    req.SessionID,
+	}).Debug("JoinKeySign params received")
+
 	result := map[string]tss.KeysignResponse{}
 	keyFolder := s.cfg.Server.VaultsFilePath
 	serverURL := s.cfg.Relay.Server

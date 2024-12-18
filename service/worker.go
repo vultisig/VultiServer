@@ -115,7 +115,9 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 }
 
 func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error {
+	s.logger.Info("Starting HandleKeySign")
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		s.logger.Error("Context cancelled")
 		return err
 	}
 	var p types.KeysignRequest

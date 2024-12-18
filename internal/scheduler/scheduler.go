@@ -46,13 +46,10 @@ func (s *SchedulerService) Stop() {
 
 func (s *SchedulerService) run() {
 	//ticker := time.NewTicker(1 * time.Minute)
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
-	s.logger.Info("Scheduler service RUN started")
-
 	for {
-		s.logger.Info("Scheduler service RUN loop started")
 		select {
 		case <-ticker.C:
 			s.logger.Info("Checking and enqueuing tasks")
@@ -73,6 +70,11 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 	s.logger.Info("Triggers: ", triggers)
 
 	for _, trigger := range triggers {
+		s.logger.WithFields(logrus.Fields{
+			"policy_id": trigger.PolicyID,
+			"cron_expr": trigger.CronExpression,
+			"last_exec": trigger.LastExecution,
+		}).Info("Processing trigger")
 		// Parse cron expression
 		schedule, err := cron.ParseStandard(trigger.CronExpression)
 		if err != nil {
@@ -88,10 +90,12 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 			nextTime = schedule.Next(time.Now().Add(-24 * time.Hour))
 		}
 
-		s.logger.Info("Before checking time: ", time.Now())
-		s.logger.Info("Next time: ", nextTime)
+		s.logger.WithFields(logrus.Fields{
+			"current_time": time.Now(),
+			"next_time":    nextTime,
+			"policy_id":    trigger.PolicyID,
+		}).Info("Checking execution time")
 		if time.Now().After(nextTime) {
-			s.logger.Info("Inside if statement")
 			// Get policy details
 			policy, err := s.db.GetPluginPolicy(trigger.PolicyID)
 			if err != nil {
@@ -99,12 +103,23 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 				continue
 			}
 
+			s.logger.WithFields(logrus.Fields{
+				"policy_id":   policy.ID,
+				"public_key":  policy.PublicKey,
+				"plugin_type": policy.PluginType,
+			}).Info("Retrieved policy for signing")
+
 			signRequest, err := request.CreateSigningRequest(policy)
 			if err != nil {
 				s.logger.Errorf("Failed to create signing request: %v", err)
 				continue
 			}
-			for _, signRequest := range signRequest {
+			for i, signRequest := range signRequest {
+				s.logger.WithFields(logrus.Fields{
+					"request_index": i,
+					"session_id":    signRequest.KeysignRequest.SessionID,
+					"public_key":    signRequest.KeysignRequest.PublicKey,
+				}).Info("Processing sign request")
 
 				signBytes, err := json.Marshal(signRequest)
 				if err != nil {
@@ -113,7 +128,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 				}
 
 				signResp, err := http.Post(
-					fmt.Sprintf("http://localhost:%d/plugin/sign", 8081),
+					fmt.Sprintf("http://localhost:%d/signFromPlugin", 8080),
 					"application/json",
 					bytes.NewBuffer(signBytes),
 				)
@@ -131,6 +146,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 				}
 
 				if signResp.StatusCode == http.StatusOK {
+					// Enqueue the same signing request locally
 					signRequest.KeysignRequest.StartSession = true
 					signRequest.KeysignRequest.Parties = []string{"1", "2"}
 					buf, err := json.Marshal(signRequest.KeysignRequest)

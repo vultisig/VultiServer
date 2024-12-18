@@ -142,3 +142,14 @@ if server return http status code 200, it means the code is valid , other status
 see config-example.yaml
 
 
+###configure postgre db : 
+
+```
+sudo -u postgres createdb vs-plugins-plugin
+sudo -u postgres createdb vs-plugins-vultiserver
+
+```
+```
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE \"vs-plugins-plugin\" TO \"Username\";"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE \"vs-plugins-vultiserver\" TO \"Username\";"
+```
