@@ -90,7 +90,7 @@ func (p *PostgresBackend) GetPendingTriggers() ([]TimeTrigger, error) {
         SELECT policy_id, cron_expression, start_time, end_time, frequency, last_execution 
         FROM time_triggers 
         WHERE start_time <= NOW() 
-        AND (end_time IS NULL OR end_time > NOW())`
+        AND (end_time IS NULL OR end_time > NOW())` //should we get them 1 min before? so that the tx is settled at the exact time
 
 	rows, err := p.pool.Query(context.Background(), query)
 	if err != nil {

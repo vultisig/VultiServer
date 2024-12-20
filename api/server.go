@@ -23,7 +23,6 @@ import (
 	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/common"
-	"github.com/vultisig/vultisigner/internal/request"
 	"github.com/vultisig/vultisigner/internal/scheduler"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
@@ -128,8 +127,7 @@ func (s *Server) StartServer() error {
 	grp.POST("/sign", s.SignMessages)       // Sign messages
 	grp.POST("/resend", s.ResendVaultEmail) // request server to send vault share , code through email again
 	grp.GET("/verify/:publicKeyECDSA/:code", s.VerifyCode)
-	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
-	//grp.POST("/signFromPlugin", s.SignPluginMessages)
+	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 
 	pluginGroup := e.Group("/plugin")
 	// Only enable plugin signing routes if the server is running in plugin mode
@@ -460,24 +458,15 @@ func (s *Server) GetKeysignResult(c echo.Context) error {
 	if taskID == "" {
 		return fmt.Errorf("task id is required")
 	}
-	task, err := s.inspector.GetTaskInfo(tasks.QUEUE_NAME, taskID)
+	result, err := tasks.GetTaskResult(s.inspector, taskID)
 	if err != nil {
-		return fmt.Errorf("fail to find task, err: %w", err)
+		if err.Error() == "task is still in progress" {
+			return c.JSON(http.StatusOK, "Task is still in progress")
+		}
+		return err
 	}
 
-	if task == nil {
-		return fmt.Errorf("task not found")
-	}
-
-	if task.State == asynq.TaskStatePending {
-		return c.JSON(http.StatusOK, "Task is still in progress")
-	}
-
-	if task.State == asynq.TaskStateCompleted {
-		return c.JSON(http.StatusOK, task.Result)
-	}
-
-	return fmt.Errorf("task state is invalid")
+	return c.JSON(http.StatusOK, result)
 }
 func (s *Server) isValidHash(hash string) bool {
 	if len(hash) != 66 {
@@ -612,138 +601,6 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func (s *Server) runPluginTest() {
-	if s.port == 8080 { //8080 is vultiserver, and vultiserver does not create plugins.
-		return
-	}
-	// Wait 5 seconds after startup
-	time.Sleep(5 * time.Second)
-
-	s.logger.Info("Starting plugin signing test")
-
-	// 1. Create test policy
-	policyID := uuid.New().String()
-	policy := types.PluginPolicy{
-		ID:            policyID,
-		PublicKey:     "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
-		PluginID:      "erc20-transfer",
-		PluginVersion: "1.0.0",
-		PolicyVersion: "1.0.0",
-		PluginType:    "payroll",
-		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
-		Policy: json.RawMessage(`{
-			"chain_id": "1",
-			"token_id": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-			"recipients": [{
-				"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-				"amount": "1000000"
-			}]
-		}`),
-	}
-
-	policyBytes, err := json.Marshal(policy)
-	if err != nil {
-		s.logger.Errorf("Failed to marshal policy: %v", err)
-		return
-	}
-
-	// Create policy
-	policyResp, err := http.Post(
-		fmt.Sprintf("http://localhost:%d/plugin/policy", 8080),
-		"application/json",
-		bytes.NewBuffer(policyBytes),
-	)
-	if err != nil {
-		s.logger.Errorf("Failed to create policy: %v", err)
-		return
-	}
-	defer policyResp.Body.Close()
-
-	if policyResp.StatusCode != http.StatusOK {
-		s.logger.Errorf("Failed to create policy, status: %d", policyResp.StatusCode)
-		return
-	}
-
-	//Introduce time trigger here
-
-	// 2. Create ERC20 transfer transaction
-	txHash, rawTx, err := request.GenerateTxHash("1000000", "0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "1", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
-	if err != nil {
-		s.logger.Errorf("Failed to generate transaction hash: %v", err)
-		return
-	}
-
-	// 3. Create signing request
-	signRequest := types.PluginKeysignRequest{
-		KeysignRequest: types.KeysignRequest{
-			PublicKey:        "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
-			Messages:         []string{txHash},
-			SessionID:        uuid.New().String(),
-			HexEncryptionKey: "0123456789abcdef0123456789abcdef",
-			DerivePath:       "m/44/60/0/0/0",
-			IsECDSA:          true,
-			VaultPassword:    "your-secure-password",
-		},
-		Transactions: []string{hex.EncodeToString(rawTx)},
-		PluginID:     "erc20-transfer",
-		PolicyID:     policyID,
-	}
-
-	signBytes, err := json.Marshal(signRequest)
-	if err != nil {
-		s.logger.Errorf("Failed to marshal sign request: %v", err)
-		return
-	}
-
-	// Make signing request
-	signResp, err := http.Post(
-		fmt.Sprintf("http://localhost:%d/plugin/sign", 8081),
-		"application/json",
-		bytes.NewBuffer(signBytes),
-	)
-	if err != nil {
-		s.logger.Errorf("Failed to make sign request: %v", err)
-		return
-	}
-	defer signResp.Body.Close()
-
-	// Read and log response
-	respBody, err := io.ReadAll(signResp.Body)
-	if err != nil {
-		s.logger.Errorf("Failed to read response: %v", err)
-		return
-	}
-
-	if signResp.StatusCode == http.StatusOK {
-		// Enqueue the same signing request locally
-		signRequest.KeysignRequest.StartSession = true
-		signRequest.KeysignRequest.Parties = []string{"1", "2"}
-		buf, err := json.Marshal(signRequest.KeysignRequest)
-		if err != nil {
-			s.logger.Errorf("Failed to marshal local sign request: %v", err)
-			return
-		}
-
-		ti, err := s.client.Enqueue(
-			asynq.NewTask(tasks.TypeKeySign, buf),
-			asynq.MaxRetry(-1),
-			asynq.Timeout(2*time.Minute),
-			asynq.Retention(5*time.Minute),
-			asynq.Queue(tasks.QUEUE_NAME))
-
-		if err != nil {
-			s.logger.Errorf("Failed to enqueue local task: %v", err)
-			return
-		}
-
-		s.logger.Infof("Local signing task enqueued with ID: %s", ti.ID)
-	}
-
-	s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
-		signResp.StatusCode, string(respBody))
-
-}
-
 func (s *Server) runPluginTestSchedule() {
 	if s.port == 8080 { //8080 is vultiserver, and vultiserver does not create plugins.
 		return
@@ -786,7 +643,7 @@ func (s *Server) runPluginTestSchedule() {
 			}],
 			"schedule": {
 				"frequency": "monthly",
-				"start_time": "` + time.Now(). /*.Add(7*24*time.Hour)*/ Format(time.RFC3339) + `"
+				"start_time": "` + time.Now().Add(20*time.Second).Format(time.RFC3339) + `"
 			}
 		}`),
 	}
@@ -831,33 +688,4 @@ func (s *Server) runPluginTestSchedule() {
 	}
 
 	s.logger.Info("Successfully created policy and scheduled trigger")
-
-	//Introduce time trigger here
-	//now, a policy was successfully created.
-	// The schedule has to be downloaded, and we have to query it to see what can be sent in queue
-
-	//another function :
-	//- see that the time is correct
-	//- generates tx hash
-	//- create signing request
-	//- waits for validation from vultiserver, and then enqueue task locally in reddis
-
 }
-
-/*
-scheduledTime := time.Now().Add(7 * 24 * time.Hour)
-
-payload := scheduler.ScheduledPluginSignPayload{
-	PolicyID:    policyID,
-	SignRequest: signRequest,
-	Schedule: scheduler.Schedule{
-		StartTime: scheduledTime,
-		Frequency: "once",
-	},
-}
-service := scheduler.NewService(s.client, s.logger)
-if err := service.SchedulePluginSign(payload); err != nil {
-	s.logger.Errorf("Failed to schedule plugin sign: %v", err)
-	return
-}
-*/

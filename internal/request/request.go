@@ -61,34 +61,6 @@ func CreateSigningRequest(policy types.PluginPolicy) ([]types.PluginKeysignReque
 		}
 
 		return signRequests, nil
-
-		/*amount := new(big.Int)
-		amount.SetString("1000000", 10) // 1 USDC
-		recipient := gcommon.HexToAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e")
-		txHash, rawTx, err := GenerateTxHash(amount, recipient)
-		if err != nil {
-			return types.PluginKeysignRequest{}, fmt.Errorf("failed to generate transaction hash: %v", err)
-		}
-
-		// Create signing request
-		signRequest := types.PluginKeysignRequest{
-			KeysignRequest: types.KeysignRequest{
-				PublicKey:        "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623", //public key of the shared vault
-				Messages:         []string{txHash},                                                     //check how to correctly construct tx hash which depends on blockchain infos like nounce
-				SessionID:        uuid.New().String(),
-				HexEncryptionKey: "0123456789abcdef0123456789abcdef",
-				DerivePath:       "m/44/60/0/0/0",
-				IsECDSA:          true,
-				VaultPassword:    "your-secure-password",
-			},
-			Transactions: []string{hex.EncodeToString(rawTx)},
-			PluginID:     policy.PluginID,
-			PolicyID:     policy.ID,
-		}
-
-		fmt.Println("signRequest", signRequest)
-
-		return signRequest, nil*/
 	}
 
 	return []types.PluginKeysignRequest{}, nil

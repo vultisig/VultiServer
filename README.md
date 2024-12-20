@@ -153,3 +153,28 @@ sudo -u postgres createdb vs-plugins-vultiserver
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE \"vs-plugins-plugin\" TO \"Username\";"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE \"vs-plugins-vultiserver\" TO \"Username\";"
 ```
+
+# Refresh db
+
+```
+sudo -u postgres psql
+```
+
+```
+# In psql:
+DROP DATABASE IF EXISTS "vs-plugins-vultiserver";
+DROP DATABASE IF EXISTS "vs-plugins-plugin";
+```
+
+# Verify they're deleted
+```
+\l
+```
+
+
+# Create them fresh
+```
+CREATE DATABASE "vs-plugins-vultiserver";
+CREATE DATABASE "vs-plugins-plugin";
+```
+
