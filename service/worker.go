@@ -357,7 +357,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		"plugin_type": policy.PluginType,
 	}).Info("Retrieved policy for signing")
 
-	signRequest, err := plugin.ProposeTransactions(policy)
+	signRequest, err := s.plugin.ProposeTransactions(policy)
 	if err != nil {
 		s.logger.Errorf("Failed to create signing request: %v", err)
 		return fmt.Errorf("Failed to create signing request: %v: %w", err, asynq.SkipRetry)

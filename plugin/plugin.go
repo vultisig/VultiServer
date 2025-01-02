@@ -14,4 +14,5 @@ type Plugin interface {
 	Frontend() embed.FS
 
 	ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error)
+	ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error
 }

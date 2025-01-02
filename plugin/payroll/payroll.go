@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	gcommon "github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/vultisig/vultisigner/internal/types"
@@ -91,8 +92,9 @@ func (p *PayrollPlugin) ConfigurePlugin(e echo.Context) error {
 
 func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error) {
 	var txs []types.PluginKeysignRequest
-	if policy.PluginType != PLUGIN_TYPE {
-		return txs, fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", PLUGIN_TYPE, policy.PluginType)
+	err := p.ValidatePluginPolicy(policy)
+	if err != nil {
+		return txs, fmt.Errorf("failed to validate plugin policy: %v", err)
 	}
 
 	var payrollPolicy types.PayrollPolicy
@@ -125,6 +127,77 @@ func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.
 	}
 
 	return txs, nil
+}
+
+func (p *PayrollPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
+	err := p.ValidatePluginPolicy(policy)
+	if err != nil {
+		return fmt.Errorf("failed to validate plugin policy: %v", err)
+	}
+
+	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
+	if err != nil {
+		return fmt.Errorf("failed to parse ABI: %v", err)
+	}
+
+	var payrollPolicy types.PayrollPolicy
+	if err := json.Unmarshal(policy.Policy, &payrollPolicy); err != nil {
+		return fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
+	}
+
+	for _, tx := range txs {
+		var parsedTx *gtypes.Transaction
+		txBytes, err := hex.DecodeString(tx.Transactions[0])
+		if err != nil {
+			return fmt.Errorf("failed to decode transaction: %v", err)
+		}
+
+		err = rlp.DecodeBytes(txBytes, &parsedTx)
+		if err != nil {
+			return fmt.Errorf("failed to parse transaction: %v", err)
+		}
+
+		txDestination := parsedTx.To()
+		if txDestination == nil {
+			return fmt.Errorf("transaction destination is nil")
+		}
+
+		if strings.ToLower(txDestination.Hex()) != strings.ToLower(payrollPolicy.TokenID) {
+			return fmt.Errorf("transaction destination does not match token ID")
+		}
+
+		txData := parsedTx.Data()
+		m, err := parsedABI.MethodById(txData[:4])
+		if err != nil {
+			return fmt.Errorf("failed to get method by ID: %v", err)
+		}
+
+		v := make(map[string]interface{})
+		if err := m.Inputs.UnpackIntoMap(v, txData[4:]); err != nil {
+			return fmt.Errorf("failed to unpack transaction data: %v", err)
+		}
+
+		fmt.Printf("Decoded: %+v\n", v)
+
+		recipientAddress, ok := v["recipient"].(gcommon.Address)
+		if !ok {
+			return fmt.Errorf("failed to get recipient address")
+		}
+
+		var recipientFound bool
+		for _, recipient := range payrollPolicy.Recipients {
+			if strings.EqualFold(recipientAddress.Hex(), recipient.Address) {
+				recipientFound = true
+				break
+			}
+		}
+
+		if !recipientFound {
+			return fmt.Errorf("recipient not found in policy")
+		}
+	}
+
+	return nil
 }
 
 func (p *PayrollPlugin) generatePayrollTransaction(amountString string, recipientString string, chainID string, tokenID string) (string, []byte, error) {
