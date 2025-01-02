@@ -56,6 +56,7 @@ func main() {
 	mux.HandleFunc(tasks.TypeKeySign, workerService.HandleKeySign)
 	mux.HandleFunc(tasks.TypeEmailVaultBackup, workerService.HandleEmailVaultBackup)
 	mux.HandleFunc(tasks.TypeReshare, workerService.HandleReshare)
+	mux.HandleFunc(tasks.TypePluginTransaction, workerService.HandlePluginTransaction)
 
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))

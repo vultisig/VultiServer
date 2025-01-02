@@ -2,6 +2,10 @@ package types
 
 import "encoding/json"
 
+type PluginTriggerEvent struct {
+	PolicyID string `json:"policy_id"`
+}
+
 type PluginPolicy struct {
 	ID            string          `json:"id" validate:"required"`
 	PublicKey     string          `json:"public_key" validate:"required"`

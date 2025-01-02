@@ -324,3 +324,22 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 
 	return nil
 }
+
+func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+
+	var triggerEvent types.PluginTriggerEvent
+	if err := json.Unmarshal(t.Payload(), &triggerEvent); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	defer s.measureTime("worker.plugin.transaction.latency", time.Now(), []string{})
+	s.incCounter("worker.plugin.transaction", []string{})
+	s.logger.WithFields(logrus.Fields{
+		"policy_id": triggerEvent.PolicyID,
+	}).Info("plugin transaction request")
+
+}
