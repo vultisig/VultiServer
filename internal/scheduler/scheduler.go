@@ -74,6 +74,10 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 	s.logger.Info("Triggers: ", triggers)
 
 	for _, trigger := range triggers {
+		s.logger.WithFields(logrus.Fields{
+			"policy_id": trigger.PolicyID,
+			"last_exec": trigger.LastExecution,
+		}).Info("Processing trigger")
 		// Parse cron expression
 		schedule, err := cron.ParseStandard(trigger.CronExpression)
 		if err != nil {
@@ -89,13 +93,15 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 			nextTime = schedule.Next(time.Now().Add(-24 * time.Hour))
 		}
 
+		nextTime = nextTime.UTC()
+
 		s.logger.WithFields(logrus.Fields{
-			"current_time": time.Now(),
+			"current_time": time.Now().UTC(),
 			"next_time":    nextTime,
 			"policy_id":    trigger.PolicyID,
 			"last_exec":    trigger.LastExecution,
 		}).Info("Checking execution time")
-		if time.Now().After(nextTime) {
+		if time.Now().UTC().After(nextTime) {
 			triggerEvent := types.PluginTriggerEvent{
 				PolicyID: trigger.PolicyID,
 			}
@@ -163,6 +169,8 @@ func (s *SchedulerService) CreateTimeTrigger(policy types.PluginPolicy) error {
 
 func frequencyToCron(frequency string, startTime time.Time) string {
 	switch frequency {
+	case "5-minutely":
+		return "*/5 * * * *"
 	case "hourly":
 		return fmt.Sprintf("%d * * * *", startTime.Minute())
 	case "daily":

@@ -642,8 +642,8 @@ func (s *Server) runPluginTestSchedule() {
 				"amount": "1000000"
 			}],
 			"schedule": {
-				"frequency": "monthly",
-				"start_time": "` + time.Now().Add(20*time.Second).Format(time.RFC3339) + `"
+				"frequency": "5-minutely",
+				"start_time": "` + time.Now().UTC().Add(20*time.Second).Format(time.RFC3339) + `"
 			}
 		}`),
 	}
