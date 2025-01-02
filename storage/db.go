@@ -6,4 +6,5 @@ type DatabaseStorage interface {
 	Close() error
 
 	InsertPluginPolicy(policyDoc types.PluginPolicy) error
+	CreateTimeTrigger(trigger types.TimeTrigger) error
 }

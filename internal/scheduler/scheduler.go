@@ -14,18 +14,18 @@ import (
 	"github.com/vultisig/vultisigner/internal/request"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
-	"github.com/vultisig/vultisigner/storage/postgres"
+	"github.com/vultisig/vultisigner/storage"
 )
 
 type SchedulerService struct {
-	db        *postgres.PostgresBackend
+	db        storage.DatabaseStorage
 	logger    *logrus.Logger
 	client    *asynq.Client
 	inspector *asynq.Inspector
 	done      chan struct{}
 }
 
-func NewSchedulerService(db *postgres.PostgresBackend, logger *logrus.Logger, client *asynq.Client) *SchedulerService {
+func NewSchedulerService(db storage.DatabaseStorage, logger *logrus.Logger, client *asynq.Client) *SchedulerService {
 	if db == nil {
 		logger.Fatal("database connection is nil")
 	}
@@ -225,7 +225,7 @@ func (s *SchedulerService) CreateTimeTrigger(policy types.PluginPolicy) error {
 
 	cronExpr := frequencyToCron(policySchedule.Schedule.Frequency, policySchedule.Schedule.StartTime)
 
-	trigger := postgres.TimeTrigger{
+	trigger := types.TimeTrigger{
 		PolicyID:       policy.ID,
 		CronExpression: cronExpr,
 		StartTime:      policySchedule.Schedule.StartTime,

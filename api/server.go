@@ -43,7 +43,7 @@ type Server struct {
 	blockStorage  *storage.BlockStorage
 	mode          string
 	plugin        plugin.Plugin
-	db            *postgres.PostgresBackend
+	db            storage.DatabaseStorage
 	scheduler     *scheduler.SchedulerService
 }
 

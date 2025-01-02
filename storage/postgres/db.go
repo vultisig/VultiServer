@@ -5,7 +5,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -60,7 +59,7 @@ func (d *PostgresBackend) Migrate() error {
 	return nil
 }
 
-func (p *PostgresBackend) CreateTimeTrigger(trigger TimeTrigger) error {
+func (p *PostgresBackend) CreateTimeTrigger(trigger types.TimeTrigger) error {
 	logrus.Info("Creating time trigger in database")
 	if p.pool == nil {
 		return fmt.Errorf("database pool is nil")
@@ -81,7 +80,7 @@ func (p *PostgresBackend) CreateTimeTrigger(trigger TimeTrigger) error {
 	return err
 }
 
-func (p *PostgresBackend) GetPendingTriggers() ([]TimeTrigger, error) {
+func (p *PostgresBackend) GetPendingTriggers() ([]types.TimeTrigger, error) {
 	if p.pool == nil {
 		return nil, fmt.Errorf("database pool is nil")
 	}
@@ -98,9 +97,9 @@ func (p *PostgresBackend) GetPendingTriggers() ([]TimeTrigger, error) {
 	}
 	defer rows.Close()
 
-	var triggers []TimeTrigger
+	var triggers []types.TimeTrigger
 	for rows.Next() {
-		var t TimeTrigger
+		var t types.TimeTrigger
 		err := rows.Scan(
 			&t.PolicyID,
 			&t.CronExpression,
@@ -129,15 +128,6 @@ func (p *PostgresBackend) UpdateTriggerExecution(policyID string) error {
 
 	_, err := p.pool.Exec(context.Background(), query, policyID)
 	return err
-}
-
-type TimeTrigger struct {
-	PolicyID       string
-	CronExpression string
-	StartTime      time.Time
-	EndTime        *time.Time
-	Frequency      string
-	LastExecution  *time.Time
 }
 
 func (p *PostgresBackend) GetPluginPolicy(id string) (types.PluginPolicy, error) {
