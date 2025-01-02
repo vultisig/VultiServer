@@ -18,8 +18,11 @@ import (
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
+	"github.com/vultisig/vultisigner/storage/postgres"
 )
 
 type WorkerService struct {
@@ -29,6 +32,7 @@ type WorkerService struct {
 	queueClient  *asynq.Client
 	sdClient     *statsd.Client
 	blockStorage *storage.BlockStorage
+	plugin       plugin.Plugin
 }
 
 // NewWorker creates a new worker service
@@ -38,6 +42,21 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
 	}
 
+	var plugin plugin.Plugin
+	if cfg.Server.Mode == "pluginserver" {
+		db, err := postgres.NewPostgresBackend(false, cfg.Database.DSN)
+		if err != nil {
+			logrus.Fatalf("Failed to connect to database: %v", err)
+		}
+
+		switch cfg.Plugin.Type {
+		case "payroll":
+			plugin = payroll.NewPayrollPlugin(db)
+		default:
+			logrus.Fatalf("Invalid plugin type: %s", cfg.Plugin.Type)
+		}
+	}
+
 	return &WorkerService{
 		redis:        redis,
 		cfg:          cfg,
@@ -45,6 +64,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		queueClient:  queueClient,
 		sdClient:     sdClient,
 		blockStorage: blockStorage,
+		plugin:       plugin,
 	}, nil
 }
 
