@@ -55,6 +55,10 @@ func GetConfigure() (*Config, error) {
 		configName = "config"
 	}
 
+	return ReadConfig(configName)
+}
+
+func ReadConfig(configName string) (*Config, error) {
 	viper.SetConfigName(configName)
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()

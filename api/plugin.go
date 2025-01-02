@@ -141,18 +141,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
 
-	// Original policy storage logic (to be deleted when the new on works)
-	/*policyPath := fmt.Sprintf("policies/%s.json", policy.ID)
-	content, err := json.Marshal(policy)
-	if err != nil {
-		return fmt.Errorf("fail to marshal policy, err: %w", err)
-	}
-
-	if err := s.blockStorage.UploadFile(content, policyPath); err != nil {
-		return fmt.Errorf("fail to upload file, err: %w", err)
-	}*/
-
-	//new policy+trigger storage logic
 	if err := s.db.InsertPluginPolicy(policy); err != nil {
 		return fmt.Errorf("failed to insert policy: %w", err)
 	}
