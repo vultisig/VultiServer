@@ -17,7 +17,6 @@ import (
 
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
-	"github.com/vultisig/vultisigner/internal/request"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
@@ -358,7 +357,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		"plugin_type": policy.PluginType,
 	}).Info("Retrieved policy for signing")
 
-	signRequest, err := request.CreateSigningRequest(policy)
+	signRequest, err := plugin.ProposeTransactions(policy)
 	if err != nil {
 		s.logger.Errorf("Failed to create signing request: %v", err)
 		return fmt.Errorf("Failed to create signing request: %v: %w", err, asynq.SkipRetry)

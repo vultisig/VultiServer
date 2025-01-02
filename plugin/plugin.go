@@ -12,4 +12,6 @@ type Plugin interface {
 	ValidatePluginPolicy(policyDoc types.PluginPolicy) error
 	ConfigurePlugin(c echo.Context) error
 	Frontend() embed.FS
+
+	ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error)
 }
