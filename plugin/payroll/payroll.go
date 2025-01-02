@@ -101,7 +101,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.
 	}
 
 	for _, recipient := range payrollPolicy.Recipients {
-		txHash, rawTx, err := p.GeneratePayrollTransaction(recipient.Amount, recipient.Address, payrollPolicy.ChainID, payrollPolicy.TokenID)
+		txHash, rawTx, err := p.generatePayrollTransaction(recipient.Amount, recipient.Address, payrollPolicy.ChainID, payrollPolicy.TokenID)
 		if err != nil {
 			return []types.PluginKeysignRequest{}, fmt.Errorf("failed to generate transaction hash: %v", err)
 		}
@@ -127,7 +127,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.
 	return txs, nil
 }
 
-func (p *PayrollPlugin) GeneratePayrollTransaction(amountString string, recipientString string, chainID string, tokenID string) (string, []byte, error) {
+func (p *PayrollPlugin) generatePayrollTransaction(amountString string, recipientString string, chainID string, tokenID string) (string, []byte, error) {
 	amount := new(big.Int)
 	amount.SetString(amountString, 10)
 	recipient := gcommon.HexToAddress(recipientString)
