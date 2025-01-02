@@ -46,6 +46,42 @@ func (p *PayrollPlugin) SignPluginMessages(e echo.Context) error {
 }
 
 func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
+	if policyDoc.PluginType != PLUGIN_TYPE {
+		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", PLUGIN_TYPE, policyDoc.PluginType)
+	}
+
+	var payrollPolicy types.PayrollPolicy
+	if err := json.Unmarshal(policyDoc.Policy, &payrollPolicy); err != nil {
+		return fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
+	}
+
+	if len(payrollPolicy.Recipients) == 0 {
+		return fmt.Errorf("no recipients found in payroll policy")
+	}
+
+	for _, recipient := range payrollPolicy.Recipients {
+		mixedCaseAddress, err := gcommon.NewMixedcaseAddressFromString(recipient.Address)
+		if err != nil {
+			return fmt.Errorf("invalid recipient address: %s", recipient.Address)
+		}
+
+		// if the address is not all lowercase, check the checksum
+		if strings.ToLower(recipient.Address) != recipient.Address {
+			if !mixedCaseAddress.ValidChecksum() {
+				return fmt.Errorf("invalid recipient address checksum: %s", recipient.Address)
+			}
+		}
+
+		if recipient.Amount == "" {
+			return fmt.Errorf("amount is required for recipient %s", recipient.Address)
+		}
+
+		_, ok := new(big.Int).SetString(recipient.Amount, 10)
+		if !ok {
+			return fmt.Errorf("invalid amount for recipient %s: %s", recipient.Address, recipient.Amount)
+		}
+	}
+
 	return nil
 }
 

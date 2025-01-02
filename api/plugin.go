@@ -19,6 +19,8 @@ import (
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/payroll"
 )
 
 // ERC20 transfer method ABI
@@ -139,6 +141,25 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
+	// We re-init plugin as verification server doesn't have plugin defined
+	var plugin plugin.Plugin
+	switch policy.PluginType {
+	case "payroll":
+		plugin = payroll.NewPayrollPlugin(s.db)
+	}
+
+	if plugin == nil {
+		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	if err := plugin.ValidatePluginPolicy(policy); err != nil {
+		err = fmt.Errorf("failed to validate policy: %w", err)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
 	}
 
 	if err := s.db.InsertPluginPolicy(policy); err != nil {
