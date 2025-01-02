@@ -1,17 +1,13 @@
 package scheduler
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/vultisig/vultisigner/internal/request"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
@@ -54,7 +50,6 @@ func (s *SchedulerService) Stop() {
 }
 
 func (s *SchedulerService) run() {
-	//ticker := time.NewTicker(1 * time.Minute)
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -101,101 +96,26 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 			"last_exec":    trigger.LastExecution,
 		}).Info("Checking execution time")
 		if time.Now().After(nextTime) {
-			// Get policy details
-			policy, err := s.db.GetPluginPolicy(trigger.PolicyID)
+			triggerEvent := types.PluginTriggerEvent{
+				PolicyID: trigger.PolicyID,
+			}
+
+			buf, err := json.Marshal(triggerEvent)
 			if err != nil {
-				s.logger.Errorf("Failed to get policy: %v", err)
+				s.logger.Errorf("Failed to marshal trigger event: %v", err)
 				continue
 			}
-
-			s.logger.WithFields(logrus.Fields{
-				"policy_id":   policy.ID,
-				"public_key":  policy.PublicKey,
-				"plugin_type": policy.PluginType,
-			}).Info("Retrieved policy for signing")
-
-			signRequest, err := request.CreateSigningRequest(policy)
+			ti, err := s.client.Enqueue(
+				asynq.NewTask(tasks.TypePluginTransaction, buf),
+				asynq.MaxRetry(-1),
+				asynq.Timeout(5*time.Minute),
+				asynq.Retention(10*time.Minute),
+				asynq.Queue(tasks.QUEUE_NAME),
+			)
 			if err != nil {
-				s.logger.Errorf("Failed to create signing request: %v", err)
+				s.logger.Errorf("Failed to enqueue trigger task: %v", err)
 				continue
 			}
-			for _, signRequest := range signRequest {
-
-				signBytes, err := json.Marshal(signRequest)
-				if err != nil {
-					s.logger.Errorf("Failed to marshal sign request: %v", err)
-					continue
-				}
-
-				signResp, err := http.Post(
-					fmt.Sprintf("http://localhost:%d/signFromPlugin", 8080),
-					"application/json",
-					bytes.NewBuffer(signBytes),
-				)
-				if err != nil {
-					s.logger.Errorf("Failed to make sign request: %v", err)
-					return err
-				}
-				defer signResp.Body.Close()
-
-				// Read and log response
-				respBody, err := io.ReadAll(signResp.Body)
-				if err != nil {
-					s.logger.Errorf("Failed to read response: %v", err)
-					return err
-				}
-
-				if signResp.StatusCode == http.StatusOK {
-					// Enqueue the same signing request locally
-					signRequest.KeysignRequest.StartSession = true
-					signRequest.KeysignRequest.Parties = []string{"1", "2"}
-					buf, err := json.Marshal(signRequest.KeysignRequest)
-					if err != nil {
-						s.logger.Errorf("Failed to marshal local sign request: %v", err)
-						return err
-					}
-
-					// Enqueue TypeKeySign directly
-					ti, err := s.client.Enqueue(
-						asynq.NewTask(tasks.TypeKeySign, buf),
-						asynq.MaxRetry(-1),
-						asynq.Timeout(2*time.Minute),
-						asynq.Retention(5*time.Minute),
-						asynq.Queue(tasks.QUEUE_NAME),
-					)
-					if err != nil {
-						s.logger.Errorf("Failed to enqueue signing task: %v", err)
-						continue
-					}
-
-					// wait for result with timeout
-					result, err := s.waitForTaskResult(ti.ID, 120*time.Second) // adjust timeout as needed
-					if err != nil {                                            //do we consider that the signature is always valid if err = nil?
-						s.logger.Errorf("Failed to get task result: %v", err)
-						return err
-					}
-					//do we store the result in db? or boradcast it directly?
-
-					s.logger.WithFields(logrus.Fields{
-						"task_id": ti.ID,
-						"result":  string(result),
-					}).Info("Successfully retrieved task result")
-
-					/*if result.isValid      {
-
-					}*/
-					if err := s.db.UpdateTriggerExecution(trigger.PolicyID); err != nil {
-						s.logger.Errorf("Failed to update last execution: %v", err)
-					}
-					s.logger.Infof("Local signing task enqueued with ID: %s", ti.ID)
-				}
-				s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
-					signResp.StatusCode, string(respBody))
-			}
-
-			//only when valid signture is stored, update last execution in trigger.
-			//then, other part will be responsible for broadcasting the signature to the network. and retry if needed
-
 		}
 	}
 

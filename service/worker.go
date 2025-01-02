@@ -17,6 +17,8 @@ import (
 
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
+	"github.com/vultisig/vultisigner/internal/request"
+	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
 	"github.com/vultisig/vultisigner/plugin/payroll"
@@ -33,6 +35,7 @@ type WorkerService struct {
 	sdClient     *statsd.Client
 	blockStorage *storage.BlockStorage
 	plugin       plugin.Plugin
+	db           storage.DatabaseStorage
 }
 
 // NewWorker creates a new worker service
@@ -42,13 +45,13 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
 	}
 
+	db, err := postgres.NewPostgresBackend(false, cfg.Database.DSN)
+	if err != nil {
+		logrus.Fatalf("Failed to connect to database: %v", err)
+	}
+
 	var plugin plugin.Plugin
 	if cfg.Server.Mode == "pluginserver" {
-		db, err := postgres.NewPostgresBackend(false, cfg.Database.DSN)
-		if err != nil {
-			logrus.Fatalf("Failed to connect to database: %v", err)
-		}
-
 		switch cfg.Plugin.Type {
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
@@ -65,6 +68,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		sdClient:     sdClient,
 		blockStorage: blockStorage,
 		plugin:       plugin,
+		db:           db,
 	}, nil
 }
 
@@ -342,4 +346,81 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		"policy_id": triggerEvent.PolicyID,
 	}).Info("plugin transaction request")
 
+	policy, err := s.db.GetPluginPolicy(triggerEvent.PolicyID)
+	if err != nil {
+		s.logger.Errorf("db.GetPluginPolicy failed: %v", err)
+		return fmt.Errorf("db.GetPluginPolicy failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"policy_id":   policy.ID,
+		"public_key":  policy.PublicKey,
+		"plugin_type": policy.PluginType,
+	}).Info("Retrieved policy for signing")
+
+	signRequest, err := request.CreateSigningRequest(policy)
+	if err != nil {
+		s.logger.Errorf("Failed to create signing request: %v", err)
+		return fmt.Errorf("Failed to create signing request: %v: %w", err, asynq.SkipRetry)
+	}
+
+	for _, signRequest := range signRequest {
+		signBytes, err := json.Marshal(signRequest)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal sign request: %v", err)
+			continue
+		}
+
+		signResp, err := http.Post(
+			fmt.Sprintf("http://localhost:%d/signFromPlugin", 8080),
+			"application/json",
+			bytes.NewBuffer(signBytes),
+		)
+		if err != nil {
+			s.logger.Errorf("Failed to make sign request: %v", err)
+			return err
+		}
+		defer signResp.Body.Close()
+
+		respBody, err := io.ReadAll(signResp.Body)
+		if err != nil {
+			s.logger.Errorf("Failed to read response: %v", err)
+			return err
+		}
+
+		if signResp.StatusCode == http.StatusOK {
+			// Enqueue the same signing request locally
+			signRequest.KeysignRequest.StartSession = true
+			signRequest.KeysignRequest.Parties = []string{"1", "2"}
+			buf, err := json.Marshal(signRequest.KeysignRequest)
+			if err != nil {
+				s.logger.Errorf("Failed to marshal local sign request: %v", err)
+				return err
+			}
+
+			// Enqueue TypeKeySign directly
+			ti, err := s.queueClient.Enqueue(
+				asynq.NewTask(tasks.TypeKeySign, buf),
+				asynq.MaxRetry(-1),
+				asynq.Timeout(2*time.Minute),
+				asynq.Retention(5*time.Minute),
+				asynq.Queue(tasks.QUEUE_NAME),
+			)
+			if err != nil {
+				s.logger.Errorf("Failed to enqueue signing task: %v", err)
+				continue
+			}
+
+			s.logger.Infof("Enqueued signing task: %s", ti.ID)
+
+			if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
+				s.logger.Errorf("Failed to update last execution: %v", err)
+			}
+		}
+
+		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
+			signResp.StatusCode, string(respBody))
+	}
+
+	return nil
 }
