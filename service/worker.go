@@ -415,6 +415,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
 				s.logger.Errorf("Failed to update last execution: %v", err)
 			}
+			//update here tx history
 		}
 
 		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",

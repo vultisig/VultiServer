@@ -1,6 +1,9 @@
 package storage
 
-import "github.com/vultisig/vultisigner/internal/types"
+import (
+	"github.com/google/uuid"
+	"github.com/vultisig/vultisigner/internal/types"
+)
 
 type DatabaseStorage interface {
 	Close() error
@@ -11,4 +14,8 @@ type DatabaseStorage interface {
 	CreateTimeTrigger(trigger types.TimeTrigger) error
 	GetPendingTriggers() ([]types.TimeTrigger, error)
 	UpdateTriggerExecution(policyID string) error
+
+	CreateTransactionHistory(tx types.TransactionHistory) error
+	UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
+	GetTransactionHistory(policyID uuid.UUID) ([]types.TransactionHistory, error)
 }

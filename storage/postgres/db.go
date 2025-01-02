@@ -5,10 +5,12 @@ import (
 	"embed"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
+	"github.com/vultisig/vultisigner/internal/types"
 )
 
 //go:embed migrations/*
@@ -55,4 +57,68 @@ func (d *PostgresBackend) Migrate() error {
 	}
 	logrus.Info("Database migration completed successfully")
 	return nil
+}
+
+func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) error {
+	query := `
+        INSERT INTO transaction_history (
+            policy_id, tx_body, status, metadata
+        ) VALUES ($1, $2, $3, $4)
+    `
+
+	_, err := p.pool.Exec(context.Background(), query,
+		tx.PolicyID,
+		tx.TxBody,
+		tx.Status,
+		tx.Metadata,
+	)
+
+	return err
+}
+
+func (p *PostgresBackend) UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error {
+	query := `
+        UPDATE transaction_history 
+        SET status = $1, metadata = metadata || $2::jsonb, updated_at = NOW()
+        WHERE id = $3
+    `
+
+	_, err := p.pool.Exec(context.Background(), query, status, metadata, txID)
+	return err
+}
+
+func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID) ([]types.TransactionHistory, error) {
+	query := `
+        SELECT id, policy_id, tx_body, status, created_at, updated_at, metadata, error_message
+        FROM transaction_history
+        WHERE policy_id = $1
+        ORDER BY created_at DESC
+    `
+
+	rows, err := p.pool.Query(context.Background(), query, policyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var history []types.TransactionHistory
+	for rows.Next() {
+		var tx types.TransactionHistory
+		err := rows.Scan(
+			&tx.ID,
+			&tx.PolicyID,
+			&tx.TxBody,
+			&tx.Status,
+			&tx.CreatedAt,
+			&tx.UpdatedAt,
+			&tx.Metadata,
+			&tx.ErrorMessage,
+		)
+		if err != nil {
+			return nil, err
+		}
+		history = append(history, tx)
+	}
+
+	return history, nil
 }
