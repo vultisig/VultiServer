@@ -116,6 +116,11 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 				s.logger.Errorf("Failed to enqueue trigger task: %v", err)
 				continue
 			}
+
+			s.logger.WithFields(logrus.Fields{
+				"task_id":   ti.ID,
+				"policy_id": trigger.PolicyID,
+			}).Info("Enqueued trigger task")
 		}
 	}
 
