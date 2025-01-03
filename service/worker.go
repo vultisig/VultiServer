@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
@@ -357,13 +358,13 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		"plugin_type": policy.PluginType,
 	}).Info("Retrieved policy for signing")
 
-	signRequest, err := s.plugin.ProposeTransactions(policy)
+	signRequests, err := s.plugin.ProposeTransactions(policy)
 	if err != nil {
 		s.logger.Errorf("Failed to create signing request: %v", err)
-		return fmt.Errorf("Failed to create signing request: %v: %w", err, asynq.SkipRetry)
+		return fmt.Errorf("failed to create signing request: %v: %w", err, asynq.SkipRetry)
 	}
 
-	for _, signRequest := range signRequest {
+	for _, signRequest := range signRequests {
 		signBytes, err := json.Marshal(signRequest)
 		if err != nil {
 			s.logger.Errorf("Failed to marshal sign request: %v", err)
@@ -415,7 +416,38 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
 				s.logger.Errorf("Failed to update last execution: %v", err)
 			}
+
 			//update here tx history
+			policyUUID, err := uuid.Parse(signRequest.PolicyID)
+			if err != nil {
+				s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
+				return err
+			}
+
+			metadata := map[string]interface{}{
+				"task_id":    ti.ID,
+				"timestamp":  time.Now(),
+				"plugin_id":  signRequest.PluginID,
+				"public_key": signRequest.KeysignRequest.PublicKey,
+			}
+
+			// Create a new transaction history for each transaction
+			for _, txBody := range signRequest.Transactions {
+				// Each transaction should be a new entry
+				newTx := types.TransactionHistory{
+					PolicyID: policyUUID,
+					TxBody:   txBody,
+					Status:   types.StatusSigned,
+					Metadata: metadata,
+				}
+
+				if err := s.db.CreateTransactionHistory(newTx); err != nil {
+					s.logger.Errorf("Failed to create transaction history: %v", err)
+					continue
+				}
+
+				s.logger.Infof("Created transaction history for tx: %s", txBody[:20]) // Log first 20 chars of tx
+			}
 		}
 
 		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",

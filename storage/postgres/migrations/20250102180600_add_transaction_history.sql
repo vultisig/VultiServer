@@ -11,15 +11,12 @@ CREATE TABLE transaction_history (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     metadata JSONB,
     error_message TEXT,
-    
-    -- Add indexes for common queries
     CONSTRAINT fk_policy FOREIGN KEY (policy_id) REFERENCES plugin_policies(id)
 );
 
--- Index for faster lookups
 CREATE INDEX idx_transaction_history_policy_id ON transaction_history(policy_id);
 CREATE INDEX idx_transaction_history_status ON transaction_history(status);
--- +goose StatementBegin
+-- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin

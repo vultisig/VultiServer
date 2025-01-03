@@ -8,6 +8,7 @@ import (
 	"time"
 
 	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/vultisig/vultisigner/common"
@@ -121,6 +122,36 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
+
+	// add transaction history
+	policyUUID, err := uuid.Parse(req.PolicyID)
+	if err != nil {
+		s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
+		return fmt.Errorf("invalid policy ID format: %w", err)
+	}
+
+	metadata := map[string]interface{}{
+		"task_id":    ti.ID,
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"plugin_id":  req.PluginID,
+		"public_key": req.PublicKey,
+	}
+
+	newTx := types.TransactionHistory{
+		PolicyID: policyUUID,
+		TxBody:   req.Transactions[0], // we know there's exactly one transaction due to validation
+		Status:   types.StatusSigned,
+		Metadata: metadata,
+	}
+
+	if err := s.db.CreateTransactionHistory(newTx); err != nil {
+		s.logger.Errorf("Failed to create transaction history: %v", err)
+		// don't return error, continue with process
+	}
+
+	s.logger.Infof("Created transaction history for tx from plugin: %s...",
+		req.Transactions[0][:min(20, len(req.Transactions[0]))],
+	)
 
 	return c.JSON(http.StatusOK, ti.ID)
 }

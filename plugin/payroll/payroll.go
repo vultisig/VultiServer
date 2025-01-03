@@ -119,7 +119,7 @@ func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.
 				IsECDSA:          true,
 				VaultPassword:    "your-secure-password",
 			},
-			Transactions: []string{hex.EncodeToString(rawTx)},
+			Transactions: []string{hex.EncodeToString(rawTx)}, //todo : should we add multiple tx here?
 			PluginID:     policy.PluginID,
 			PolicyID:     policy.ID,
 		}
