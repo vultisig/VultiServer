@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/hex"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -146,9 +144,6 @@ func (s *Server) StartServer() error {
 	}
 	// policy mode is always available since it is used by both vultiserver and pluginserver
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
-
-	//go s.runPluginTest()
-	go s.runPluginTestSchedule()
 
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
@@ -599,93 +594,4 @@ func (s *Server) VerifyCode(c echo.Context) error {
 		s.logger.Errorf("fail to delete code, err: %v", err)
 	}
 	return c.NoContent(http.StatusOK)
-}
-
-func (s *Server) runPluginTestSchedule() {
-	if s.port == 8080 { //8080 is vultiserver, and vultiserver does not create plugins.
-		return
-	}
-	// Wait 5 seconds after startup
-	time.Sleep(5 * time.Second)
-
-	s.logger.Info("Starting plugin signing test")
-
-	// 1. Create test policy
-	policyID := uuid.New().String()
-	policy := types.PluginPolicy{
-		ID:            policyID,
-		PublicKey:     "02058220c4614eb1e93fc22ec50d039c41e0087a5030aa06120976ff1eb06c1623",
-		PluginID:      "erc20-transfer",
-		PluginVersion: "1.0.0",
-		PolicyVersion: "1.0.0",
-		PluginType:    "payroll",
-		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
-		/*Policy: types.PayrollPolicy{
-			ChainID: "1",
-			TokenID: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-			Recipients: []types.PayrollRecipient{
-				{
-					Address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-					Amount:  "1000000",
-				},
-			},
-			Schedule: types.Schedule{
-				Frequency: "weekly",
-				StartTime: time.Now().Add(7 * 24 * time.Hour).Format(time.RFC3339),
-			},
-		},*/
-		Policy: json.RawMessage(`{
-			"chain_id": "1",
-			"token_id": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-			"recipients": [{
-				"address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-				"amount": "1000000"
-			}],
-			"schedule": {
-				"frequency": "5-minutely",
-				"start_time": "` + time.Now().UTC().Add(20*time.Second).Format(time.RFC3339) + `"
-			}
-		}`),
-	}
-
-	policyBytes, err := json.Marshal(policy)
-	if err != nil {
-		s.logger.Errorf("Failed to marshal policy: %v", err)
-		return
-	}
-
-	// Create policy
-	policyResp, err := http.Post( //plugins tells to vultiserver to create that policy, but once this is done, plugin server does not save the policy in its own db. Change this
-		fmt.Sprintf("http://localhost:%d/plugin/policy", 8080),
-		"application/json",
-		bytes.NewBuffer(policyBytes),
-	)
-	if err != nil {
-		s.logger.Errorf("Failed to create policy: %v", err)
-		return
-	}
-	defer policyResp.Body.Close()
-
-	s.logger.Info("Policy sent to vultiserver")
-
-	if policyResp.StatusCode != http.StatusOK {
-		s.logger.Errorf("Failed to create policy, status: %d", policyResp.StatusCode)
-		return
-	}
-
-	// 2. store policy in plugin's database
-	if err := s.db.InsertPluginPolicy(policy); err != nil {
-		s.logger.Errorf("Failed to insert policy in local database: %v", err)
-		return
-	}
-
-	s.logger.Info("Creating time trigger for the policy")
-
-	// Create time trigger for the policy
-	if err := s.scheduler.CreateTimeTrigger(policy); err != nil {
-		s.logger.Errorf("Failed to create time trigger: %v", err)
-		return
-	}
-
-	s.logger.Info("Successfully created policy and scheduled trigger")
 }

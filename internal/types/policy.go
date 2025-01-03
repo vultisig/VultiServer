@@ -32,5 +32,5 @@ type PayrollRecipient struct {
 type Schedule struct {
 	Frequency string `json:"frequency"`
 	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
+	EndTime   string `json:"end_time,omitempty"`
 }

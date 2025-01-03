@@ -1,24 +1,20 @@
 package api
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
-	"math/big"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	gcommon "github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/payroll"
 )
 
 // ERC20 transfer method ABI
@@ -47,18 +43,6 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("plugin signing requires exactly one transaction, current: %d", len(req.Transactions))
 	}
 
-	/*// Get policy
-	policyPath := fmt.Sprintf("policies/%s.json", req.PolicyID)
-	policyContent, err := s.blockStorage.GetFile(policyPath)
-	if err != nil {
-		return fmt.Errorf("fail to read policy file, err: %w", err)
-	}
-
-	var policy types.PluginPolicy
-	if err := json.Unmarshal(policyContent, &policy); err != nil {
-		return fmt.Errorf("fail to unmarshal policy, err: %w", err)
-	}*/
-
 	// Get policy from database
 	policy, err := s.db.GetPluginPolicy(req.PolicyID)
 	if err != nil {
@@ -70,15 +54,21 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("policy plugin ID mismatch")
 	}
 
-	// Parse payroll policy
-	var payrollPolicy types.PayrollPolicy
-	if err := json.Unmarshal(policy.Policy, &payrollPolicy); err != nil {
-		return fmt.Errorf("fail to unmarshal payroll policy, err: %w", err)
+	// We re-init plugin as verification server doesn't have plugin defined
+	var plugin plugin.Plugin
+	switch policy.PluginType {
+	case "payroll":
+		plugin = payroll.NewPayrollPlugin(s.db)
 	}
 
-	// Validate transaction matches policy
-	if err := validateTransaction(req.Transactions[0], payrollPolicy); err != nil {
-		return fmt.Errorf("transaction validation failed: %w", err)
+	if plugin == nil {
+		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	if err := plugin.ValidateTransactionProposal(policy, []types.PluginKeysignRequest{req}); err != nil {
+		return fmt.Errorf("failed to validate transaction proposal: %w", err)
 	}
 
 	// Validate message hash matches transaction
@@ -141,18 +131,25 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return fmt.Errorf("fail to parse request, err: %w", err)
 	}
 
-	// Original policy storage logic (to be deleted when the new on works)
-	/*policyPath := fmt.Sprintf("policies/%s.json", policy.ID)
-	content, err := json.Marshal(policy)
-	if err != nil {
-		return fmt.Errorf("fail to marshal policy, err: %w", err)
+	// We re-init plugin as verification server doesn't have plugin defined
+	var plugin plugin.Plugin
+	switch policy.PluginType {
+	case "payroll":
+		plugin = payroll.NewPayrollPlugin(s.db)
 	}
 
-	if err := s.blockStorage.UploadFile(content, policyPath); err != nil {
-		return fmt.Errorf("fail to upload file, err: %w", err)
-	}*/
+	if plugin == nil {
+		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
 
-	//new policy+trigger storage logic
+	if err := plugin.ValidatePluginPolicy(policy); err != nil {
+		err = fmt.Errorf("failed to validate policy: %w", err)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
 	if err := s.db.InsertPluginPolicy(policy); err != nil {
 		return fmt.Errorf("failed to insert policy: %w", err)
 	}
@@ -167,85 +164,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 }
 
 func (s *Server) ConfigurePlugin(c echo.Context) error {
-	return nil
-}
-
-// Helper functions that need to be implemented
-func validateTransaction(txData string, policy types.PayrollPolicy) error {
-	// Decode the raw transaction
-	rawTx, err := hex.DecodeString(strings.TrimPrefix(txData, "0x"))
-	if err != nil {
-		return fmt.Errorf("failed to decode transaction data: %w", err)
-	}
-
-	tx := new(gtypes.Transaction)
-	if err := tx.UnmarshalBinary(rawTx); err != nil {
-		return fmt.Errorf("failed to unmarshal transaction: %w", err)
-	}
-
-	// Validate basic transaction properties
-	if tx.To() == nil {
-		return fmt.Errorf("transaction must have a recipient")
-	}
-
-	// Parse ERC20 ABI
-	parsedABI, err := abi.JSON(strings.NewReader(erc20ABI))
-	if err != nil {
-		return fmt.Errorf("failed to parse ERC20 ABI: %w", err)
-	}
-
-	// Get the first 4 bytes of the data (method ID)
-	if len(tx.Data()) < 4 {
-		return fmt.Errorf("transaction data too short")
-	}
-	methodID := tx.Data()[:4]
-
-	// Check if this is a transfer method
-	transferMethodID := parsedABI.Methods["transfer"].ID
-	if !bytes.Equal(methodID, transferMethodID) {
-		return fmt.Errorf("transaction is not an ERC20 transfer")
-	}
-
-	// Decode transfer parameters
-	data := tx.Data()
-	if len(data) != 68 { // 4 bytes method ID + 32 bytes address + 32 bytes amount
-		return fmt.Errorf("invalid transfer data length")
-	}
-
-	// Extract recipient and amount from calldata
-	recipientBytes := data[4:36]
-	amountBytes := data[36:68]
-
-	recipient := gcommon.BytesToAddress(recipientBytes[12:]) // last 20 bytes of the 32-byte field
-	amount := new(big.Int).SetBytes(amountBytes)
-
-	// Validate against policy
-	if len(policy.Recipients) != 1 {
-		return fmt.Errorf("policy must specify exactly one recipient")
-	}
-
-	policyRecipient := policy.Recipients[0]
-
-	// Check recipient matches
-	if !strings.EqualFold(recipient.Hex(), policyRecipient.Address) {
-		return fmt.Errorf("recipient mismatch: expected %s, got %s",
-			policyRecipient.Address, recipient.Hex())
-	}
-
-	// Check amount matches (convert policy amount from string to big.Int)
-	policyAmount := new(big.Int)
-	policyAmount.SetString(policyRecipient.Amount, 10)
-	if amount.Cmp(policyAmount) != 0 {
-		return fmt.Errorf("amount mismatch: expected %s, got %s",
-			policyAmount.String(), amount.String())
-	}
-
-	// Check token contract matches
-	if !strings.EqualFold(tx.To().Hex(), policy.TokenID) {
-		return fmt.Errorf("token contract mismatch: expected %s, got %s",
-			policy.TokenID, tx.To().Hex())
-	}
-
 	return nil
 }
 
