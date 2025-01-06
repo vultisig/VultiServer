@@ -143,7 +143,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	fmt.Printf("Request sent: %d\n", resp.StatusCode)
 
 	fmt.Printf("Creating policy on plugin server: %s\n", pluginHost)
@@ -152,6 +151,5 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	fmt.Printf("Request sent: %d\n", resp.StatusCode)
 }

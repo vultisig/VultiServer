@@ -65,7 +65,7 @@ func main() {
 	serverHost := fmt.Sprintf("http://%s:%d", serverConfig.Server.Host, serverConfig.Server.Port)
 	pluginHost := fmt.Sprintf("http://%s:%d", pluginConfig.Server.Host, pluginConfig.Server.Port)
 
-	fmt.Printf("Creating vault on verifier server: %s\n", serverHost)
+	fmt.Printf("Creating vault on verifier server - http://%s:%d/vault/create", serverHost, serverConfig.Server.Port)
 	reqBytes, err := json.Marshal(createVaultRequest)
 	if err != nil {
 		panic(err)
@@ -75,9 +75,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Request sent: %d\n", resp.StatusCode)
+	fmt.Printf(" - %d\n", resp.StatusCode)
 
-	fmt.Printf("Creating vault on plugin server: %s\n", pluginHost)
+	fmt.Printf("Creating vault on plugin server - http://%s:%d/vault/create", pluginHost, pluginConfig.Server.Port)
 	createVaultRequest.LocalPartyId = "2"
 	createVaultRequest.StartSession = true
 	createVaultRequest.Parties = []string{"1", "2"}
@@ -91,7 +91,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Request sent: %d\n", resp.StatusCode)
+	fmt.Printf(" - %d\n", resp.StatusCode)
 
 	fmt.Println("Please watch the logs on the worker nodes and retrieve the ECDSA public key")
 
