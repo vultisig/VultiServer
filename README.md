@@ -25,59 +25,33 @@ Create directories for vault storage with the appropriate permissions
 `make gen-vault-dirs`
 
 
-
-
-### Configure postgre db 
+### 3. Configure postgre db 
 
 ```
 createdb -U myuser vs-plugins-plugin
 createdb -U myuser vs-plugins-vultiserver
 ```
 
-``` 
-psql -U myuser -d mydatabase
-```
-
-```
-GRANT ALL PRIVILEGES ON DATABASE "vs-plugins-plugin" TO "Username";
-GRANT ALL PRIVILEGES ON DATABASE "vs-plugins-vultiserver" TO "Username";
-```
-
-reset
-
-```
-DROP DATABASE IF EXISTS "vs-plugins-vultiserver";
-DROP DATABASE IF EXISTS "vs-plugins-plugin";
-```
-
-```
-CREATE DATABASE "vs-plugins-vultiserver";
-CREATE DATABASE "vs-plugins-plugin";
-```
-
-```
-\l
-```
-
-
-
-
-### 3. Start
+### 4. Start
 
 Start the services in the following order, each one in a different terminal:
-`make signer-server`
-`make plugin-server`
+```sh
+make signer-server
+make plugin-server
+```
 
 Confirm the servers are running via `GET /ping`, it provide a simple health check for the Api Server, the return value is `Vultisigner is running`
 
 Workers:
-`make signer-worker`
-`make plugin-worker`
+```sh
+make signer-worker
+make plugin-worker
+```
 
 For clean restart, do `make down`, and restart the servers/workers again.
 
 
-### 4. Key Generation
+### 5. Key Generation
 
 - name: Vault name
 - session_id: Key generation session ID (random UUID)
@@ -122,7 +96,7 @@ curl -X POST http://localhost:8080/vault/create \
 }'
 ```
 
-### 4. Key Signing
+### 6. Key Signing
 
 Before starting the keysign, make sure to replace the public key by the one appearing in the logs of the keygen. 
 
@@ -168,7 +142,7 @@ curl -X POST http://localhost:8080/vault/sign \
 }'
 ```
 
-## 6. Resharing
+## 7. Resharing
 
 Allow user to reshare the vault share
 

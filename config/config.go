@@ -13,11 +13,10 @@ type Config struct {
 		Host           string `mapstructure:"host" json:"host,omitempty"`
 		VaultsFilePath string `mapstructure:"vaults_file_path" json:"vaults_file_path,omitempty"`
 		Mode           string `mapstructure:"mode" json:"mode,omitempty"`
+		Database       struct {
+			DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
+		} `mapstructure:"database" json:"database,omitempty"`
 	} `mapstructure:"server" json:"server"`
-
-	Database struct {
-		DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
-	} `mapstructure:"database" json:"database,omitempty"`
 
 	Plugin struct {
 		Type         string                 `mapstructure:"type" json:"type,omitempty"`

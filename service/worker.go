@@ -46,7 +46,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
 	}
 
-	db, err := postgres.NewPostgresBackend(false, cfg.Database.DSN)
+	db, err := postgres.NewPostgresBackend(false, cfg.Server.Database.DSN)
 	if err != nil {
 		logrus.Fatalf("Failed to connect to database: %v", err)
 	}

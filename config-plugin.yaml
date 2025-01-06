@@ -1,11 +1,10 @@
-# plugin:
-#   type: "payroll"
-
+# pluginserver
 server:
-  # mode: "pluginserver"
   port: "8081"
   host: "localhost"
   vaults_file_path: "/tmp/vultisigner/plugin/vaults"
+  database:
+    dsn: "postgres://myuser:mypassword@localhost:5432/vs-plugins-plugin?sslmode=disable"
 
 relay:
   server: "https://api.vultisig.com/router"
@@ -15,9 +14,6 @@ redis:
   port: "6379"
   password: ""
   db: "1"
-
-database:
-  dsn: "postgres://myuser:mypassword@localhost:5432/mydatabase?sslmode=disable"
 
 block_storage:
   type: "s3"

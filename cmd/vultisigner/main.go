@@ -57,7 +57,7 @@ func main() {
 		blockStorage,
 		cfg.Server.Mode,
 		cfg.Plugin.Type,
-		cfg.Database.DSN,
+		cfg.Server.Database.DSN,
 	)
 	if err := server.StartServer(); err != nil {
 		panic(err)
