@@ -15,7 +15,7 @@ type DatabaseStorage interface {
 	GetPendingTriggers() ([]types.TimeTrigger, error)
 	UpdateTriggerExecution(policyID string) error
 
-	CreateTransactionHistory(tx types.TransactionHistory) error
+	CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
 	GetTransactionHistory(policyID uuid.UUID) ([]types.TransactionHistory, error)
 }

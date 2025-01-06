@@ -39,7 +39,7 @@ func (r KeysignRequest) IsValid() error {
 
 type PluginKeysignRequest struct {
 	KeysignRequest
-	Transactions []string `json:"transactions"`
-	PluginID     string   `json:"plugin_id"`
-	PolicyID     string   `json:"policy_id"`
+	Transaction string `json:"transactions"`
+	PluginID    string `json:"plugin_id"`
+	PolicyID    string `json:"policy_id"`
 }

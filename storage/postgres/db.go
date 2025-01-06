@@ -59,21 +59,26 @@ func (d *PostgresBackend) Migrate() error {
 	return nil
 }
 
-func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) error {
+func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error) {
 	query := `
         INSERT INTO transaction_history (
             policy_id, tx_body, status, metadata
         ) VALUES ($1, $2, $3, $4)
     `
 
-	_, err := p.pool.Exec(context.Background(), query,
+	var txID uuid.UUID
+	err := p.pool.QueryRow(context.Background(), query,
 		tx.PolicyID,
 		tx.TxBody,
 		tx.Status,
 		tx.Metadata,
-	)
+	).Scan(&txID)
 
-	return err
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return txID, nil
 }
 
 func (p *PostgresBackend) UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error {

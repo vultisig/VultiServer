@@ -18,17 +18,6 @@ import (
 	"github.com/vultisig/vultisigner/plugin/payroll"
 )
 
-// ERC20 transfer method ABI
-const erc20ABI = `[{
-    "name": "transfer",
-    "type": "function",
-    "inputs": [
-        {"name": "recipient", "type": "address"},
-        {"name": "amount", "type": "uint256"}
-    ],
-    "outputs": [{"name": "", "type": "bool"}]
-}]`
-
 func (s *Server) SignPluginMessages(c echo.Context) error {
 	s.logger.Info("Starting SignPluginMessages")
 	var req types.PluginKeysignRequest
@@ -40,8 +29,8 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	if len(req.Messages) != 1 {
 		return fmt.Errorf("plugin signing requires exactly one message hash, current: %d", len(req.Messages))
 	}
-	if len(req.Transactions) != 1 {
-		return fmt.Errorf("plugin signing requires exactly one transaction, current: %d", len(req.Transactions))
+	if len(req.Transaction) != 1 {
+		return fmt.Errorf("plugin signing requires exactly one transaction, current: %d", len(req.Transaction))
 	}
 
 	// Get policy from database
@@ -73,7 +62,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	// Validate message hash matches transaction
-	txHash, err := calculateTransactionHash(req.Transactions[0])
+	txHash, err := calculateTransactionHash(req.Transaction)
 	if err != nil {
 		return fmt.Errorf("fail to calculate transaction hash: %w", err)
 	}
@@ -139,7 +128,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	newTx := types.TransactionHistory{
 		PolicyID: policyUUID,
-		TxBody:   req.Transactions[0], // we know there's exactly one transaction due to validation
+		TxBody:   req.Transaction,
 		Status:   types.StatusSigned,
 		Metadata: metadata,
 	}
@@ -150,7 +139,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	s.logger.Infof("Created transaction history for tx from plugin: %s...",
-		req.Transactions[0][:min(20, len(req.Transactions[0]))],
+		req.Transaction[:min(20, len(req.Transaction))],
 	)
 
 	return c.JSON(http.StatusOK, ti.ID)

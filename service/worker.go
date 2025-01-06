@@ -34,12 +34,13 @@ type WorkerService struct {
 	queueClient  *asynq.Client
 	sdClient     *statsd.Client
 	blockStorage *storage.BlockStorage
+	inspector    *asynq.Inspector
 	plugin       plugin.Plugin
 	db           storage.DatabaseStorage
 }
 
 // NewWorker creates a new worker service
-func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, blockStorage *storage.BlockStorage) (*WorkerService, error) {
+func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, blockStorage *storage.BlockStorage, inspector *asynq.Inspector) (*WorkerService, error) {
 	redis, err := storage.NewRedisStorage(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
@@ -69,6 +70,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		blockStorage: blockStorage,
 		plugin:       plugin,
 		db:           db,
+		inspector:    inspector,
 	}, nil
 }
 
@@ -365,6 +367,34 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	}
 
 	for _, signRequest := range signRequests {
+
+		policyUUID, err := uuid.Parse(signRequest.PolicyID)
+		if err != nil {
+			s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
+			return err
+		}
+
+		// create transaction with PENDING status
+		metadata := map[string]interface{}{
+			"timestamp":  time.Now(),
+			"plugin_id":  signRequest.PluginID,
+			"public_key": signRequest.KeysignRequest.PublicKey,
+		}
+
+		newTx := types.TransactionHistory{
+			PolicyID: policyUUID,
+			TxBody:   signRequest.Transaction,
+			Status:   types.StatusPending,
+			Metadata: metadata,
+		}
+
+		txID, err := s.db.CreateTransactionHistory(newTx) //where to store txId? what is the best way to retrieve a tx?	Maybe just keep it in this context, and if status is failed at the end then we drop this instance and restart a new one later?
+		if err != nil {
+			s.logger.Errorf("Failed to create transaction history: %v", err)
+			continue
+		}
+
+		// start TSS signing process
 		signBytes, err := json.Marshal(signRequest)
 		if err != nil {
 			s.logger.Errorf("Failed to marshal sign request: %v", err)
@@ -377,6 +407,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			bytes.NewBuffer(signBytes),
 		)
 		if err != nil {
+			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to make sign request: %v", err)
 			return err
 		}
@@ -388,66 +419,52 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			return err
 		}
 
-		if signResp.StatusCode == http.StatusOK {
-			// Enqueue the same signing request locally
-			signRequest.KeysignRequest.StartSession = true
-			signRequest.KeysignRequest.Parties = []string{"1", "2"}
-			buf, err := json.Marshal(signRequest.KeysignRequest)
-			if err != nil {
-				s.logger.Errorf("Failed to marshal local sign request: %v", err)
-				return err
-			}
+		if signResp.StatusCode != http.StatusOK {
+			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
+			s.logger.Errorf("Failed to sign transaction: %s", string(respBody))
+			return fmt.Errorf("failed to sign transaction: %s", string(respBody))
+		}
 
-			// Enqueue TypeKeySign directly
-			ti, err := s.queueClient.Enqueue(
-				asynq.NewTask(tasks.TypeKeySign, buf),
-				asynq.MaxRetry(-1),
-				asynq.Timeout(2*time.Minute),
-				asynq.Retention(5*time.Minute),
-				asynq.Queue(tasks.QUEUE_NAME),
-			)
-			if err != nil {
-				s.logger.Errorf("Failed to enqueue signing task: %v", err)
-				continue
-			}
+		// prepare local sign request
+		signRequest.KeysignRequest.StartSession = true
+		signRequest.KeysignRequest.Parties = []string{"1", "2"}
+		buf, err := json.Marshal(signRequest.KeysignRequest)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal local sign request: %v", err)
+			return err
+		}
 
-			s.logger.Infof("Enqueued signing task: %s", ti.ID)
+		// Enqueue TypeKeySign directly
+		ti, err := s.queueClient.Enqueue(
+			asynq.NewTask(tasks.TypeKeySign, buf),
+			asynq.MaxRetry(-1),
+			asynq.Timeout(2*time.Minute),
+			asynq.Retention(5*time.Minute),
+			asynq.Queue(tasks.QUEUE_NAME),
+		)
+		if err != nil {
+			s.logger.Errorf("Failed to enqueue signing task: %v", err)
+			continue
+		}
 
-			if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
-				s.logger.Errorf("Failed to update last execution: %v", err)
-			}
+		s.logger.Infof("Enqueued signing task: %s", ti.ID)
 
-			//update here tx history
-			policyUUID, err := uuid.Parse(signRequest.PolicyID)
-			if err != nil {
-				s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
-				return err
-			}
+		// wait for result with timeout
+		result, err := s.waitForTaskResult(ti.ID, 120*time.Second) // adjust timeout as needed (each policy provider should be able to set it, but there should be an incentive to not retry too much)
+		if err != nil {                                            //do we consider that the signature is always valid if err = nil?
+			s.logger.Errorf("Failed to get task result: %v", err)
+			return err
+		}
 
-			metadata := map[string]interface{}{
-				"task_id":    ti.ID,
-				"timestamp":  time.Now(),
-				"plugin_id":  signRequest.PluginID,
-				"public_key": signRequest.KeysignRequest.PublicKey,
-			}
+		// Update to SIGNED status with result
+		metadata["task_id"] = ti.ID
+		metadata["result"] = result
+		if err := s.db.UpdateTransactionStatus(txID, types.StatusSigned, metadata); err != nil {
+			s.logger.Errorf("Failed to update transaction status: %v", err)
+		}
 
-			// Create a new transaction history for each transaction
-			for _, txBody := range signRequest.Transactions {
-				// Each transaction should be a new entry
-				newTx := types.TransactionHistory{
-					PolicyID: policyUUID,
-					TxBody:   txBody,
-					Status:   types.StatusSigned,
-					Metadata: metadata,
-				}
-
-				if err := s.db.CreateTransactionHistory(newTx); err != nil {
-					s.logger.Errorf("Failed to create transaction history: %v", err)
-					continue
-				}
-
-				s.logger.Infof("Created transaction history for tx: %s", txBody[:20]) // Log first 20 chars of tx
-			}
+		if err := s.db.UpdateTriggerExecution(policy.ID); err != nil { //find a way to do all updates together
+			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 
 		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
@@ -455,4 +472,38 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	}
 
 	return nil
+}
+
+func (s *WorkerService) waitForTaskResult(taskID string, timeout time.Duration) ([]byte, error) {
+	start := time.Now()
+	pollInterval := time.Second
+
+	for {
+		if time.Since(start) > timeout {
+			return nil, fmt.Errorf("timeout waiting for task result after %v", timeout)
+		}
+
+		task, err := s.inspector.GetTaskInfo(tasks.QUEUE_NAME, taskID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get task info: %w", err)
+		}
+
+		switch task.State {
+		case asynq.TaskStateCompleted:
+			s.logger.Info("Task completed successfully")
+			return task.Result, nil
+		case asynq.TaskStateArchived:
+			return nil, fmt.Errorf("task archived: %s", task.LastErr)
+		case asynq.TaskStateRetry:
+			s.logger.Debug("Task scheduled for retry...")
+		case asynq.TaskStatePending, asynq.TaskStateActive, asynq.TaskStateScheduled:
+			s.logger.Debug("Task still in progress, waiting...")
+		case asynq.TaskStateAggregating:
+			s.logger.Debug("Task aggregating, waiting...")
+		default:
+			return nil, fmt.Errorf("unexpected task state: %s", task.State)
+		}
+
+		time.Sleep(pollInterval)
+	}
 }

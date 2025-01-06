@@ -33,7 +33,8 @@ func main() {
 		DB:       cfg.Redis.DB,
 	}
 	client := asynq.NewClient(redisOptions)
-	workerService, err := service.NewWorker(*cfg, client, sdClient, blockStorage)
+	inspector := asynq.NewInspector(redisOptions)
+	workerService, err := service.NewWorker(*cfg, client, sdClient, blockStorage, inspector)
 	if err != nil {
 		panic(err)
 	}
