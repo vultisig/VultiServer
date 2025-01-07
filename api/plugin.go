@@ -101,6 +101,33 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	//Todo : check that tx is done only once per period
 
+	// Create transaction with PENDING status first
+	policyUUID, err := uuid.Parse(req.PolicyID)
+	if err != nil {
+		s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
+		return fmt.Errorf("invalid policy ID format: %w", err)
+	}
+
+	metadata := map[string]interface{}{
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"plugin_id":  req.PluginID,
+		"public_key": req.PublicKey,
+		"session_id": req.SessionID,
+	}
+
+	newTx := types.TransactionHistory{
+		PolicyID: policyUUID,
+		TxBody:   req.Transaction,
+		Status:   types.StatusPending,
+		Metadata: metadata,
+	}
+
+	txID, err := s.db.CreateTransactionHistory(newTx)
+	if err != nil {
+		s.logger.Errorf("Failed to create transaction history: %v", err)
+		return fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
 		asynq.MaxRetry(-1),
@@ -109,33 +136,16 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		asynq.Queue(tasks.QUEUE_NAME))
 
 	if err != nil {
+		metadata["error"] = err.Error()
+		if updateErr := s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata); updateErr != nil {
+			s.logger.Errorf("Failed to update transaction status: %v", updateErr)
+		}
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
 
-	// add transaction history
-	policyUUID, err := uuid.Parse(req.PolicyID)
-	if err != nil {
-		s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
-		return fmt.Errorf("invalid policy ID format: %w", err)
-	}
-
-	metadata := map[string]interface{}{
-		"task_id":    ti.ID,
-		"timestamp":  time.Now().Format(time.RFC3339),
-		"plugin_id":  req.PluginID,
-		"public_key": req.PublicKey,
-	}
-
-	newTx := types.TransactionHistory{
-		PolicyID: policyUUID,
-		TxBody:   req.Transaction,
-		Status:   types.StatusSigned,
-		Metadata: metadata,
-	}
-
-	if err := s.db.CreateTransactionHistory(newTx); err != nil {
-		s.logger.Errorf("Failed to create transaction history: %v", err)
-		// don't return error, continue with process
+	metadata["task_id"] = ti.ID
+	if err := s.db.UpdateTransactionStatus(txID, types.StatusPending, metadata); err != nil {
+		s.logger.Errorf("Failed to update transaction with task ID: %v", err)
 	}
 
 	s.logger.Infof("Created transaction history for tx from plugin: %s...",

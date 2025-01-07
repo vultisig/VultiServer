@@ -407,6 +407,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			bytes.NewBuffer(signBytes),
 		)
 		if err != nil {
+			metadata["error"] = err.Error()
 			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to make sign request: %v", err)
 			return err
@@ -420,6 +421,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		}
 
 		if signResp.StatusCode != http.StatusOK {
+			metadata["error"] = string(respBody)
 			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to sign transaction: %s", string(respBody))
 			return fmt.Errorf("failed to sign transaction: %s", string(respBody))
@@ -452,6 +454,9 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		// wait for result with timeout
 		result, err := s.waitForTaskResult(ti.ID, 120*time.Second) // adjust timeout as needed (each policy provider should be able to set it, but there should be an incentive to not retry too much)
 		if err != nil {                                            //do we consider that the signature is always valid if err = nil?
+			metadata["error"] = err.Error()
+			metadata["task_id"] = ti.ID
+			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to get task result: %v", err)
 			return err
 		}
@@ -463,7 +468,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to update transaction status: %v", err)
 		}
 
-		if err := s.db.UpdateTriggerExecution(policy.ID); err != nil { //find a way to do all updates together
+		if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
 			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 
