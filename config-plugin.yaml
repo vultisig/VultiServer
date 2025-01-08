@@ -1,6 +1,6 @@
 # pluginserver
 plugin:
-   type: "payroll"
+   type: "dca"
 server:
   port: "8081"
   host: "localhost"

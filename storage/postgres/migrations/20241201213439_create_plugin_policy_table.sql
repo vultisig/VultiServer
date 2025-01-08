@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 -- Create enum type for plugin_type
-CREATE TYPE plugin_type AS ENUM ('payroll');
+CREATE TYPE plugin_type AS ENUM ('payroll', 'dca');
 
 CREATE TABLE plugin_policies (
     id UUID PRIMARY KEY,
