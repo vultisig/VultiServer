@@ -25,6 +25,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/dca"
 	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/storage"
 	"github.com/vultisig/vultisigner/storage/postgres"
@@ -72,6 +73,8 @@ func NewServer(port int64,
 		switch pluginType {
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
+		case "dca":
+			plugin = dca.NewDCAPlugin(db)
 		default:
 			logrus.Fatalf("Invalid plugin type: %s", pluginType)
 		}

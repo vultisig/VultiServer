@@ -21,6 +21,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/dca"
 	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
@@ -56,6 +57,8 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		switch cfg.Plugin.Type {
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
+		case "dca":
+			plugin = dca.NewDCAPlugin(db)
 		default:
 			logrus.Fatalf("Invalid plugin type: %s", cfg.Plugin.Type)
 		}

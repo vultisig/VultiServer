@@ -24,6 +24,15 @@ type PayrollPolicy struct {
 	Schedule   Schedule           `json:"schedule"`
 }
 
+type DCAPolicy struct {
+	ChainID            string   `json:"chain_id"`
+	TokenInID          string   `json:"token_in_id"`
+	TokenOutID         string   `json:"token_out_id"`
+	SlippagePercentage string   `json:"slippage_percentage"`
+	Amount             string   `json:"amount"`
+	Schedule           Schedule `json:"schedule"`
+}
+
 type PayrollRecipient struct {
 	Address string `json:"address"`
 	Amount  string `json:"amount"`
