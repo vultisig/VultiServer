@@ -119,9 +119,9 @@ func (p *PayrollPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.
 				IsECDSA:          true,
 				VaultPassword:    "your-secure-password",
 			},
-			Transactions: []string{hex.EncodeToString(rawTx)},
-			PluginID:     policy.PluginID,
-			PolicyID:     policy.ID,
+			Transaction: hex.EncodeToString(rawTx),
+			PluginID:    policy.PluginID,
+			PolicyID:    policy.ID,
 		}
 		txs = append(txs, signRequest)
 	}
@@ -147,7 +147,7 @@ func (p *PayrollPlugin) ValidateTransactionProposal(policy types.PluginPolicy, t
 
 	for _, tx := range txs {
 		var parsedTx *gtypes.Transaction
-		txBytes, err := hex.DecodeString(tx.Transactions[0])
+		txBytes, err := hex.DecodeString(tx.Transaction)
 		if err != nil {
 			return fmt.Errorf("failed to decode transaction: %v", err)
 		}

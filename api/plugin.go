@@ -8,6 +8,7 @@ import (
 	"time"
 
 	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/vultisig/vultisigner/common"
@@ -16,17 +17,6 @@ import (
 	"github.com/vultisig/vultisigner/plugin"
 	"github.com/vultisig/vultisigner/plugin/payroll"
 )
-
-// ERC20 transfer method ABI
-const erc20ABI = `[{
-    "name": "transfer",
-    "type": "function",
-    "inputs": [
-        {"name": "recipient", "type": "address"},
-        {"name": "amount", "type": "uint256"}
-    ],
-    "outputs": [{"name": "", "type": "bool"}]
-}]`
 
 func (s *Server) SignPluginMessages(c echo.Context) error {
 	s.logger.Info("Starting SignPluginMessages")
@@ -38,9 +28,6 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	// Plugin-specific validations
 	if len(req.Messages) != 1 {
 		return fmt.Errorf("plugin signing requires exactly one message hash, current: %d", len(req.Messages))
-	}
-	if len(req.Transactions) != 1 {
-		return fmt.Errorf("plugin signing requires exactly one transaction, current: %d", len(req.Transactions))
 	}
 
 	// Get policy from database
@@ -72,7 +59,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	// Validate message hash matches transaction
-	txHash, err := calculateTransactionHash(req.Transactions[0])
+	txHash, err := calculateTransactionHash(req.Transaction)
 	if err != nil {
 		return fmt.Errorf("fail to calculate transaction hash: %w", err)
 	}
@@ -111,6 +98,33 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	//Todo : check that tx is done only once per period
 
+	// Create transaction with PENDING status first
+	policyUUID, err := uuid.Parse(req.PolicyID)
+	if err != nil {
+		s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
+		return fmt.Errorf("invalid policy ID format: %w", err)
+	}
+
+	metadata := map[string]interface{}{
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"plugin_id":  req.PluginID,
+		"public_key": req.PublicKey,
+		"session_id": req.SessionID,
+	}
+
+	newTx := types.TransactionHistory{
+		PolicyID: policyUUID,
+		TxBody:   req.Transaction,
+		Status:   types.StatusPending,
+		Metadata: metadata,
+	}
+
+	txID, err := s.db.CreateTransactionHistory(newTx)
+	if err != nil {
+		s.logger.Errorf("Failed to create transaction history: %v", err)
+		return fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
 		asynq.MaxRetry(-1),
@@ -119,8 +133,21 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		asynq.Queue(tasks.QUEUE_NAME))
 
 	if err != nil {
+		metadata["error"] = err.Error()
+		if updateErr := s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata); updateErr != nil {
+			s.logger.Errorf("Failed to update transaction status: %v", updateErr)
+		}
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
+
+	metadata["task_id"] = ti.ID
+	if err := s.db.UpdateTransactionStatus(txID, types.StatusPending, metadata); err != nil {
+		s.logger.Errorf("Failed to update transaction with task ID: %v", err)
+	}
+
+	s.logger.Infof("Created transaction history for tx from plugin: %s...",
+		req.Transaction[:min(20, len(req.Transaction))],
+	)
 
 	return c.JSON(http.StatusOK, ti.ID)
 }
