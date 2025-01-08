@@ -1,8 +1,11 @@
 # pluginserver
+plugin:
+   type: "payroll"
 server:
   port: "8081"
   host: "localhost"
   vaults_file_path: "/tmp/vultisigner/plugin/vaults"
+  mode: "pluginserver"
   database:
     dsn: "postgres://myuser:mypassword@localhost:5432/vs-plugins-plugin?sslmode=disable"
 
