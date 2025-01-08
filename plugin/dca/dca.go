@@ -38,28 +38,28 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		return fmt.Errorf("failed to unmarshal DCA policy: %w", err)
 	}
 
-	mixedCaseTokenIn, err := gcommon.NewMixedcaseAddressFromString(dcaPolicy.TokenInID)
+	mixedCaseTokenIn, err := gcommon.NewMixedcaseAddressFromString(dcaPolicy.SourceTokenID)
 	if err != nil {
-		return fmt.Errorf("invalid tokenIn address: %s", dcaPolicy.TokenInID)
+		return fmt.Errorf("invalid source token address: %s", dcaPolicy.SourceTokenID)
 	}
-	if strings.ToLower(dcaPolicy.TokenInID) != dcaPolicy.TokenInID {
+	if strings.ToLower(dcaPolicy.SourceTokenID) != dcaPolicy.SourceTokenID {
 		if !mixedCaseTokenIn.ValidChecksum() {
-			return fmt.Errorf("invalid tokenIn address checksum: %s", dcaPolicy.TokenInID)
+			return fmt.Errorf("invalid source token address checksum: %s", dcaPolicy.SourceTokenID)
 		}
 	}
 
-	mixedCaseTokenOut, err := gcommon.NewMixedcaseAddressFromString(dcaPolicy.TokenOutID)
+	mixedCaseTokenOut, err := gcommon.NewMixedcaseAddressFromString(dcaPolicy.DestinationTokenID)
 	if err != nil {
-		return fmt.Errorf("invalid tokenOut address: %s", dcaPolicy.TokenOutID)
+		return fmt.Errorf("invalid destination token address: %s", dcaPolicy.DestinationTokenID)
 	}
-	if strings.ToLower(dcaPolicy.TokenOutID) != dcaPolicy.TokenOutID {
+	if strings.ToLower(dcaPolicy.DestinationTokenID) != dcaPolicy.DestinationTokenID {
 		if !mixedCaseTokenOut.ValidChecksum() {
-			return fmt.Errorf("invalid tokenOut address checksum: %s", dcaPolicy.TokenOutID)
+			return fmt.Errorf("invalid destination token address checksum: %s", dcaPolicy.DestinationTokenID)
 		}
 	}
 
-	if dcaPolicy.TokenInID == dcaPolicy.TokenOutID {
-		return fmt.Errorf("tokenIn and tokenOut addresses are the same")
+	if dcaPolicy.SourceTokenID == dcaPolicy.DestinationTokenID {
+		return fmt.Errorf("source token and destination token addresses are the same")
 	}
 
 	if dcaPolicy.Amount == "" {

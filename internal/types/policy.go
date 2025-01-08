@@ -26,8 +26,8 @@ type PayrollPolicy struct {
 
 type DCAPolicy struct {
 	ChainID            string   `json:"chain_id"`
-	TokenInID          string   `json:"token_in_id"`
-	TokenOutID         string   `json:"token_out_id"`
+	SourceTokenID      string   `json:"source_token_id"`
+	DestinationTokenID string   `json:"destination_token_id"`
 	SlippagePercentage string   `json:"slippage_percentage"`
 	Amount             string   `json:"amount"`
 	Schedule           Schedule `json:"schedule"`
