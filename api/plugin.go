@@ -29,9 +29,6 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	if len(req.Messages) != 1 {
 		return fmt.Errorf("plugin signing requires exactly one message hash, current: %d", len(req.Messages))
 	}
-	if len(req.Transaction) != 1 {
-		return fmt.Errorf("plugin signing requires exactly one transaction, current: %d", len(req.Transaction))
-	}
 
 	// Get policy from database
 	policy, err := s.db.GetPluginPolicy(req.PolicyID)
