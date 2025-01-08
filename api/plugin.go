@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/vultisig/vultisigner/plugin/dca"
 	"net/http"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/dca"
 	"github.com/vultisig/vultisigner/plugin/payroll"
 )
 
