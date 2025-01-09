@@ -48,6 +48,7 @@ type Server struct {
 // NewServer returns a new server.
 func NewServer(port int64,
 	redis *storage.RedisStorage,
+	redisOpts asynq.RedisClientOpt,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
 	vaultFilePath string,
@@ -78,6 +79,7 @@ func NewServer(port int64,
 			db,
 			logrus.WithField("service", "scheduler").Logger,
 			client,
+			redisOpts,
 		)
 		schedulerService.Start()
 		logrus.Info("Scheduler service started")

@@ -50,6 +50,7 @@ func main() {
 	}
 	server := api.NewServer(port,
 		redisStorage,
+		redisOptions,
 		client,
 		inspector,
 		cfg.Server.VaultsFilePath, sdClient, blockStorage,

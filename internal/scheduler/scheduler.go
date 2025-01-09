@@ -21,16 +21,13 @@ type SchedulerService struct {
 	done      chan struct{}
 }
 
-func NewSchedulerService(db storage.DatabaseStorage, logger *logrus.Logger, client *asynq.Client) *SchedulerService {
+func NewSchedulerService(db storage.DatabaseStorage, logger *logrus.Logger, client *asynq.Client, redisOpts asynq.RedisClientOpt) *SchedulerService {
 	if db == nil {
 		logger.Fatal("database connection is nil")
 	}
 
 	// create inspector using the same Redis configuration as the client
-	inspector := asynq.NewInspector(asynq.RedisClientOpt{
-		Addr: "localhost:6379", // redis configuration
-		DB:   1,                // redis DB number
-	})
+	inspector := asynq.NewInspector(redisOpts)
 
 	return &SchedulerService{
 		db:        db,
