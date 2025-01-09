@@ -1,0 +1,4 @@
+# Use a specific version if you prefer, e.g. postgres:15
+FROM postgres:latest
+
+COPY init-scripts/ /docker-entrypoint-initdb.d/
