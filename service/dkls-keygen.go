@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -14,7 +15,6 @@ import (
 	"io"
 	"math/big"
 	"net/http"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,7 +22,6 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/coordinator"
-	session "go-wrapper/go-dkls/sessions"
 
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/relay"
@@ -145,7 +144,7 @@ func (t *DKLSTssService) processKeygenOutbound(handle Handle,
 	localPartyID string,
 	wg *sync.WaitGroup) error {
 	defer wg.Done()
-	messenger := relay.NewMessenger(t.relayServer, sessionID, hexEncryptionKey)
+	messenger := relay.NewMessenger(t.relayServer, sessionID, hexEncryptionKey, true)
 	mpcKeygenWrapper := t.GetMPCKeygenWrapper()
 	for {
 		outbound, err := mpcKeygenWrapper.KeygenSessionOutputMessage(handle)
@@ -248,8 +247,13 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 					t.logger.Error("fail to decode message", "error", err)
 					continue
 				}
+				rawBody, err := common.DecryptGCM(decodedBody, hexEncryptionKey)
+				if err != nil {
+					t.logger.Error("fail to decrypt message", "error", err)
+					continue
+				}
 				t.logger.Infoln("Received message from", message.From)
-				isFinished, err := mpcKeygenWrapper.KeygenSessionInputMessage(handle, decodedBody)
+				isFinished, err := mpcKeygenWrapper.KeygenSessionInputMessage(handle, rawBody)
 				if err != nil {
 					t.logger.Error("fail to apply input message", "error", err)
 					continue
@@ -306,6 +310,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 	if len(keysignCommittee) == 0 {
 		return fmt.Errorf("keysign committee is empty")
 	}
+	relayClient := relay.NewRelayClient(t.relayServer)
 	mpcWrapper := t.GetMPCKeygenWrapper()
 	t.logger.WithFields(logrus.Fields{
 		"session_id":         sessionID,
@@ -317,7 +322,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 		"is_initiate_device": isInitiateDevice,
 	}).Info("Keysign")
 
-	if err := RegisterSession(t.relayServer, sessionID, localPartyID); err != nil {
+	if err := relayClient.RegisterSession(sessionID, localPartyID); err != nil {
 		return fmt.Errorf("failed to start session: %w", err)
 	}
 	// we need to get the shares
@@ -338,7 +343,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 			t.logger.Error("failed to free keyshare", "error", err)
 		}
 	}()
-	msgHash := SHA256HashBytes([]byte(message))
+	msgHash := sha256.Sum256([]byte(message))
 	var encodedSetupMsg string = ""
 	if isInitiateDevice {
 		if coordinator.WaitAllParties(keysignCommittee, t.relayServer, sessionID) != nil {
@@ -352,26 +357,28 @@ func (t *DKLSTssService) Keysign(sessionID string,
 		if err != nil {
 			return fmt.Errorf("failed to get keysign committee: %w", err)
 		}
-		intialMsg, err := mpcWrapper.SignSetupMsgNew(keyID, []byte("m/44/931/0/0/0"), msgHash, keysignCommitteeBytes)
+		intialMsg, err := mpcWrapper.SignSetupMsgNew(keyID, []byte("m/44/931/0/0/0"), msgHash[:], keysignCommitteeBytes)
 		if err != nil {
 			return fmt.Errorf("failed to create initial message: %w", err)
 		}
 		encodedInitialMsg := base64.StdEncoding.EncodeToString(intialMsg)
 		t.logger.Infoln("initial message is:", encodedInitialMsg)
-		if err := UploadPayload(t.relayServer, sessionID, encodedInitialMsg); err != nil {
+		if err := relayClient.UploadPayload(sessionID, encodedInitialMsg); err != nil {
 			return fmt.Errorf("failed to upload initial message: %w", err)
 		}
 		encodedSetupMsg = encodedInitialMsg
-		if err := StartSession(t.relayServer, sessionID, keysignCommittee); err != nil {
+		if err := relayClient.StartSession(sessionID, keysignCommittee); err != nil {
 			return fmt.Errorf("failed to start session: %w", err)
 		}
 	} else {
-		_, err := WaitForSessionStart(t.relayServer, sessionID)
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancel()
+		_, err := relayClient.WaitForSessionStart(ctx, sessionID)
 		if err != nil {
 			return fmt.Errorf("failed to wait for session to start: %w", err)
 		}
 		// retrieve the setup Message
-		encodedSetupMsg, err = GetPayload(t.relayServer, sessionID)
+		encodedSetupMsg, err = relayClient.GetPayload(sessionID)
 	}
 	setupMessageBytes, err := base64.StdEncoding.DecodeString(encodedSetupMsg)
 	if err != nil {
@@ -381,7 +388,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 	if err != nil {
 		return fmt.Errorf("failed to decode message: %w", err)
 	}
-	if !bytes.Equal(messageHashInSetupMsg, msgHash) {
+	if !bytes.Equal(messageHashInSetupMsg, msgHash[:]) {
 		return fmt.Errorf("message hash in setup message is not equal to the message, stop keysign")
 	}
 	sessionHandle, err := mpcWrapper.SignSessionFromSetup(setupMessageBytes, []byte(localPartyID), keyshareHandle)
@@ -396,7 +403,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
-		if err := t.processKeysignOutbound(sessionHandle, sessionID, keysignCommittee, localPartyID, message, wg); err != nil {
+		if err := t.processKeysignOutbound(sessionHandle, sessionID, hexEncryptionKey, keysignCommittee, localPartyID, message, wg); err != nil {
 			t.logger.Error("failed to process keygen outbound", "error", err)
 		}
 	}()
@@ -409,7 +416,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 			return fmt.Errorf("failed to decode public key: %w", err)
 		}
 
-		if ed25519.Verify(pubKeyBytes, msgHash, sig) {
+		if ed25519.Verify(pubKeyBytes, msgHash[:], sig) {
 			t.logger.Infoln("Signature is valid")
 		} else {
 			t.logger.Error("Signature is invalid")
@@ -430,7 +437,7 @@ func (t *DKLSTssService) Keysign(sessionID string,
 			return fmt.Errorf("failed to parse public key: %w", err)
 		}
 
-		if ecdsa.Verify(publicKey.ToECDSA(), msgHash, new(big.Int).SetBytes(r), new(big.Int).SetBytes(s)) {
+		if ecdsa.Verify(publicKey.ToECDSA(), msgHash[:], new(big.Int).SetBytes(r), new(big.Int).SetBytes(s)) {
 			t.logger.Infoln("Signature is valid")
 		} else {
 			t.logger.Error("Signature is invalid")
@@ -440,12 +447,13 @@ func (t *DKLSTssService) Keysign(sessionID string,
 }
 func (t *DKLSTssService) processKeysignOutbound(handle Handle,
 	sessionID string,
+	hexEncryptionKey string,
 	parties []string,
 	localPartyID string,
 	message string,
 	wg *sync.WaitGroup) error {
 	defer wg.Done()
-	messenger := NewMessageImp(t.relayServer, sessionID)
+	messenger := relay.NewMessenger(t.relayServer, sessionID, hexEncryptionKey, true)
 	mpcWrapper := t.GetMPCKeygenWrapper()
 	for {
 		outbound, err := mpcWrapper.SignSessionOutputMessage(handle)

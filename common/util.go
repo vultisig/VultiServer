@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -183,4 +184,44 @@ func GetThreshold(value int) (int, error) {
 	}
 	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
 	return threshold, nil
+}
+
+func DecryptGCM(rawData []byte, hexEncryptKey string) ([]byte, error) {
+	password, err := hex.DecodeString(hexEncryptKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Hash the password to create a key
+	hash := sha256.Sum256([]byte(password))
+	key := hash[:]
+
+	// Create a new AES cipher using the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the nonce size
+	nonceSize := gcm.NonceSize()
+	if len(rawData) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+
+	// Extract the nonce from the vault
+	nonce, ciphertext := rawData[:nonceSize], rawData[nonceSize:]
+
+	// Decrypt the vault
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
 }
