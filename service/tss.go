@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -193,7 +194,7 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 }
 
 func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool) (*tss.ServiceImpl, error) {
-	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey)
+	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey, false)
 	tssService, err := tss.NewService(messenger, localStateAccessor, createPreParam)
 	if err != nil {
 		return nil, fmt.Errorf("create TSS service: %w", err)
@@ -279,7 +280,7 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 					continue
 				}
 
-				decryptedBody, err := decrypt(string(decodedBody), hexEncryptionKey)
+				decryptedBody, err := decryptWrapper(string(decodedBody), hexEncryptionKey, false)
 				if err != nil {
 					logger.Errorf("Failed to decrypt data: %v", err)
 					continue
@@ -314,7 +315,56 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 		}
 	}
 }
+func decryptWrapper(cipherText, hexKey string, isGCM bool) (string, error) {
+	if isGCM {
+		return decryptGCM(cipherText, hexKey)
+	}
+	return decrypt(cipherText, hexKey)
+}
 
+func decryptGCM(data string, hexEncryptKey string) (string, error) {
+	password, err := hex.DecodeString(hexEncryptKey)
+	if err != nil {
+		return "", err
+	}
+
+	rawData, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
+	// Hash the password to create a key
+	hash := sha256.Sum256([]byte(password))
+	key := hash[:]
+
+	// Create a new AES cipher using the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	// Use GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the nonce size
+	nonceSize := gcm.NonceSize()
+	if len(rawData) < nonceSize {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+
+	// Extract the nonce from the vault
+	nonce, ciphertext := rawData[:nonceSize], rawData[nonceSize:]
+
+	// Decrypt the vault
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
 func decrypt(cipherText, hexKey string) (string, error) {
 	var block cipher.Block
 	var err error

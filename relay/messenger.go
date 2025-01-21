@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -23,20 +24,22 @@ type MessengerImp struct {
 	HexEncryptionKey string
 	logger           *logrus.Logger
 	messageCache     sync.Map
+	isGCM            bool
 }
 
-func NewMessenger(server, sessionID, hexEncryptionKey string) *MessengerImp {
+func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool) *MessengerImp {
 	return &MessengerImp{
 		Server:           server,
 		SessionID:        sessionID,
 		HexEncryptionKey: hexEncryptionKey,
 		messageCache:     sync.Map{},
 		logger:           logrus.WithField("service", "messenger").Logger,
+		isGCM:            isGCM,
 	}
 }
 func (m *MessengerImp) Send(from, to, body string) error {
 	if m.HexEncryptionKey != "" {
-		encryptedBody, err := encrypt(body, m.HexEncryptionKey)
+		encryptedBody, err := encryptWrapper(body, m.HexEncryptionKey, m.isGCM)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt body: %w", err)
 		}
@@ -102,6 +105,12 @@ func (m *MessengerImp) Send(from, to, body string) error {
 
 	return nil
 }
+func encryptWrapper(plainText, hexKey string, isGCM bool) (string, error) {
+	if isGCM {
+		return encryptGCM(plainText, hexKey)
+	}
+	return encrypt(plainText, hexKey)
+}
 
 func encrypt(plainText, hexKey string) (string, error) {
 	key, err := hex.DecodeString(hexKey)
@@ -124,6 +133,38 @@ func encrypt(plainText, hexKey string) (string, error) {
 	mode.CryptBlocks(ciphertext, plainByte)
 	ciphertext = append(iv, ciphertext...)
 	return string(ciphertext), nil
+}
+
+func encryptGCM(plainText, hexKey string) (string, error) {
+	passwd, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.Sum256(passwd)
+	key := hash[:]
+
+	// Create a new AES cipher using the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	// Use GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a nonce. Nonce size is specified by GCM
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	// Seal encrypts and authenticates plaintext
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plainText), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
 // pad applies PKCS7 padding to the plaintext
