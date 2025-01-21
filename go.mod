@@ -12,9 +12,10 @@ require (
 	github.com/redis/go-redis/v9 v9.5.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/vultisig/commondata v0.0.0-20241001024659-50cb6f1ca345
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250113110513-b211041c087b
+	go-wrapper v0.0.0-00010101000000-000000000000
 	google.golang.org/protobuf v1.35.1
 )
 
@@ -80,4 +81,5 @@ replace (
 	github.com/agl/ed25519 => github.com/binance-chain/edwards25519 v0.0.0-20200305024217-f36fc4b53d43
 	github.com/cwespare/xxhash/v2 => github.com/cespare/xxhash/v2 v2.1.1
 	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
+	go-wrapper => ../dkls23-rs/wrapper/go-wrappers/
 )

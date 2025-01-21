@@ -294,3 +294,38 @@ func (c *Client) EndSession(sessionID string) error {
 	}
 	return nil
 }
+func (c *Client) UploadPayload(sessionID string, payload string) error {
+	sessionUrl := c.relayServer + "/setup-message/" + sessionID
+	body := []byte(payload)
+	bodyReader := bytes.NewReader(body)
+	resp, err := http.Post(sessionUrl, "application/json", bodyReader)
+	if err != nil {
+		return fmt.Errorf("fail to upload payload: %w", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("fail to upload payload: %s", resp.Status)
+	}
+	return nil
+}
+
+func (c *Client) GetPayload(sessionID string) (string, error) {
+	sessionUrl := c.relayServer + "/setup-message/" + sessionID
+	resp, err := http.Get(sessionUrl)
+	if err != nil {
+		return "", fmt.Errorf("fail to get payload: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fail to get payload: %s", resp.Status)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Println("fail to close response body", err)
+		}
+	}()
+	result, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("fail to read payload: %w", err)
+	}
+
+	return string(result), nil
+}

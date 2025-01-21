@@ -7,8 +7,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"github.com/ulikunitz/xz"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
@@ -173,4 +175,12 @@ func GetVaultName(vault *vaultType.Vault) string {
 		}
 	}
 	return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
+}
+
+func GetThreshold(value int) (int, error) {
+	if value < 2 {
+		return 0, errors.New("invalid input")
+	}
+	threshold := int(math.Ceil(float64(value)*2.0/3.0)) - 1
+	return threshold, nil
 }
