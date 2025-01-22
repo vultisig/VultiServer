@@ -22,7 +22,7 @@ func (s *WorkerService) HandleKeyGenerationDKLS(ctx context.Context, t *asynq.Ta
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
-	if req.LibType != types.GG20 {
+	if req.LibType != types.DKLS {
 		return fmt.Errorf("invalid lib type: %s: %w", req.LibType, asynq.SkipRetry)
 	}
 	s.logger.WithFields(logrus.Fields{

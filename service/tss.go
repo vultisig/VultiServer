@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	keygen "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -192,6 +193,11 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		},
 		LocalPartyId:  req.LocalPartyId,
 		ResharePrefix: "",
+	}
+	if req.LibType == types.DKLS {
+		vault.LibType = keygen.LibType_LIB_TYPE_DKLS
+	} else {
+		vault.LibType = keygen.LibType_LIB_TYPE_GG20
 	}
 	return s.SaveVaultAndScheduleEmail(vault, req.EncryptionPassword, req.Email)
 }
