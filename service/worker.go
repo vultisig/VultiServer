@@ -268,7 +268,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid reshare request: %s: %w", err, asynq.SkipRetry)
 	}
-	localState, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
+	localState, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
 	if err != nil {
 		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
 		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)

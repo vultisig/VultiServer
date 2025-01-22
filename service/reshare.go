@@ -63,7 +63,7 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 	for _, share := range vault.KeyShares {
 		keyShares[share.PublicKey] = share.Keyshare
 	}
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(vault.LocalPartyId, s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword, s.blockStorage)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword, s.blockStorage)
 	if err != nil {
 		return fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
