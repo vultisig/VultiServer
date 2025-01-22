@@ -86,12 +86,12 @@ func (t *DKLSTssService) ProceeDKLSKeygen(req types.VaultCreateRequest) (string,
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 	// create ECDSA key
-	publicKeyECDSA, err := t.KeygenWithRetry(req.SessionID, req.HexEncryptionKey, req.LocalPartyId, false, partiesJoined)
+	publicKeyECDSA, err := t.keygenWithRetry(req.SessionID, req.HexEncryptionKey, req.LocalPartyId, false, partiesJoined)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to keygen ECDSA: %w", err)
 	}
 	// create EdDSA key
-	publicKeyEdDSA, err := t.KeygenWithRetry(req.SessionID, req.HexEncryptionKey, req.LocalPartyId, true, partiesJoined)
+	publicKeyEdDSA, err := t.keygenWithRetry(req.SessionID, req.HexEncryptionKey, req.LocalPartyId, true, partiesJoined)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to keygen EdDSA: %w", err)
 	}
@@ -121,13 +121,13 @@ func (t *DKLSTssService) ProceeDKLSKeygen(req types.VaultCreateRequest) (string,
 	return publicKeyECDSA, publicKeyEdDSA, nil
 }
 
-func (t *DKLSTssService) KeygenWithRetry(sessionID string,
+func (t *DKLSTssService) keygenWithRetry(sessionID string,
 	hexEncryptionKey string,
 	localPartyID string,
 	isEdDSA bool,
 	keygenCommittee []string) (string, error) {
 	for i := 0; i < 3; i++ {
-		publicKey, err := t.Keygen(sessionID, hexEncryptionKey, localPartyID, isEdDSA, keygenCommittee, i)
+		publicKey, err := t.keygen(sessionID, hexEncryptionKey, localPartyID, isEdDSA, keygenCommittee, i)
 		if err != nil {
 			t.logger.WithFields(logrus.Fields{
 				"session_id":       sessionID,
@@ -144,7 +144,7 @@ func (t *DKLSTssService) KeygenWithRetry(sessionID string,
 	return "", fmt.Errorf("fail to keygen after max retry")
 }
 
-func (t *DKLSTssService) Keygen(sessionID string,
+func (t *DKLSTssService) keygen(sessionID string,
 	hexEncryptionKey string,
 	localPartyID string,
 	isEdDSA bool,
@@ -395,7 +395,14 @@ func (t *DKLSTssService) keysignWithRetry(sessionID string,
 	localPartyID string,
 	keysignCommittee []string) (*tss.KeysignResponse, error) {
 	for i := 0; i < 3; i++ {
-		keysignResult, err := t.Keysign(sessionID, hexEncryptionKey, publicKey, isEdDSA, message, derivePath, localPartyID, keysignCommittee, i)
+		keysignResult, err := t.keysign(sessionID,
+			hexEncryptionKey,
+			publicKey,
+			isEdDSA,
+			message,
+			derivePath,
+			localPartyID,
+			keysignCommittee, i)
 		if err != nil {
 			t.logger.WithFields(logrus.Fields{
 				"session_id":        sessionID,
@@ -415,7 +422,7 @@ func (t *DKLSTssService) keysignWithRetry(sessionID string,
 	return nil, fmt.Errorf("fail to keysign after max retry")
 }
 
-func (t *DKLSTssService) Keysign(sessionID string,
+func (t *DKLSTssService) keysign(sessionID string,
 	hexEncryptionKey string,
 	publicKey string,
 	isEdDSA bool,

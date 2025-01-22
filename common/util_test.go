@@ -26,7 +26,7 @@ func TestDataCompression(t *testing.T) {
 func TestVaultEncryption(t *testing.T) {
 	password := "password"
 	src := "vault_bytes"
-	encrypted, err := EncryptGCM(password, []byte(src))
+	encrypted, err := EncryptVault(password, []byte(src))
 	if err != nil {
 		t.Fatal(err)
 	}

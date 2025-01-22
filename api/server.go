@@ -18,6 +18,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
+	keygen "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
 	"github.com/vultisig/vultisigner/common"
@@ -76,15 +77,15 @@ func (s *Server) StartServer() error {
 
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
-	//grp.POST("/upload", s.UploadVault)
-	//grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	// grp.POST("/upload", s.UploadVault)
+	// grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
 	grp.GET("/exist/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
 	//	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
 	grp.POST("/sign", s.SignMessages)       // Sign messages
 	grp.POST("/resend", s.ResendVaultEmail) // request server to send vault share , code through email again
 	grp.GET("/verify/:publicKeyECDSA/:code", s.VerifyCode)
-	//grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
+	// grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
 
@@ -158,7 +159,13 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
-	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
+	var typeName = ""
+	if req.LibType == types.GG20 {
+		typeName = tasks.TypeKeyGeneration
+	} else {
+		typeName = tasks.TypeKeyGenerationDKLS
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(typeName, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
@@ -190,7 +197,13 @@ func (s *Server) ReshareVault(c echo.Context) error {
 	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
-	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
+	var typeName = ""
+	if req.LibType == types.GG20 {
+		typeName = tasks.TypeReshare
+	} else {
+		typeName = tasks.TypeReshareDKLS
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(typeName, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
@@ -355,7 +368,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return fmt.Errorf("fail to read file, err: %w", err)
 	}
 
-	_, err = common.DecryptVaultFromBackup(req.VaultPassword, content)
+	vault, err := common.DecryptVaultFromBackup(req.VaultPassword, content)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
@@ -363,8 +376,14 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
+	var typeName = ""
+	if vault.LibType == keygen.LibType_LIB_TYPE_GG20 {
+		typeName = tasks.TypeKeySign
+	} else {
+		typeName = tasks.TypeKeySignDKLS
+	}
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
-		asynq.NewTask(tasks.TypeKeySign, buf),
+		asynq.NewTask(typeName, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),

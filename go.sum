@@ -223,8 +223,10 @@ github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6Kllzaw
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasttemplate v1.2.2 h1:lxLXG0uE3Qnshl9QyaK6XJxMXlQZELvChBOCmQD0Loo=
 github.com/valyala/fasttemplate v1.2.2/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+qRAEEKiv+SiQ=
-github.com/vultisig/commondata v0.0.0-20241001024659-50cb6f1ca345 h1:rz3sVaCV1uJIpdbTnMukoup1tNkevvrxHwidRpKIqP4=
-github.com/vultisig/commondata v0.0.0-20241001024659-50cb6f1ca345/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
+github.com/vultisig/commondata v0.0.0-20250115213806-47c435c8e9d3 h1:4W3GXxtiwrV3QWvUmwI0SBUhnl/XckCDGoyv9x2znp8=
+github.com/vultisig/commondata v0.0.0-20250115213806-47c435c8e9d3/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
+github.com/vultisig/commondata v0.0.0-20250122042332-3c2c828db7e0 h1:MGmOQNR3ura76ZBg3f7gkSxZBmFYKhLivgXgLYmTkds=
+github.com/vultisig/commondata v0.0.0-20250122042332-3c2c828db7e0/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250113110513-b211041c087b h1:Cw9yLEU71iR4cHGjosopgDhHmMqC3Mwd441VAs75BNE=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250113110513-b211041c087b/go.mod h1:r8JFhEWnQvmV/HvhSwRCK96R+68NFcQpwEC2zIbPSJ0=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

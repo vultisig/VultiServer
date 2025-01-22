@@ -13,7 +13,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.9.0
-	github.com/vultisig/commondata v0.0.0-20241001024659-50cb6f1ca345
+	github.com/vultisig/commondata v0.0.0-20250122042332-3c2c828db7e0
 	github.com/vultisig/mobile-tss-lib v0.0.0-20250113110513-b211041c087b
 	go-wrapper v0.0.0-00010101000000-000000000000
 	google.golang.org/protobuf v1.35.1
@@ -36,7 +36,7 @@ require (
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/decred/dcrd/dcrec/edwards/v2 v2.0.3 // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/gogo/protobuf v1.3.3 // indirect
