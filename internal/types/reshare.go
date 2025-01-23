@@ -18,6 +18,7 @@ type ReshareRequest struct {
 	EncryptionPassword string   `json:"encryption_password"` // password used to encrypt the vault file
 	Email              string   `json:"email"`
 	OldResharePrefix   string   `json:"old_reshare_prefix"`
+	LibType            LibType  `json:"lib_type"`
 }
 
 func (req *ReshareRequest) IsValid() error {

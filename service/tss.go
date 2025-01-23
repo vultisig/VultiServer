@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	keygen "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -26,6 +26,10 @@ import (
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 )
+
+type Backup interface {
+	BackupVault(req types.VaultCreateRequest, partiesJoined []string, ecdsaPubkey, eddsaPubkey, hexChainCode string, localStateAccessor *relay.LocalStateAccessorImp) error
+}
 
 func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string, string, error) {
 	keyFolder := s.cfg.Server.VaultsFilePath
@@ -50,7 +54,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, keyFolder, "", "", s.blockStorage)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(keyFolder, "", "", s.blockStorage)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
@@ -89,7 +93,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		}).Error("Failed to check completed parties")
 	}
 
-	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
+	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, req.HexChainCode, localStateAccessor)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
 	}
@@ -159,6 +163,7 @@ func (s *WorkerService) generateEDDSAKey(tssService tss.Service, req types.Vault
 func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 	partiesJoined []string,
 	ecdsaPubkey, eddsaPubkey string,
+	hexChainCode string,
 	localStateAccessor *relay.LocalStateAccessorImp) error {
 	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
 	if err != nil {
@@ -176,7 +181,7 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		PublicKeyEddsa: eddsaPubkey,
 		Signers:        partiesJoined,
 		CreatedAt:      timestamppb.New(time.Now()),
-		HexChainCode:   req.HexChainCode,
+		HexChainCode:   hexChainCode,
 		KeyShares: []*vaultType.Vault_KeyShare{
 			{
 				PublicKey: ecdsaPubkey,
@@ -189,6 +194,11 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		},
 		LocalPartyId:  req.LocalPartyId,
 		ResharePrefix: "",
+	}
+	if req.LibType == types.DKLS {
+		vault.LibType = keygen.LibType_LIB_TYPE_DKLS
+	} else {
+		vault.LibType = keygen.LibType_LIB_TYPE_GG20
 	}
 	return s.SaveVaultAndScheduleEmail(vault, req.EncryptionPassword, req.Email)
 }
@@ -280,7 +290,7 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 					continue
 				}
 
-				decryptedBody, err := decryptWrapper(string(decodedBody), hexEncryptionKey, false)
+				decryptedBody, err := decrypt(string(decodedBody), hexEncryptionKey)
 				if err != nil {
 					logger.Errorf("Failed to decrypt data: %v", err)
 					continue
@@ -315,85 +325,42 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 		}
 	}
 }
-func decryptWrapper(cipherText, hexKey string, isGCM bool) (string, error) {
-	if isGCM {
-		return decryptGCM(cipherText, hexKey)
-	}
-	return decrypt(cipherText, hexKey)
-}
 
-func decryptGCM(data string, hexEncryptKey string) (string, error) {
-	password, err := hex.DecodeString(hexEncryptKey)
-	if err != nil {
-		return "", err
-	}
-
-	rawData, err := base64.StdEncoding.DecodeString(data)
-	if err != nil {
-		return "", err
-	}
-	// Hash the password to create a key
-	hash := sha256.Sum256([]byte(password))
-	key := hash[:]
-
-	// Create a new AES cipher using the key
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	// Use GCM (Galois/Counter Mode)
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	// Get the nonce size
-	nonceSize := gcm.NonceSize()
-	if len(rawData) < nonceSize {
-		return "", fmt.Errorf("ciphertext too short")
-	}
-
-	// Extract the nonce from the vault
-	nonce, ciphertext := rawData[:nonceSize], rawData[nonceSize:]
-
-	// Decrypt the vault
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
-}
-func decrypt(cipherText, hexKey string) (string, error) {
+func decrypt(cipherText, hexKey string) (result string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	result = ""
+	err = nil
 	var block cipher.Block
-	var err error
-	key, err := hex.DecodeString(hexKey)
-	if err != nil {
-		return "", err
+	key, decodeErr := hex.DecodeString(hexKey)
+	if decodeErr != nil {
+		err = decodeErr
+		return
 	}
 	cipherByte := []byte(cipherText)
-
 	if block, err = aes.NewCipher(key); err != nil {
-		return "", err
+		return
 	}
 
 	if len(cipherByte) < aes.BlockSize {
-		fmt.Printf("ciphertext too short")
-		return "", err
+		err = fmt.Errorf("ciphertext too short")
+		return
 	}
 
 	iv := cipherByte[:aes.BlockSize]
 	cipherByte = cipherByte[aes.BlockSize:]
-
 	cbc := cipher.NewCBCDecrypter(block, iv)
 	plaintext := make([]byte, len(cipherByte))
 	cbc.CryptBlocks(plaintext, cipherByte)
 	plaintext, err = unpad(plaintext)
 	if err != nil {
-		return "", err
+		return
 	}
-	return string(plaintext), nil
+	result = string(plaintext)
+	return
 }
 
 func unpad(data []byte) ([]byte, error) {
@@ -420,7 +387,7 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 	result := map[string]tss.KeysignResponse{}
 	keyFolder := s.cfg.Server.VaultsFilePath
 	serverURL := s.cfg.Relay.Server
-	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, req.PublicKey, req.VaultPassword, s.blockStorage)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(keyFolder, req.PublicKey, req.VaultPassword, s.blockStorage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}

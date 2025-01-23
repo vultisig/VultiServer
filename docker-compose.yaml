@@ -6,12 +6,13 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-  asynqmon:
-    image: hibiken/asynqmon:latest
-    container_name: asynq-monitor
-    ports:
-      - "8181:8080"
-    depends_on:
-      - redis
+#  asynqmon:
+#    image: hibiken/asynqmon:latest
+#    container_name: asynq-monitor
+#    ports:
+#      - "8181:8080"
+#    depends_on:
+#      - redis
+#    platform: linux/arm64
 volumes:
   redis_data:
