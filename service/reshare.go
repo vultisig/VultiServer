@@ -190,6 +190,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	if err != nil {
 		return fmt.Errorf("failed to create verification code: %w", err)
 	}
+	s.logger.Infof("verificationcode: %s", code)
 	emailRequest := types.EmailRequest{
 		Email:       email,
 		FileName:    common.GetVaultName(vault),

@@ -308,9 +308,33 @@ func (c *Client) UploadPayload(sessionID string, payload string) error {
 	return nil
 }
 
-func (c *Client) GetPayload(sessionID string) (string, error) {
+func (c *Client) WaitForPayload(ctx context.Context, sessionID, messageID string) (string, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+			payload, err := c.GetPayload(sessionID, messageID)
+			if err == nil && payload != "" {
+				return payload, err
+			}
+			c.logger.Errorf("payload is not ready: %v", err)
+			time.Sleep(time.Second) // backoff for 1 sec
+		}
+	}
+}
+
+func (c *Client) GetPayload(sessionID, messageID string) (string, error) {
 	sessionUrl := c.relayServer + "/setup-message/" + sessionID
-	resp, err := http.Get(sessionUrl)
+	req, err := http.NewRequest(http.MethodGet, sessionUrl, nil)
+	if err != nil {
+		return "", fmt.Errorf("fail to get payload: %w", err)
+	}
+	if messageID != "" {
+		req.Header.Add("message_id", messageID)
+	}
+
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("fail to get payload: %w", err)
 	}

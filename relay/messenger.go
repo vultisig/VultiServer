@@ -164,7 +164,7 @@ func encryptGCM(plainText, hexKey string) (string, error) {
 
 	// Seal encrypts and authenticates plaintext
 	ciphertext := gcm.Seal(nonce, nonce, []byte(plainText), nil)
-	return base64.StdEncoding.EncodeToString(ciphertext), nil
+	return string(ciphertext), nil
 }
 
 // pad applies PKCS7 padding to the plaintext

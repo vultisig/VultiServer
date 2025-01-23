@@ -284,7 +284,7 @@ func (w *MPCWrapperImp) KeyshareFree(share Handle) error {
 }
 func (w *MPCWrapperImp) KeyshareChainCode(share Handle) ([]byte, error) {
 	if w.isEdDSA {
-		return nil, fmt.Errorf("Not implemented")
+		return nil, nil
 	}
 	return session.DklsKeyshareChainCode(session.Handle(share))
 }

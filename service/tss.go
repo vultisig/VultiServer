@@ -28,7 +28,7 @@ import (
 )
 
 type Backup interface {
-	BackupVault(req types.VaultCreateRequest, partiesJoined []string, ecdsaPubkey, eddsaPubkey string, localStateAccessor *relay.LocalStateAccessorImp) error
+	BackupVault(req types.VaultCreateRequest, partiesJoined []string, ecdsaPubkey, eddsaPubkey, hexChainCode string, localStateAccessor *relay.LocalStateAccessorImp) error
 }
 
 func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string, string, error) {
@@ -93,7 +93,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		}).Error("Failed to check completed parties")
 	}
 
-	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
+	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, req.HexChainCode, localStateAccessor)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
 	}
@@ -163,6 +163,7 @@ func (s *WorkerService) generateEDDSAKey(tssService tss.Service, req types.Vault
 func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 	partiesJoined []string,
 	ecdsaPubkey, eddsaPubkey string,
+	hexChainCode string,
 	localStateAccessor *relay.LocalStateAccessorImp) error {
 	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
 	if err != nil {
@@ -180,7 +181,7 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		PublicKeyEddsa: eddsaPubkey,
 		Signers:        partiesJoined,
 		CreatedAt:      timestamppb.New(time.Now()),
-		HexChainCode:   req.HexChainCode,
+		HexChainCode:   hexChainCode,
 		KeyShares: []*vaultType.Vault_KeyShare{
 			{
 				PublicKey: ecdsaPubkey,
