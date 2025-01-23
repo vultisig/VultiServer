@@ -14,6 +14,7 @@ import (
 	"math/big"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -163,6 +164,7 @@ func (t *DKLSTssService) keysign(sessionID string,
 			t.logger.Error("failed to free keyshare", "error", err)
 		}
 	}()
+
 	msgHash := sha256.Sum256([]byte(message))
 	messageID := hex.EncodeToString(msgHash[:])
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
@@ -189,7 +191,11 @@ func (t *DKLSTssService) keysign(sessionID string,
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode message: %w", err)
 	}
-	if !bytes.Equal(messageHashInSetupMsg, msgHash[:]) {
+	msgRawBytes, err := hex.DecodeString(message)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode message: %w", err)
+	}
+	if !bytes.Equal(messageHashInSetupMsg, msgRawBytes) {
 		return nil, fmt.Errorf("message hash in setup message is not equal to the message, stop keysign")
 	}
 	sessionHandle, err := mpcWrapper.SignSessionFromSetup(setupMessageBytes, []byte(localPartyID), keyshareHandle)
@@ -211,40 +217,46 @@ func (t *DKLSTssService) keysign(sessionID string,
 	sig, err := t.processKeysignInbound(sessionHandle, sessionID, hexEncryptionKey, localPartyID, isEdDSA, messageID, wg)
 	wg.Wait()
 	t.logger.Infoln("Keysign result is:", len(sig))
+	resp := &tss.KeysignResponse{
+		Msg: message,
+		R:   hex.EncodeToString(sig[:32]),
+		S:   hex.EncodeToString(sig[32:64]),
+	}
 	if isEdDSA {
 		pubKeyBytes, err := hex.DecodeString(publicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode public key: %w", err)
 		}
 
-		if ed25519.Verify(pubKeyBytes, msgHash[:], sig) {
+		if ed25519.Verify(pubKeyBytes, msgRawBytes, sig) {
 			t.logger.Infoln("Signature is valid")
 		} else {
 			t.logger.Error("Signature is invalid")
 		}
 	} else {
+		childPublicKey, err := mpcWrapper.KeyshareDeriveChildPublicKey(keyshareHandle, []byte(strings.Replace(derivePath, "'", "", -1)))
+		if err != nil {
+			return nil, fmt.Errorf("failed to derive child public key: %w", err)
+		}
 		if len(sig) != 65 {
 			return nil, fmt.Errorf("signature length is not 64")
 		}
 		r := sig[:32]
 		s := sig[32:64]
-		// recovery := sig[64]
-		pubKeyBytes, err := hex.DecodeString(publicKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode public key: %w", err)
-		}
-		publicKey, err := secp256k1.ParsePubKey(pubKeyBytes)
+		recovery := sig[64]
+		resp.RecoveryID = hex.EncodeToString([]byte{recovery})
+		publicKeyECDSA, err := secp256k1.ParsePubKey(childPublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse public key: %w", err)
 		}
 
-		if ecdsa.Verify(publicKey.ToECDSA(), msgHash[:], new(big.Int).SetBytes(r), new(big.Int).SetBytes(s)) {
+		if ecdsa.Verify(publicKeyECDSA.ToECDSA(), msgRawBytes, new(big.Int).SetBytes(r), new(big.Int).SetBytes(s)) {
 			t.logger.Infoln("Signature is valid")
 		} else {
 			t.logger.Error("Signature is invalid")
 		}
 	}
-	return nil, nil
+	return resp, nil
 }
 func (t *DKLSTssService) processKeysignOutbound(handle Handle,
 	sessionID string,
