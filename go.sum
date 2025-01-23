@@ -227,6 +227,8 @@ github.com/vultisig/commondata v0.0.0-20250115213806-47c435c8e9d3 h1:4W3GXxtiwrV
 github.com/vultisig/commondata v0.0.0-20250115213806-47c435c8e9d3/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
 github.com/vultisig/commondata v0.0.0-20250122042332-3c2c828db7e0 h1:MGmOQNR3ura76ZBg3f7gkSxZBmFYKhLivgXgLYmTkds=
 github.com/vultisig/commondata v0.0.0-20250122042332-3c2c828db7e0/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
+github.com/vultisig/commondata v0.0.0-20250122093634-15d19de47495 h1:auxbLO9j16DD1f/uFqGoATyZZxgA4pOxynsZBbo/m2s=
+github.com/vultisig/commondata v0.0.0-20250122093634-15d19de47495/go.mod h1:UMc5q0Myab+BvzAe67UQrXTXwKGYNxK7bky7DJM+dl8=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250113110513-b211041c087b h1:Cw9yLEU71iR4cHGjosopgDhHmMqC3Mwd441VAs75BNE=
 github.com/vultisig/mobile-tss-lib v0.0.0-20250113110513-b211041c087b/go.mod h1:r8JFhEWnQvmV/HvhSwRCK96R+68NFcQpwEC2zIbPSJ0=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

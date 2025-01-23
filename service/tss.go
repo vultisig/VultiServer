@@ -326,35 +326,41 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 	}
 }
 
-func decrypt(cipherText, hexKey string) (string, error) {
+func decrypt(cipherText, hexKey string) (result string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	result = ""
+	err = nil
 	var block cipher.Block
-	var err error
-	key, err := hex.DecodeString(hexKey)
-	if err != nil {
-		return "", err
+	key, decodeErr := hex.DecodeString(hexKey)
+	if decodeErr != nil {
+		err = decodeErr
+		return
 	}
 	cipherByte := []byte(cipherText)
-
 	if block, err = aes.NewCipher(key); err != nil {
-		return "", err
+		return
 	}
 
 	if len(cipherByte) < aes.BlockSize {
-		fmt.Printf("ciphertext too short")
-		return "", err
+		err = fmt.Errorf("ciphertext too short")
+		return
 	}
 
 	iv := cipherByte[:aes.BlockSize]
 	cipherByte = cipherByte[aes.BlockSize:]
-
 	cbc := cipher.NewCBCDecrypter(block, iv)
 	plaintext := make([]byte, len(cipherByte))
 	cbc.CryptBlocks(plaintext, cipherByte)
 	plaintext, err = unpad(plaintext)
 	if err != nil {
-		return "", err
+		return
 	}
-	return string(plaintext), nil
+	result = string(plaintext)
+	return
 }
 
 func unpad(data []byte) ([]byte, error) {
