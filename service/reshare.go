@@ -164,7 +164,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 
 	vaultData, err = common.EncryptVault(encryptionPassword, vaultData)
 	if err != nil {
-		return fmt.Errorf("common.EncryptGCM failed: %w", err)
+		return fmt.Errorf("common.EncryptVault failed: %w", err)
 	}
 
 	vaultBackup := &vaultType.VaultContainer{
@@ -190,7 +190,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	if err != nil {
 		return fmt.Errorf("failed to create verification code: %w", err)
 	}
-	s.logger.Infof("verificationcode: %s", code)
+
 	emailRequest := types.EmailRequest{
 		Email:       email,
 		FileName:    common.GetVaultName(vault),
