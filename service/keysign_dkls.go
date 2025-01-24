@@ -8,12 +8,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
-	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -174,16 +170,8 @@ func (t *DKLSTssService) keysign(sessionID string,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get setup message: %w", err)
 	}
-	encryptedSetupMsg, err := base64.StdEncoding.DecodeString(encryptedEncodedSetupMsg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode setup message: %w", err)
-	}
-	// decrypt the setup message
-	decryptedSetupMsg, err := common.DecryptGCM(encryptedSetupMsg, hexEncryptionKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt setup message: %w", err)
-	}
-	setupMessageBytes, err := base64.StdEncoding.DecodeString(string(decryptedSetupMsg))
+
+	setupMessageBytes, err := t.decodeDecryptMessage(encryptedEncodedSetupMsg, hexEncryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode setup message: %w", err)
 	}
@@ -217,10 +205,17 @@ func (t *DKLSTssService) keysign(sessionID string,
 	sig, err := t.processKeysignInbound(sessionHandle, sessionID, hexEncryptionKey, localPartyID, isEdDSA, messageID, wg)
 	wg.Wait()
 	t.logger.Infoln("Keysign result is:", len(sig))
+	rBytes := sig[:32]
+	sBytes := sig[32:64]
+	derBytes, err := common.GetDerSignature(rBytes, sBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get der signature: %w", err)
+	}
 	resp := &tss.KeysignResponse{
-		Msg: message,
-		R:   hex.EncodeToString(sig[:32]),
-		S:   hex.EncodeToString(sig[32:64]),
+		Msg:          message,
+		R:            hex.EncodeToString(sig[:32]),
+		S:            hex.EncodeToString(sig[32:64]),
+		DerSignature: hex.EncodeToString(derBytes),
 	}
 	if isEdDSA {
 		pubKeyBytes, err := hex.DecodeString(publicKey)
@@ -234,23 +229,21 @@ func (t *DKLSTssService) keysign(sessionID string,
 			t.logger.Error("Signature is invalid")
 		}
 	} else {
-		childPublicKey, err := mpcWrapper.KeyshareDeriveChildPublicKey(keyshareHandle, []byte(strings.Replace(derivePath, "'", "", -1)))
+		publicKeyDerivePath := strings.Replace(derivePath, "'", "", -1)
+		childPublicKey, err := mpcWrapper.KeyshareDeriveChildPublicKey(keyshareHandle, []byte(publicKeyDerivePath))
 		if err != nil {
 			return nil, fmt.Errorf("failed to derive child public key: %w", err)
 		}
 		if len(sig) != 65 {
 			return nil, fmt.Errorf("signature length is not 64")
 		}
-		r := sig[:32]
-		s := sig[32:64]
 		recovery := sig[64]
 		resp.RecoveryID = hex.EncodeToString([]byte{recovery})
 		publicKeyECDSA, err := secp256k1.ParsePubKey(childPublicKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse public key: %w", err)
 		}
-
-		if ecdsa.Verify(publicKeyECDSA.ToECDSA(), msgRawBytes, new(big.Int).SetBytes(r), new(big.Int).SetBytes(s)) {
+		if ecdsa.Verify(publicKeyECDSA.ToECDSA(), msgRawBytes, new(big.Int).SetBytes(rBytes), new(big.Int).SetBytes(sBytes)) {
 			t.logger.Infoln("Signature is valid")
 		} else {
 			t.logger.Error("Signature is invalid")
@@ -280,7 +273,6 @@ func (t *DKLSTssService) processKeysignOutbound(handle Handle,
 			time.Sleep(time.Millisecond * 100)
 			continue
 		}
-		fmt.Println("Outbound message is:", len(outbound))
 		encodedOutbound := base64.StdEncoding.EncodeToString(outbound)
 		for i := 0; i < len(parties); i++ {
 			receiver, err := mpcWrapper.SignSessionMessageReceiver(handle, outbound, i)
@@ -310,6 +302,7 @@ func (t *DKLSTssService) processKeysignInbound(handle Handle,
 	defer wg.Done()
 	var messageCache sync.Map
 	mpcWrapper := t.GetMPCKeygenWrapper(isEdDSA)
+	relayClient := relay.NewRelayClient(t.cfg.Relay.Server)
 	for {
 		select {
 		case <-time.After(time.Minute):
@@ -317,33 +310,11 @@ func (t *DKLSTssService) processKeysignInbound(handle Handle,
 			t.isKeysignFinished.Store(true)
 			return nil, TssKeyGenTimeout
 		case <-time.After(time.Millisecond * 100):
-			resp, err := http.Get(t.cfg.Relay.Server + "/message/" + sessionID + "/" + localPartyID)
+			messages, err := relayClient.DownloadMessages(sessionID, localPartyID)
 			if err != nil {
-				t.logger.Error("fail to get data from server", "error", err)
+				t.logger.Error("fail to get messages", "error", err)
 				continue
 			}
-			if resp.StatusCode != http.StatusOK {
-				t.logger.Debug("fail to get data from server", "status", resp.Status)
-				continue
-			}
-			decoder := json.NewDecoder(resp.Body)
-			var messages []struct {
-				SessionID  string   `json:"session_id,omitempty"`
-				From       string   `json:"from,omitempty"`
-				To         []string `json:"to,omitempty"`
-				Body       string   `json:"body,omitempty"`
-				Hash       string   `json:"hash,omitempty"`
-				SequenceNo int64    `json:"sequence_no,omitempty"`
-			}
-			if err := decoder.Decode(&messages); err != nil {
-				if err != io.EOF {
-					t.logger.Error("fail to decode messages", "error", err)
-				}
-				continue
-			}
-			sort.Slice(messages, func(i, j int) bool {
-				return messages[i].SequenceNo < messages[j].SequenceNo
-			})
 			for _, message := range messages {
 				if message.From == localPartyID {
 					continue
@@ -356,18 +327,8 @@ func (t *DKLSTssService) processKeysignInbound(handle Handle,
 					t.logger.Infof("Message already applied, skipping,hash: %s", message.Hash)
 					continue
 				}
-				encryptedBody, err := base64.StdEncoding.DecodeString(message.Body)
-				if err != nil {
-					t.logger.Error("fail to decode message", "error", err)
-					continue
-				}
-				// decrypt the message
-				stillEncodedBody, err := common.DecryptGCM(encryptedBody, hexEncryptionKey)
-				if err != nil {
-					t.logger.Error("fail to decrypt message", "error", err)
-					continue
-				}
-				rawBody, err := base64.StdEncoding.DecodeString(string(stillEncodedBody))
+
+				rawBody, err := t.decodeDecryptMessage(message.Body, hexEncryptionKey)
 				if err != nil {
 					t.logger.Error("fail to decode inbound message", "error", err)
 					continue
@@ -381,7 +342,7 @@ func (t *DKLSTssService) processKeysignInbound(handle Handle,
 				}
 				messageCache.Store(cacheKey, true)
 				hashStr := message.Hash
-				if err := t.deleteMessageFromServer(sessionID, localPartyID, hashStr, messageID); err != nil {
+				if err := relayClient.DeleteMessageFromServer(sessionID, localPartyID, hashStr, messageID); err != nil {
 					t.logger.Error("fail to delete message", "error", err)
 				}
 				if isFinished {

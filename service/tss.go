@@ -7,11 +7,8 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,8 +24,9 @@ import (
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 )
 
-type Backup interface {
+type VaultOperation interface {
 	BackupVault(req types.VaultCreateRequest, partiesJoined []string, ecdsaPubkey, eddsaPubkey, hexChainCode string, localStateAccessor *relay.LocalStateAccessorImp) error
+	SaveVaultAndScheduleEmail(vault *vaultType.Vault, encryptionPassword, email string) error
 }
 
 func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string, string, error) {
@@ -233,47 +231,18 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 		"local_party_id": localPartyID,
 	})
 	logger.Info("Start downloading messages from : ", server)
-
+	relayClient := relay.NewRelayClient(server)
 	for {
 		select {
 		case <-endCh: // we are done
 			logger.Info("Stop downloading messages")
 			return
 		case <-time.After(time.Second):
-
-			req, err := http.NewRequest(http.MethodGet, server+"/message/"+session+"/"+localPartyID, nil)
+			messages, err := relayClient.DownloadMessages(session, localPartyID)
 			if err != nil {
-				logger.Errorf("Fail to create request,err: %s", err)
-				return
-			}
-			if messageID != "" {
-				req.Header.Set("message_id", messageID)
-			}
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				logger.Errorf("Failed to get data from server,err: %s", err)
+				logger.Errorf("Failed to get messages: %v", err)
 				continue
 			}
-			if resp.StatusCode != http.StatusOK {
-				logger.Errorf("Failed to get data from server, status code is not 200 OK")
-				continue
-			}
-			decoder := json.NewDecoder(resp.Body)
-			var messages []struct {
-				SessionID  string   `json:"session_id,omitempty"`
-				From       string   `json:"from,omitempty"`
-				To         []string `json:"to,omitempty"`
-				Body       string   `json:"body,omitempty"`
-				Hash       string   `json:"hash,omitempty"`
-				SequenceNo int64    `json:"sequence_no,omitempty"`
-			}
-			if err := decoder.Decode(&messages); err != nil {
-				logger.Errorf("Failed to decode data: %v", err)
-				continue
-			}
-			sort.Slice(messages, func(i, j int) bool {
-				return messages[i].SequenceNo < messages[j].SequenceNo
-			})
 			for _, message := range messages {
 				cacheKey := fmt.Sprintf("%s-%s-%s", session, localPartyID, message.Hash)
 				if messageID != "" {
@@ -302,24 +271,8 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 				}
 
 				messageCache.Store(cacheKey, true)
-				client := http.Client{}
-				reqDel, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+localPartyID+"/"+message.Hash, nil)
-				if err != nil {
+				if err := relayClient.DeleteMessageFromServer(session, localPartyID, message.Hash, messageID); err != nil {
 					logger.Errorf("Failed to delete message: %v", err)
-					continue
-				}
-				if messageID != "" {
-					reqDel.Header.Set("message_id", messageID)
-				}
-				resp, err := client.Do(reqDel)
-				if err != nil {
-					logger.Errorf("Failed to delete message: %v", err)
-					continue
-				}
-
-				if resp.StatusCode != http.StatusOK {
-					logger.Errorf("Failed to delete message, status code is not 200 OK")
-					continue
 				}
 			}
 		}

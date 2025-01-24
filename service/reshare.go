@@ -14,6 +14,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	mtss "github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
@@ -139,6 +140,7 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 			},
 		},
 		LocalPartyId:  vault.LocalPartyId,
+		LibType:       keygenType.LibType_LIB_TYPE_DKLS,
 		ResharePrefix: newResharePrefix,
 	}
 	return s.SaveVaultAndScheduleEmail(newVault, encryptionPassword, email)
@@ -211,7 +213,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	s.logger.Info("Email task enqueued: ", taskInfo.ID)
 	return nil
 }
-func (s *WorkerService) getOldParties(newParties []string, oldSignerCommittee []string) []string {
+func getOldParties(newParties []string, oldSignerCommittee []string) []string {
 	oldParties := make([]string, 0)
 	for _, party := range oldSignerCommittee {
 		if slices.Contains(newParties, party) {
@@ -225,7 +227,7 @@ func (s *WorkerService) reshareWithRetry(tssService *mtss.ServiceImpl,
 	vault *vaultType.Vault,
 	newParties []string,
 ) (string, string, string, error) {
-	oldParties := s.getOldParties(newParties, vault.Signers)
+	oldParties := getOldParties(newParties, vault.Signers)
 	resp, err := s.reshareECDSAKey(tssService, vault.PublicKeyEcdsa, vault.LocalPartyId, vault.HexChainCode, vault.ResharePrefix,
 		newParties, oldParties)
 	if err != nil {

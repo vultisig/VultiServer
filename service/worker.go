@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 
 	"github.com/vultisig/vultisigner/config"
@@ -277,7 +278,6 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	if localState.Vault != nil {
 		// reshare vault
 		vault = localState.Vault
-
 	} else {
 		vault = &vaultType.Vault{
 			Name:           req.Name,
@@ -287,6 +287,64 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 			LocalPartyId:   req.LocalPartyId,
 			Signers:        req.OldParties,
 			ResharePrefix:  req.OldResharePrefix,
+		}
+	}
+	if err := s.Reshare(vault,
+		req.SessionID,
+		req.HexEncryptionKey,
+		s.cfg.Relay.Server,
+		req.EncryptionPassword,
+		req.Email); err != nil {
+		s.logger.Errorf("reshare failed: %v", err)
+		return fmt.Errorf("reshare failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	return nil
+}
+
+func (s *WorkerService) HandleReshareDKLS(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	var req types.ReshareRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	if req.LibType != types.DKLS {
+		return fmt.Errorf("invalid lib type: %d: %w", req.LibType, asynq.SkipRetry)
+	}
+
+	defer s.measureTime("worker.vault.reshare.latency", time.Now(), []string{})
+	s.incCounter("worker.vault.reshare.dkls", []string{})
+	s.logger.WithFields(logrus.Fields{
+		"name":           req.Name,
+		"session":        req.SessionID,
+		"local_party_id": req.LocalPartyId,
+		"email":          req.Email,
+	}).Info("reshare request")
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid reshare request: %s: %w", err, asynq.SkipRetry)
+	}
+	localState, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
+	if err != nil {
+		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)
+	}
+	var vault *vaultType.Vault
+	if localState.Vault != nil {
+		// reshare vault
+		vault = localState.Vault
+	} else {
+		vault = &vaultType.Vault{
+			Name:           req.Name,
+			PublicKeyEcdsa: "",
+			PublicKeyEddsa: "",
+			HexChainCode:   req.HexChainCode,
+			LocalPartyId:   req.LocalPartyId,
+			Signers:        req.OldParties,
+			ResharePrefix:  req.OldResharePrefix,
+			LibType:        keygenType.LibType_LIB_TYPE_DKLS,
 		}
 		// create new vault
 	}

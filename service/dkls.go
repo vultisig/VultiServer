@@ -4,19 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
@@ -33,11 +28,11 @@ type DKLSTssService struct {
 	isKeygenFinished   *atomic.Bool
 	isKeysignFinished  *atomic.Bool
 	blockStorage       *storage.BlockStorage
-	backup             Backup
+	backup             VaultOperation
 }
 
 func NewDKLSTssService(cfg config.Config,
-	blockStorage *storage.BlockStorage, backupInterface Backup) (*DKLSTssService, error) {
+	blockStorage *storage.BlockStorage, backupInterface VaultOperation) (*DKLSTssService, error) {
 	localStateAccessor, err := relay.NewLocalStateAccessorImp(cfg.Server.VaultsFilePath, "", "", blockStorage)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create local state accessor: %w", err)
@@ -159,16 +154,7 @@ func (t *DKLSTssService) keygen(sessionID string,
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get setup message: %w", err)
 	}
-	encryptedSetupMsg, err := base64.StdEncoding.DecodeString(encryptedEncodedSetupMsg)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to decode setup message: %w", err)
-	}
-	// decrypt the setup message
-	decryptedSetupMsg, err := common.DecryptGCM(encryptedSetupMsg, hexEncryptionKey)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to decrypt setup message: %w", err)
-	}
-	setupMessageBytes, err := base64.StdEncoding.DecodeString(string(decryptedSetupMsg))
+	setupMessageBytes, err := t.decodeDecryptMessage(encryptedEncodedSetupMsg, hexEncryptionKey)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to decode setup message: %w", err)
 	}
@@ -229,7 +215,7 @@ func (t *DKLSTssService) processKeygenOutbound(handle Handle,
 
 			t.logger.Infoln("Sending message to", receiver)
 			// send the message to the receiver
-			if err := messenger.Send(localPartyID, string(receiver), encodedOutbound); err != nil {
+			if err := messenger.Send(localPartyID, receiver, encodedOutbound); err != nil {
 				t.logger.Errorf("failed to send message: %v", err)
 			}
 		}
@@ -245,6 +231,7 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 	defer wg.Done()
 	var messageCache sync.Map
 	mpcKeygenWrapper := t.GetMPCKeygenWrapper(isEdDSA)
+	relayClient := relay.NewRelayClient(t.cfg.Relay.Server)
 	for {
 		select {
 		case <-time.After(time.Minute):
@@ -252,33 +239,11 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 			t.isKeygenFinished.Store(true)
 			return "", "", TssKeyGenTimeout
 		case <-time.After(time.Millisecond * 100):
-			resp, err := http.Get(t.cfg.Relay.Server + "/message/" + sessionID + "/" + localPartyID)
+			messages, err := relayClient.DownloadMessages(sessionID, localPartyID)
 			if err != nil {
-				t.logger.Error("fail to get data from server", "error", err)
+				t.logger.Error("failed to download messages", "error", err)
 				continue
 			}
-			if resp.StatusCode != http.StatusOK {
-				t.logger.Debug("fail to get data from server", "status", resp.Status)
-				continue
-			}
-			decoder := json.NewDecoder(resp.Body)
-			var messages []struct {
-				SessionID  string   `json:"session_id,omitempty"`
-				From       string   `json:"from,omitempty"`
-				To         []string `json:"to,omitempty"`
-				Body       string   `json:"body,omitempty"`
-				Hash       string   `json:"hash,omitempty"`
-				SequenceNo int64    `json:"sequence_no,omitempty"`
-			}
-			if err := decoder.Decode(&messages); err != nil {
-				if err != io.EOF {
-					t.logger.Error("fail to decode messages", "error", err)
-				}
-				continue
-			}
-			sort.Slice(messages, func(i, j int) bool {
-				return messages[i].SequenceNo < messages[j].SequenceNo
-			})
 			for _, message := range messages {
 				if message.From == localPartyID {
 					continue
@@ -288,17 +253,8 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 					t.logger.Infof("Message already applied, skipping,hash: %s", message.Hash)
 					continue
 				}
-				decodedBody, err := base64.StdEncoding.DecodeString(message.Body)
-				if err != nil {
-					t.logger.Error("fail to decode message", "error", err)
-					continue
-				}
-				rawBody, err := common.DecryptGCM(decodedBody, hexEncryptionKey)
-				if err != nil {
-					t.logger.Error("fail to decrypt message", "error", err)
-					continue
-				}
-				inboundBody, err := base64.StdEncoding.DecodeString(string(rawBody))
+
+				inboundBody, err := t.decodeDecryptMessage(message.Body, hexEncryptionKey)
 				if err != nil {
 					t.logger.Error("fail to decode inbound message", "error", err)
 					continue
@@ -310,7 +266,7 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 					continue
 				}
 
-				if err := t.deleteMessageFromServer(sessionID, localPartyID, message.Hash, ""); err != nil {
+				if err := relayClient.DeleteMessageFromServer(sessionID, localPartyID, message.Hash, ""); err != nil {
 					t.logger.Error("fail to delete message", "error", err)
 				}
 				if isFinished {
@@ -351,24 +307,7 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 		}
 	}
 }
-func (t *DKLSTssService) deleteMessageFromServer(sessionID, localPartyID, hash, messageID string) error {
-	client := http.Client{}
-	req, err := http.NewRequest(http.MethodDelete, t.cfg.Relay.Server+"/message/"+sessionID+"/"+localPartyID+"/"+hash, nil)
-	if err != nil {
-		return fmt.Errorf("fail to delete message: %w", err)
-	}
-	if messageID != "" {
-		req.Header.Add("message_id", messageID)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("fail to delete message: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fail to delete message: status %s", resp.Status)
-	}
-	return nil
-}
+
 func (t *DKLSTssService) convertKeygenCommitteeToBytes(paries []string) ([]byte, error) {
 	if len(paries) == 0 {
 		return nil, fmt.Errorf("no parties provided")
