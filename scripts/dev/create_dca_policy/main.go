@@ -93,8 +93,8 @@ func main() {
 		ChainID:            "1",
 		SourceTokenID:      sourceTokenContract,
 		DestinationTokenID: destinationTokenContract,
-		SlippagePercentage: "1.0",
-		Amount:             swapAmountIn,
+		TotalAmount:        swapAmountIn,
+		TotalOrders:        "2",
 		Schedule: types.Schedule{
 			Frequency: frequency,
 			StartTime: time.Now().UTC().Add(20 * time.Second).Format(time.RFC3339),

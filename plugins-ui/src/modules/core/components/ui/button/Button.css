@@ -1,0 +1,43 @@
+.button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    border-radius: 99px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.primary {
+    background-color: #33E6BF;
+    color: #02122B;
+}
+
+.primary:hover {
+    background-color: #0FBF93;
+}
+
+.secondary {
+    background-color: #11284A;
+    color: #F0F4FC;
+}
+
+.secondary:hover {
+    background-color: #3B6A91;
+}
+
+.tertiary {
+    background: none;
+    color: #F0F4FC;
+    border: none;
+    padding: 0;
+}
+
+.small {
+    padding: 0.75rem 1.5rem;
+}
+
+.medium {
+    padding: 0.875rem 2rem;
+}

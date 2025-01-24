@@ -1,0 +1,142 @@
+.dca-form {
+    border: 1px solid #1F2A37;
+    border-radius: 16px;
+    padding: 24px;
+}
+
+input {
+    background: transparent;
+    border: none;
+    color: #D1D5DB;
+    line-height: 28px;
+    font-family: 'Brockmann', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    padding: 0;
+}
+
+input:focus {
+    outline: none
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.input-field-inline {
+    display: flex;
+    justify-content: space-between;
+    border: 1px solid #6B7280;
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 4px;
+
+    label {
+        margin-bottom: 6px;
+    }
+}
+
+.input-field-outline {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+
+    label {
+        margin-bottom: 8px;
+    }
+
+    input {
+        font-size: 1rem;
+        border: 1px solid #6B7280;
+        border-radius: 12px;
+        height: 48px;
+        padding: 12px 16px;
+    }
+
+    .absolute {
+        position: absolute;
+        top: 53%;
+        right: 5%;
+        font-size: 12px;
+    }
+}
+
+label {
+    display: flex;
+    color: #F9FAFB;
+    font-weight: 400;
+    font-size: 0.875rem;
+}
+
+.input-container {
+    position: relative;
+    color: #F9FAFB
+}
+
+select {
+    position: absolute;
+    top: 53%;
+    right: 5%;
+    font-size: 12px;
+    background: initial;
+    color: #FFFFFF;
+    border: none;
+    cursor: pointer;
+}
+
+.submit {
+    width: 100%;
+    height: 44px;
+}
+
+.dollar-equivalent {
+    display: flex;
+    justify-content: flex-start;
+    color: #9CA3AF;
+    font-size: 0.875rem;
+    font-weight: 400;
+}
+
+.display-flex {
+    display: flex;
+    justify-content: space-between;
+}
+
+.white-text {
+    color: #F9FAFB;
+}
+
+.m-t-b-24 {
+    margin-top: 24px;
+    margin-bottom: 24px;
+}
+
+.swap-btn {
+    display: flex;
+    justify-content: center;
+    position: relative;
+    left: calc(50% - 18px);
+    margin-top: -16px;
+    margin-bottom: -16px;
+}
+
+.form-title {
+    font-weight: 600;
+    font-size: 24px;
+    color: #FFFFFF;
+}
+
+.form-subtitle {
+    font-weight: 400;
+    font-size: 0.875rem;
+    color: #CBD7E9;
+    margin-bottom: 24px;
+    margin-top: 8px;
+}
+
+.error {
+    color: red;
+    font-size: 12px;
+}

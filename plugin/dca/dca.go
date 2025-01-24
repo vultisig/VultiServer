@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strconv"
 	"strings"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
@@ -62,27 +61,38 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		return fmt.Errorf("source token and destination token addresses are the same")
 	}
 
-	if dcaPolicy.Amount == "" {
-		return fmt.Errorf("amount is required")
+	if dcaPolicy.TotalAmount == "" {
+		return fmt.Errorf("total amount is required")
 	}
-	amount, ok := new(big.Int).SetString(dcaPolicy.Amount, 10)
+	totalAmount, ok := new(big.Int).SetString(dcaPolicy.TotalAmount, 10)
 	if !ok {
-		return fmt.Errorf("invalid amount %s", dcaPolicy.Amount)
+		return fmt.Errorf("invalid total amount %s", dcaPolicy.TotalAmount)
 	}
-	if amount.Cmp(big.NewInt(0)) <= 0 {
-		return fmt.Errorf("amount must be greater than 0")
+	if totalAmount.Cmp(big.NewInt(0)) <= 0 {
+		return fmt.Errorf("total amount must be greater than 0")
 	}
 
-	if dcaPolicy.SlippagePercentage == "" {
-		return fmt.Errorf("slippage percentage is required")
+	if dcaPolicy.TotalOrders == "" {
+		return fmt.Errorf("total orders is required")
 	}
-	slippage, err := strconv.ParseFloat(dcaPolicy.SlippagePercentage, 64)
-	if err != nil {
-		return fmt.Errorf("invalid slippage percentage %s", dcaPolicy.SlippagePercentage)
+	totalOrders, ok := new(big.Int).SetString(dcaPolicy.TotalOrders, 10)
+	if !ok {
+		return fmt.Errorf("invalid total orders %s", dcaPolicy.TotalOrders)
 	}
-	if slippage <= 0 || slippage > 100 {
-		return fmt.Errorf("slippage percentage must be between 0 and 100 %s", dcaPolicy.SlippagePercentage)
+	if totalOrders.Cmp(big.NewInt(0)) <= 0 {
+		return fmt.Errorf("total orders must be greater than 0")
 	}
+
+	// if dcaPolicy.SlippagePercentage == "" {
+	// 	return fmt.Errorf("slippage percentage is required")
+	// }
+	// slippage, err := strconv.ParseFloat(dcaPolicy.SlippagePercentage, 64)
+	// if err != nil {
+	// 	return fmt.Errorf("invalid slippage percentage %s", dcaPolicy.SlippagePercentage)
+	// }
+	// if slippage <= 0 || slippage > 100 {
+	// 	return fmt.Errorf("slippage percentage must be between 0 and 100 %s", dcaPolicy.SlippagePercentage)
+	// }
 
 	if dcaPolicy.ChainID == "" {
 		return fmt.Errorf("chain id is required")

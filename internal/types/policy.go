@@ -28,8 +28,8 @@ type DCAPolicy struct {
 	ChainID            string   `json:"chain_id"`
 	SourceTokenID      string   `json:"source_token_id"`
 	DestinationTokenID string   `json:"destination_token_id"`
-	SlippagePercentage string   `json:"slippage_percentage"`
-	Amount             string   `json:"amount"`
+	TotalAmount        string   `json:"total_amount"`
+	TotalOrders        string   `json:"total_orders"`
 	Schedule           Schedule `json:"schedule"`
 }
 
@@ -40,6 +40,7 @@ type PayrollRecipient struct {
 
 type Schedule struct {
 	Frequency string `json:"frequency"`
+	Interval  string `json:"interval"`
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time,omitempty"`
 }

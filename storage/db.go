@@ -10,6 +10,7 @@ type DatabaseStorage interface {
 
 	InsertPluginPolicy(policyDoc types.PluginPolicy) error
 	GetPluginPolicy(id string) (types.PluginPolicy, error)
+	GetAllPluginPolicies(public_key string) ([]types.PluginPolicy, error)
 
 	CreateTimeTrigger(trigger types.TimeTrigger) error
 	GetPendingTriggers() ([]types.TimeTrigger, error)

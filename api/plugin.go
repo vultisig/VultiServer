@@ -153,6 +153,50 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	return c.JSON(http.StatusOK, ti.ID)
 }
 
+func (s *Server) GetPluginPolicyById(c echo.Context) error {
+	policyID := c.Param("policyId")
+	if policyID == "" {
+		return fmt.Errorf("policy id is required")
+	}
+
+	policy, err := s.db.GetPluginPolicy(policyID)
+	if err != nil {
+		err = fmt.Errorf("failed to retrieve policy: %w", err)
+		message := map[string]interface{}{
+			"error":   err.Error(),
+			"message": fmt.Sprintf("failed to retrieve policy: %s", policyID),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, policy)
+}
+
+func (s *Server) GetAllPluginPolicies(c echo.Context) error {
+	publicKey := c.Request().Header.Get("public_key")
+	if publicKey == "" {
+		err := fmt.Errorf("missing required header: public_key")
+		message := map[string]interface{}{
+			"error": err.Error(),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	policies, err := s.db.GetAllPluginPolicies(publicKey)
+	if err != nil {
+		message := map[string]interface{}{
+			"error":   err.Error(),
+			"message": fmt.Sprintf("failed to retrieve policies for public_key: %s", publicKey),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, policies)
+}
+
 func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {
