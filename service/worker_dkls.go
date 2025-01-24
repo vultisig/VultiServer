@@ -11,6 +11,7 @@ import (
 
 	"github.com/vultisig/vultisigner/contexthelper"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/relay"
 )
 
 func (s *WorkerService) HandleKeyGenerationDKLS(ctx context.Context, t *asynq.Task) error {
@@ -35,7 +36,11 @@ func (s *WorkerService) HandleKeyGenerationDKLS(ctx context.Context, t *asynq.Ta
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid vault create request: %s: %w", err, asynq.SkipRetry)
 	}
-	dklsService, err := NewDKLSTssService(s.cfg, s.blockStorage, s)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, "", "", s.blockStorage)
+	if err != nil {
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %s: %w", err, asynq.SkipRetry)
+	}
+	dklsService, err := NewDKLSTssService(s.cfg, s.blockStorage, localStateAccessor, s)
 	if err != nil {
 		return fmt.Errorf("NewDKLSTssService failed: %s: %w", err, asynq.SkipRetry)
 	}
@@ -89,7 +94,11 @@ func (s *WorkerService) HandleKeySignDKLS(ctx context.Context, t *asynq.Task) er
 		"IsECDSA":    p.IsECDSA,
 	}).Info("joining keysign")
 
-	dklsService, err := NewDKLSTssService(s.cfg, s.blockStorage, s)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, "", "", s.blockStorage)
+	if err != nil {
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %s: %w", err, asynq.SkipRetry)
+	}
+	dklsService, err := NewDKLSTssService(s.cfg, s.blockStorage, localStateAccessor, s)
 	if err != nil {
 		return fmt.Errorf("NewDKLSTssService failed: %s: %w", err, asynq.SkipRetry)
 	}

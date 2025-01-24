@@ -140,7 +140,7 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 			},
 		},
 		LocalPartyId:  vault.LocalPartyId,
-		LibType:       keygenType.LibType_LIB_TYPE_DKLS,
+		LibType:       keygenType.LibType_LIB_TYPE_GG20,
 		ResharePrefix: newResharePrefix,
 	}
 	return s.SaveVaultAndScheduleEmail(newVault, encryptionPassword, email)
@@ -192,7 +192,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	if err != nil {
 		return fmt.Errorf("failed to create verification code: %w", err)
 	}
-
+	s.logger.Infof("Verification code: %s", code)
 	emailRequest := types.EmailRequest{
 		Email:       email,
 		FileName:    common.GetVaultName(vault),

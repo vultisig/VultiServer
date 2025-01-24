@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -50,10 +51,13 @@ func (t *DKLSTssService) ProcessReshare(vault *vaultType.Vault,
 	if len(partiesJoined) == 0 {
 		return fmt.Errorf("keygen committee is empty")
 	}
+	t.logger.Infof("start reshare ecdsa")
 	ecdsaPubkey, chainCodeECDSA, err := t.reshareWithRetry(vault, sessionID, hexEncryptionKey, partiesJoined, vault.PublicKeyEcdsa, false)
 	if err != nil {
 		return fmt.Errorf("failed to reshare ECDSA: %w", err)
 	}
+	t.logger.Infof("start reshare eddsa")
+	time.Sleep(1 * time.Second)
 	eddsaPubkey, _, err := t.reshareWithRetry(vault, sessionID, hexEncryptionKey, partiesJoined, vault.PublicKeyEddsa, true)
 	if err != nil {
 		return fmt.Errorf("failed to reshare EDDSA: %w", err)
@@ -103,6 +107,7 @@ func (t *DKLSTssService) ProcessReshare(vault *vaultType.Vault,
 			},
 		},
 		LocalPartyId:  vault.LocalPartyId,
+		LibType:       keygenType.LibType_LIB_TYPE_DKLS,
 		ResharePrefix: "",
 	}
 	return t.backup.SaveVaultAndScheduleEmail(newVault, encryptionPassword, email)
@@ -139,6 +144,7 @@ func (t *DKLSTssService) reshare(vault *vaultType.Vault,
 		}).Infof("Reshare attempt %d,", attempt)
 	mpcWrapper := t.GetMPCKeygenWrapper(isEdDSA)
 	var keyshareHandle Handle
+	t.isKeygenFinished.Store(false)
 	if len(publicKey) > 0 {
 		// we need to get the shares
 		keyshare, err := t.localStateAccessor.GetLocalState(publicKey)

@@ -348,12 +348,13 @@ func (s *WorkerService) HandleReshareDKLS(ctx context.Context, t *asynq.Task) er
 		}
 		// create new vault
 	}
-	if err := s.Reshare(vault,
-		req.SessionID,
-		req.HexEncryptionKey,
-		s.cfg.Relay.Server,
-		req.EncryptionPassword,
-		req.Email); err != nil {
+	service, err := NewDKLSTssService(s.cfg, s.blockStorage, localState, s)
+	if err != nil {
+		s.logger.Errorf("NewDKLSTssService failed: %v", err)
+		return fmt.Errorf("NewDKLSTssService failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := service.ProcessReshare(vault, req.SessionID, req.HexEncryptionKey, req.EncryptionPassword, req.Email); err != nil {
 		s.logger.Errorf("reshare failed: %v", err)
 		return fmt.Errorf("reshare failed: %v: %w", err, asynq.SkipRetry)
 	}
