@@ -57,7 +57,6 @@ func (t *DKLSTssService) ProcessReshare(vault *vaultType.Vault,
 		return fmt.Errorf("failed to reshare ECDSA: %w", err)
 	}
 	t.logger.Infof("start reshare eddsa")
-	time.Sleep(1 * time.Second)
 	eddsaPubkey, _, err := t.reshareWithRetry(vault, sessionID, hexEncryptionKey, partiesJoined, vault.PublicKeyEddsa, true)
 	if err != nil {
 		return fmt.Errorf("failed to reshare EDDSA: %w", err)
@@ -130,7 +129,6 @@ func (t *DKLSTssService) reshareWithRetry(vault *vaultType.Vault,
 			return newPublicKey, chainCode, nil
 		}
 		t.logger.Error("failed to reshare", "error", err)
-		time.Sleep(50 * time.Millisecond)
 	}
 	return "", "", fmt.Errorf("failed to reshare after 3 attempts")
 }
@@ -175,7 +173,11 @@ func (t *DKLSTssService) reshare(vault *vaultType.Vault,
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	// retrieve the setup Message
-	encryptedEncodedSetupMsg, err := client.WaitForPayload(ctx, sessionID, "")
+	additionalHeader := ""
+	if isEdDSA {
+		additionalHeader = "eddsa"
+	}
+	encryptedEncodedSetupMsg, err := client.WaitForSetupMessage(ctx, sessionID, additionalHeader)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get setup message: %w", err)
 	}
@@ -232,7 +234,7 @@ func (t *DKLSTssService) processQcOutbound(handle Handle,
 				t.logger.Error("failed to get receiver message", "error", err)
 			}
 			if len(receiver) == 0 {
-				break
+				continue
 			}
 
 			t.logger.Infoln("Sending message to", receiver)
@@ -279,6 +281,10 @@ func (t *DKLSTssService) processQcInbound(handle Handle,
 			messages, err := relayClient.DownloadMessages(sessionID, localPartyID)
 			if err != nil {
 				t.logger.Error("fail to get messages", "error", err)
+				continue
+			}
+			if len(messages) == 0 {
+				t.logger.Infof("No messages found")
 				continue
 			}
 			for _, message := range messages {

@@ -148,7 +148,7 @@ func (t *DKLSTssService) keygen(sessionID string,
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	// retrieve the setup Message
-	encryptedEncodedSetupMsg, err := relayClient.WaitForPayload(ctx, sessionID, "")
+	encryptedEncodedSetupMsg, err := relayClient.WaitForSetupMessage(ctx, sessionID, "")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get setup message: %w", err)
 	}
@@ -208,7 +208,7 @@ func (t *DKLSTssService) processKeygenOutbound(handle Handle,
 				t.logger.Error("failed to get receiver message", "error", err)
 			}
 			if len(receiver) == 0 {
-				break
+				continue
 			}
 
 			t.logger.Infoln("Sending message to", receiver)

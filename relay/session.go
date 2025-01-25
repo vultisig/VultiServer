@@ -295,27 +295,27 @@ func (c *Client) EndSession(sessionID string) error {
 	}
 	return nil
 }
-func (c *Client) UploadPayload(sessionID string, payload string) error {
+func (c *Client) UploadSetupMessage(sessionID string, payload string) error {
 	sessionUrl := c.relayServer + "/setup-message/" + sessionID
 	body := []byte(payload)
 	bodyReader := bytes.NewReader(body)
 	resp, err := http.Post(sessionUrl, "application/json", bodyReader)
 	if err != nil {
-		return fmt.Errorf("fail to upload payload: %w", err)
+		return fmt.Errorf("fail to upload setup message: %w", err)
 	}
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("fail to upload payload: %s", resp.Status)
+		return fmt.Errorf("fail to upload setup message: %s", resp.Status)
 	}
 	return nil
 }
 
-func (c *Client) WaitForPayload(ctx context.Context, sessionID, messageID string) (string, error) {
+func (c *Client) WaitForSetupMessage(ctx context.Context, sessionID, messageID string) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
 			return "", ctx.Err()
 		default:
-			payload, err := c.GetPayload(sessionID, messageID)
+			payload, err := c.GetSetupMessage(sessionID, messageID)
 			if err == nil && payload != "" {
 				return payload, err
 			}
@@ -325,11 +325,11 @@ func (c *Client) WaitForPayload(ctx context.Context, sessionID, messageID string
 	}
 }
 
-func (c *Client) GetPayload(sessionID, messageID string) (string, error) {
+func (c *Client) GetSetupMessage(sessionID, messageID string) (string, error) {
 	sessionUrl := c.relayServer + "/setup-message/" + sessionID
 	req, err := http.NewRequest(http.MethodGet, sessionUrl, nil)
 	if err != nil {
-		return "", fmt.Errorf("fail to get payload: %w", err)
+		return "", fmt.Errorf("fail to get setup message: %w", err)
 	}
 	if messageID != "" {
 		req.Header.Add("message_id", messageID)
@@ -337,10 +337,10 @@ func (c *Client) GetPayload(sessionID, messageID string) (string, error) {
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("fail to get payload: %w", err)
+		return "", fmt.Errorf("fail to get setup message: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("fail to get payload: %s", resp.Status)
+		return "", fmt.Errorf("fail to get setup message: %s", resp.Status)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -349,7 +349,7 @@ func (c *Client) GetPayload(sessionID, messageID string) (string, error) {
 	}()
 	result, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("fail to read payload: %w", err)
+		return "", fmt.Errorf("fail to read setup message: %w", err)
 	}
 
 	return string(result), nil
