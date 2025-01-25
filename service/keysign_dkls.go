@@ -5,7 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
-	"crypto/sha256"
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -160,9 +160,7 @@ func (t *DKLSTssService) keysign(sessionID string,
 			t.logger.Error("failed to free keyshare", "error", err)
 		}
 	}()
-
-	msgHash := sha256.Sum256([]byte(message))
-	messageID := hex.EncodeToString(msgHash[:])
+	messageID := hex.EncodeToString(md5.New().Sum([]byte(message)))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	// retrieve the setup Message
@@ -349,7 +347,7 @@ func (t *DKLSTssService) processKeysignInbound(handle Handle,
 					t.logger.Infoln("keysign finished")
 					result, err := mpcWrapper.SignSessionFinish(handle)
 					if err != nil {
-						t.logger.Error("fail to finish keygen", "error", err)
+						t.logger.Error("fail to finish keysign", "error", err)
 						return nil, err
 					}
 					encodedKeysignResult := base64.StdEncoding.EncodeToString(result)

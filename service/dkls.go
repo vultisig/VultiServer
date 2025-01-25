@@ -32,11 +32,9 @@ type DKLSTssService struct {
 }
 
 func NewDKLSTssService(cfg config.Config,
-	blockStorage *storage.BlockStorage, backupInterface VaultOperation) (*DKLSTssService, error) {
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(cfg.Server.VaultsFilePath, "", "", blockStorage)
-	if err != nil {
-		return nil, fmt.Errorf("fail to create local state accessor: %w", err)
-	}
+	blockStorage *storage.BlockStorage,
+	localStateAccessor *relay.LocalStateAccessorImp,
+	backupInterface VaultOperation) (*DKLSTssService, error) {
 	return &DKLSTssService{
 		cfg:                cfg,
 		logger:             logrus.WithField("service", "dkls").Logger,
