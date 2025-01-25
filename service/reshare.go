@@ -60,10 +60,6 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 	if err != nil {
 		return fmt.Errorf("failed to wait for session start: %w", err)
 	}
-	keyShares := make(map[string]string)
-	for _, share := range vault.KeyShares {
-		keyShares[share.PublicKey] = share.Keyshare
-	}
 	localStateAccessor, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword, s.blockStorage)
 	if err != nil {
 		return fmt.Errorf("failed to create localStateAccessor: %w", err)
@@ -112,14 +108,19 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 		}).Error("Failed to check completed parties")
 	}
 
-	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
+	ecdsaKeyShare, err := localStateAccessor.GetLocalCacheState(ecdsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
 	}
-
-	eddsaKeyShare, err := localStateAccessor.GetLocalState(eddsaPubkey)
+	if ecdsaKeyShare == "" {
+		return fmt.Errorf("ecdsaKeyShare is empty")
+	}
+	eddsaKeyShare, err := localStateAccessor.GetLocalCacheState(eddsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+	if eddsaKeyShare == "" {
+		return fmt.Errorf("eddsaKeyShare is empty")
 	}
 
 	newVault := &vaultType.Vault{
@@ -192,7 +193,6 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	if err != nil {
 		return fmt.Errorf("failed to create verification code: %w", err)
 	}
-
 	emailRequest := types.EmailRequest{
 		Email:       email,
 		FileName:    common.GetVaultName(vault),

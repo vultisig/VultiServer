@@ -80,14 +80,19 @@ func (t *DKLSTssService) ProcessReshare(vault *vaultType.Vault,
 		t.logger.Infof("Backup is disabled")
 		return nil
 	}
-	ecdsaKeyShare, err := t.localStateAccessor.GetLocalState(ecdsaPubkey)
+	ecdsaKeyShare, err := t.localStateAccessor.GetLocalCacheState(ecdsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
 	}
-
-	eddsaKeyShare, err := t.localStateAccessor.GetLocalState(eddsaPubkey)
+	if ecdsaKeyShare == "" {
+		return fmt.Errorf("failed to get ecdsa keyshare")
+	}
+	eddsaKeyShare, err := t.localStateAccessor.GetLocalCacheState(eddsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+	if eddsaKeyShare == "" {
+		return fmt.Errorf("failed to get eddsa keyshare")
 	}
 	newVault := &vaultType.Vault{
 		Name:           vault.Name,

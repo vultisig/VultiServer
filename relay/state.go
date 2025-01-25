@@ -64,3 +64,7 @@ func (l *LocalStateAccessorImp) SaveLocalState(pubKey, localState string) error 
 	l.cache[pubKey] = localState
 	return nil
 }
+
+func (l *LocalStateAccessorImp) GetLocalCacheState(pubKey string) (string, error) {
+	return l.cache[pubKey], nil
+}
