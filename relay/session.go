@@ -332,7 +332,7 @@ func (c *Client) GetSetupMessage(sessionID, messageID string) (string, error) {
 		return "", fmt.Errorf("fail to get setup message: %w", err)
 	}
 	if messageID != "" {
-		req.Header.Add("message_id", messageID)
+		req.Header.Add("message-id", messageID)
 	}
 
 	resp, err := c.client.Do(req)
