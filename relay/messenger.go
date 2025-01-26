@@ -25,9 +25,10 @@ type MessengerImp struct {
 	logger           *logrus.Logger
 	messageCache     sync.Map
 	isGCM            bool
+	messageID        string
 }
 
-func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool) *MessengerImp {
+func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool, messageID string) *MessengerImp {
 	return &MessengerImp{
 		Server:           server,
 		SessionID:        sessionID,
@@ -35,6 +36,7 @@ func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool) *Messe
 		messageCache:     sync.Map{},
 		logger:           logrus.WithField("service", "messenger").Logger,
 		isGCM:            isGCM,
+		messageID:        messageID,
 	}
 }
 func (m *MessengerImp) Send(from, to, body string) error {
@@ -82,7 +84,9 @@ func (m *MessengerImp) Send(from, to, body string) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
+	if m.messageID != "" {
+		req.Header.Set("message_id", m.messageID)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)

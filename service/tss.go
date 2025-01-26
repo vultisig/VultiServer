@@ -57,7 +57,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
 
-	tssServerImp, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, true)
+	tssServerImp, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, true, "")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
@@ -201,8 +201,8 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 	return s.SaveVaultAndScheduleEmail(vault, req.EncryptionPassword, req.Email)
 }
 
-func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool) (*tss.ServiceImpl, error) {
-	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey, false)
+func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool, messageID string) (*tss.ServiceImpl, error) {
+	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey, false, messageID)
 	tssService, err := tss.NewService(messenger, localStateAccessor, createPreParam)
 	if err != nil {
 		return nil, fmt.Errorf("create TSS service: %w", err)
@@ -366,11 +366,6 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 		return nil, fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	tssServerImp, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TSS service: %w", err)
-	}
-
 	for _, message := range req.Messages {
 		var signature *tss.KeysignResponse
 		for attempt := 0; attempt < 3; attempt++ {
@@ -378,9 +373,9 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 				localPartyId,
 				req,
 				partiesJoined,
-				tssServerImp,
 				message,
-				localStateAccessor.Vault.PublicKeyEddsa)
+				localStateAccessor.Vault.PublicKeyEddsa,
+				localStateAccessor)
 			if err == nil {
 				break
 			}
@@ -407,10 +402,14 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 	req types.KeysignRequest,
 	partiesJoined []string,
-	tssService tss.Service,
 	msg string,
-	publicKeyEdDSA string) (*tss.KeysignResponse, error) {
+	publicKeyEdDSA string, localStateAccessor *relay.LocalStateAccessorImp) (*tss.KeysignResponse, error) {
 	messageID := hex.EncodeToString(md5.New().Sum([]byte(msg)))
+	s.logger.Infoln("Start keysign for message: ", messageID)
+	tssService, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, false, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TSS service: %w", err)
+	}
 	msgBuf, err := hex.DecodeString(msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode message: %w", err)

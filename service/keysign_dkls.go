@@ -196,7 +196,7 @@ func (t *DKLSTssService) keysign(sessionID string,
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
-		if err := t.processKeysignOutbound(sessionHandle, sessionID, hexEncryptionKey, keysignCommittee, localPartyID, wg, isEdDSA); err != nil {
+		if err := t.processKeysignOutbound(sessionHandle, sessionID, hexEncryptionKey, keysignCommittee, localPartyID, messageID, wg, isEdDSA); err != nil {
 			t.logger.Error("failed to process keygen outbound", "error", err)
 		}
 	}()
@@ -254,9 +254,10 @@ func (t *DKLSTssService) processKeysignOutbound(handle Handle,
 	hexEncryptionKey string,
 	parties []string,
 	localPartyID string,
+	messageID string,
 	wg *sync.WaitGroup, isEdDSA bool) error {
 	defer wg.Done()
-	messenger := relay.NewMessenger(t.cfg.Relay.Server, sessionID, hexEncryptionKey, true)
+	messenger := relay.NewMessenger(t.cfg.Relay.Server, sessionID, hexEncryptionKey, true, messageID)
 	mpcWrapper := t.GetMPCKeygenWrapper(isEdDSA)
 	for {
 		outbound, err := mpcWrapper.SignSessionOutputMessage(handle)

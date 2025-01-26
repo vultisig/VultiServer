@@ -65,7 +65,7 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 		return fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
 
-	tssServerImp, err := s.createTSSService(serverURL, sessionID, hexEncryptionKey, localStateAccessor, true)
+	tssServerImp, err := s.createTSSService(serverURL, sessionID, hexEncryptionKey, localStateAccessor, true, "")
 	if err != nil {
 		return fmt.Errorf("failed to create TSS service: %w", err)
 	}

@@ -212,7 +212,7 @@ func (t *DKLSTssService) processQcOutbound(handle Handle,
 	isEdDSA bool,
 	wg *sync.WaitGroup) error {
 	defer wg.Done()
-	messenger := relay.NewMessenger(t.cfg.Relay.Server, sessionID, hexEncryptionKey, true)
+	messenger := relay.NewMessenger(t.cfg.Relay.Server, sessionID, hexEncryptionKey, true, "")
 	mpcKeygenWrapper := t.GetMPCKeygenWrapper(isEdDSA)
 	for {
 		outbound, err := mpcKeygenWrapper.QcSessionOutputMessage(handle)
