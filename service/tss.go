@@ -404,7 +404,8 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 	partiesJoined []string,
 	msg string,
 	publicKeyEdDSA string, localStateAccessor *relay.LocalStateAccessorImp) (*tss.KeysignResponse, error) {
-	messageID := hex.EncodeToString(md5.New().Sum([]byte(msg)))
+	md5Hash := md5.Sum([]byte(msg))
+	messageID := hex.EncodeToString(md5Hash[:])
 	s.logger.Infoln("Start keysign for message: ", messageID)
 	tssService, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, false, messageID)
 	if err != nil {

@@ -160,7 +160,8 @@ func (t *DKLSTssService) keysign(sessionID string,
 			t.logger.Error("failed to free keyshare", "error", err)
 		}
 	}()
-	messageID := hex.EncodeToString(md5.New().Sum([]byte(message)))
+	md5Hash := md5.Sum([]byte(message))
+	messageID := hex.EncodeToString(md5Hash[:])
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	// retrieve the setup Message
