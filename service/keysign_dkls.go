@@ -308,7 +308,7 @@ func (t *DKLSTssService) processKeysignInbound(handle Handle,
 			t.isKeysignFinished.Store(true)
 			return nil, TssKeyGenTimeout
 		default:
-			messages, err := relayClient.DownloadMessages(sessionID, localPartyID)
+			messages, err := relayClient.DownloadMessages(sessionID, localPartyID, messageID)
 			if err != nil {
 				t.logger.Error("fail to get messages", "error", err)
 				continue

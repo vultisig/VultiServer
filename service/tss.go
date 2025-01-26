@@ -238,7 +238,7 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 			logger.Info("Stop downloading messages")
 			return
 		case <-time.After(time.Second):
-			messages, err := relayClient.DownloadMessages(session, localPartyID)
+			messages, err := relayClient.DownloadMessages(session, localPartyID, messageID)
 			if err != nil {
 				logger.Errorf("Failed to get messages: %v", err)
 				continue

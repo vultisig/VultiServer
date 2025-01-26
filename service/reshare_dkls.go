@@ -278,13 +278,9 @@ func (t *DKLSTssService) processQcInbound(handle Handle,
 			t.isKeygenFinished.Store(true)
 			return "", "", TssKeyGenTimeout
 		default:
-			messages, err := relayClient.DownloadMessages(sessionID, localPartyID)
+			messages, err := relayClient.DownloadMessages(sessionID, localPartyID, "")
 			if err != nil {
 				t.logger.Error("fail to get messages", "error", err)
-				continue
-			}
-			if len(messages) == 0 {
-				t.logger.Infof("No messages found")
 				continue
 			}
 			for _, message := range messages {

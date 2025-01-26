@@ -373,8 +373,15 @@ func (c *Client) DeleteMessageFromServer(sessionID, localPartyID, hash, messageI
 	return nil
 }
 
-func (c *Client) DownloadMessages(sessionID string, localPartyID string) ([]Message, error) {
-	resp, err := http.Get(c.relayServer + "/message/" + sessionID + "/" + localPartyID)
+func (c *Client) DownloadMessages(sessionID string, localPartyID string, messageID string) ([]Message, error) {
+	req, err := http.NewRequest(http.MethodGet, c.relayServer+"/message/"+sessionID+"/"+localPartyID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create request: %w", err)
+	}
+	if messageID != "" {
+		req.Header.Add("message_id", messageID)
+	}
+	resp, err := c.client.Do(req)
 	if err != nil {
 		c.logger.Error("fail to get data from server", "error", err)
 		return nil, err
