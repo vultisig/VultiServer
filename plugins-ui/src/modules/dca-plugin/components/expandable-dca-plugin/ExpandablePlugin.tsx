@@ -35,6 +35,22 @@ const ExpandableDCAPlugin = () => {
         fetchPolicies()
     }, [])
 
+    const handleFormSubmit = (data: Policy) => {
+        policyMap.set(data.id, data)
+        setModalId("")
+    };
+
+    const deletePolicy = async (policyId: string) => {
+        try {
+            await DCAService.deletePolicy(policyId);
+            const updatedPolicyMap = new Map(policyMap);
+            updatedPolicyMap.delete(policyId);
+            setPolicyMap(updatedPolicyMap);
+        } catch (error: any) {
+            console.error('Failed to delete policy:', error.message);
+        }
+    }
+
     return (
         <>
             <Accordion header={
@@ -60,12 +76,11 @@ const ExpandableDCAPlugin = () => {
                             USDC/ETH {key}
                         </div>
                         <div className='group'>
-                            {/* todo pass the policy to the modal form  */}
                             <Button type="tertiary" size='small' style={{ color: "#33E6BF" }} onClick={() => setModalId(key)}>
                                 <img src={penIcon} alt="" width="20px" height="20px" />
                                 Edit
                             </Button>
-                            <Button type="tertiary" size='small' style={{ color: "#DA2E2E" }} onClick={() => console.log("todo call some function here")}>
+                            <Button type="tertiary" size='small' style={{ color: "#DA2E2E" }} onClick={() => deletePolicy(key)}>
                                 <img src={trashIcon} alt="" width="20px" height="20px" />
                                 Remove
                             </Button>
@@ -75,7 +90,7 @@ const ExpandableDCAPlugin = () => {
                 {policyMap.size === 0 && <>There is nothing to show yet.</>}
             </Accordion>;
             <Modal isOpen={modalId !== ""} onClose={() => setModalId("")}>
-                <DCAPluginPolicyForm data={policyMap.get(modalId)} closeFunc={() => setModalId("")} />
+                <DCAPluginPolicyForm data={policyMap.get(modalId)} onSubmitCallback={handleFormSubmit} />
             </Modal>
         </>
     );

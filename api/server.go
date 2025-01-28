@@ -150,7 +150,9 @@ func (s *Server) StartServer() error {
 	// policy mode is always available since it is used by both vultiserver and pluginserver
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 	pluginGroup.GET("/policy", s.GetAllPluginPolicies)
+	pluginGroup.PUT("/policy", s.UpdatePluginPolicyById)
 	pluginGroup.GET("/policy/:policyId", s.GetPluginPolicyById)
+	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
 
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }

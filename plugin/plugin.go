@@ -9,6 +9,7 @@ import (
 
 type Plugin interface {
 	SignPluginMessages(c echo.Context) error
+	SetupPluginPolicy(policyDoc *types.PluginPolicy) error
 	ValidatePluginPolicy(policyDoc types.PluginPolicy) error
 	ConfigurePlugin(c echo.Context) error
 	Frontend() embed.FS

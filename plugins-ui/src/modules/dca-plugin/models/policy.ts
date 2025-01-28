@@ -1,5 +1,5 @@
 export type Policy = {
-    id: string,
+    id?: string,
     public_key: string,
     plugin_type: "dca",
     policy: {
@@ -17,3 +17,7 @@ export type Policy = {
 }
 
 export type Frequency = "minute" | "hour" | "day" | "week" | "month";
+
+export type PluginFormData = {
+    orders: string, amount: string, interval: string, frequency: Frequency
+}

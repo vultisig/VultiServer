@@ -19,15 +19,40 @@ func (d *PostgresBackend) InsertPluginPolicy(policyDoc types.PluginPolicy) error
 	return err
 }
 
-func (d *PostgresBackend) UpdatePluginPolicy(policyDoc types.PluginPolicy) error {
+func (p *PostgresBackend) UpdatePluginPolicy(policyDoc types.PluginPolicy) error {
+	if p.pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
 	policyJSON, err := json.Marshal(policyDoc.Policy)
 	if err != nil {
 		return fmt.Errorf("failed to marshal policy: %w", err)
 	}
 
-	_, err = d.pool.Exec(context.Background(), "UPDATE plugin_policies SET (id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, policy) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) WHERE id = $1", policyDoc.ID, policyDoc.PublicKey, policyDoc.PluginID, policyDoc.PluginVersion, policyDoc.PolicyVersion, policyDoc.PluginType, policyDoc.Signature, policyJSON)
-
+	_, err = p.pool.Exec(context.Background(), `UPDATE plugin_policies 
+	SET id = $1, public_key = $2, plugin_id = $3, plugin_version = $4, policy_version = $5, plugin_type = $6, signature = $7, policy = $8
+	WHERE id = $1`, policyDoc.ID, policyDoc.PublicKey, policyDoc.PluginID, policyDoc.PluginVersion, policyDoc.PolicyVersion, policyDoc.PluginType, policyDoc.Signature, policyJSON)
 	return err
+}
+
+func (p *PostgresBackend) DeletePluginPolicy(id string) error {
+	if p.pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
+	query := `
+        DELETE FROM plugin_policies 
+        WHERE id = $1`
+
+	err := p.pool.QueryRow(context.Background(), query, id).Scan(
+		id,
+	)
+
+	if err != nil && err.Error() != "no rows in result set" {
+		return fmt.Errorf("failed to delete policy: %w", err)
+	}
+
+	return nil
 }
 
 func (p *PostgresBackend) GetPluginPolicy(id string) (types.PluginPolicy, error) {

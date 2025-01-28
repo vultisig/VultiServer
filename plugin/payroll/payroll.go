@@ -46,6 +46,8 @@ func (p *PayrollPlugin) SignPluginMessages(e echo.Context) error {
 	return nil
 }
 
+func (p *PayrollPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error { return nil }
+
 func (p *PayrollPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 	if policyDoc.PluginType != PLUGIN_TYPE {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", PLUGIN_TYPE, policyDoc.PluginType)

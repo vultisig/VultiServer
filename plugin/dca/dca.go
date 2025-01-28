@@ -8,13 +8,16 @@ import (
 	"strings"
 
 	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
 
 const (
-	PLUGIN_TYPE = "dca"
+	PLUGIN_TYPE    = "dca"
+	PLUGIN_VERSION = "0.0.1"
+	POLICY_VERSION = "0.0.1"
 )
 
 type DCAPlugin struct {
@@ -26,6 +29,30 @@ func NewDCAPlugin(db storage.DatabaseStorage) *DCAPlugin {
 }
 
 func (p *DCAPlugin) SignPluginMessages(e echo.Context) error { return nil }
+
+func (p *DCAPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error {
+	if policyDoc == nil {
+		return fmt.Errorf("no policy to set up")
+	}
+
+	if policyDoc.ID == "" {
+		policyDoc.ID = uuid.NewString()
+	}
+
+	if policyDoc.PolicyVersion == "" {
+		policyDoc.PolicyVersion = POLICY_VERSION
+	}
+
+	if policyDoc.PluginVersion == "" {
+		policyDoc.PluginVersion = PLUGIN_VERSION
+	}
+
+	if policyDoc.PluginID == "" {
+		policyDoc.PluginID = uuid.NewString()
+	}
+
+	return nil
+}
 
 func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 	if policyDoc.PluginType != PLUGIN_TYPE {

@@ -173,6 +173,64 @@ func (s *Server) GetPluginPolicyById(c echo.Context) error {
 	return c.JSON(http.StatusOK, policy)
 }
 
+func (s *Server) DeletePluginPolicyById(c echo.Context) error {
+	policyID := c.Param("policyId")
+	if policyID == "" {
+		return fmt.Errorf("policy id is required")
+	}
+
+	if err := s.db.DeletePluginPolicy(policyID); err != nil {
+		err = fmt.Errorf("failed to delte policy: %w", err)
+		message := map[string]interface{}{
+			"error":   err.Error(),
+			"message": fmt.Sprintf("failed to delete policy: %s", policyID),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
+	var policy types.PluginPolicy
+	if err := c.Bind(&policy); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
+	// We re-init plugin as verification server doesn't have plugin defined
+	var plugin plugin.Plugin
+	switch policy.PluginType {
+	case "payroll":
+		plugin = payroll.NewPayrollPlugin(s.db)
+	case "dca":
+		plugin = dca.NewDCAPlugin(s.db)
+	}
+
+	if plugin == nil {
+		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	if err := plugin.ValidatePluginPolicy(policy); err != nil {
+		err = fmt.Errorf("failed to validate policy: %w", err)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	if err := s.db.UpdatePluginPolicy(policy); err != nil {
+		return fmt.Errorf("failed to insert policy: %w", err)
+	}
+
+	// todo check this
+	if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
+		s.logger.Errorf("Failed to update last execution: %v", err)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
 func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	publicKey := c.Request().Header.Get("public_key")
 	if publicKey == "" {
@@ -214,6 +272,12 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 
 	if plugin == nil {
 		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, err)
+	}
+
+	if err := plugin.SetupPluginPolicy(&policy); err != nil {
+		err = fmt.Errorf("failed to setup policy: %w", err)
 		s.logger.Error(err)
 		return c.JSON(http.StatusBadRequest, err)
 	}

@@ -69,42 +69,42 @@ export const get = async (endpoint: string, options: any) => {
     }
 };
 
-// /**
-//  * Performs a PUT request.
-//  * @param {string} endpoint - The API endpoint.
-//  * @param {Object} data - The data to send in the body of the request.
-//  * @param {Object} options - Additional fetch options (e.g., headers).
-//  */
-// export const put = async (endpoint, data, options = {}) => {
-//     try {
-//         const response = await fetch(`${BASE_URL}${endpoint}`, {
-//             method: 'PUT',
-//             headers: {
-//                 'Content-Type': 'application/json',
-//                 ...options.headers,
-//             },
-//             body: JSON.stringify(data),
-//             ...options,
-//         });
-//         return handleResponse(response);
-//     } catch (error) {
-//         handleError(error);
-//     }
-// };
+/**
+ * Performs a PUT request.
+ * @param {string} endpoint - The API endpoint.
+ * @param {Object} data - The data to send in the body of the request.
+ * @param {Object} options - Additional fetch options (e.g., headers).
+ */
+export const put = async (endpoint: string, data: any, options?: any) => {
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options?.headers,
+            },
+            body: JSON.stringify(data),
+            ...options,
+        });
+        return handleResponse(response);
+    } catch (error) {
+        handleError(error);
+    }
+};
 
-// /**
-//  * Performs a DELETE request.
-//  * @param {string} endpoint - The API endpoint.
-//  * @param {Object} options - Additional fetch options (e.g., headers).
-//  */
-// export const remove = async (endpoint, options = {}) => {
-//     try {
-//         const response = await fetch(`${BASE_URL}${endpoint}`, {
-//             method: 'DELETE',
-//             ...options,
-//         });
-//         return handleResponse(response);
-//     } catch (error) {
-//         handleError(error);
-//     }
-// };
+/**
+ * Performs a DELETE request.
+ * @param {string} endpoint - The API endpoint.
+ * @param {Object} options - Additional fetch options (e.g., headers).
+ */
+export const remove = async (endpoint: string, options?: any) => {
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, {
+            method: 'DELETE',
+            ...options,
+        });
+        return handleResponse(response);
+    } catch (error) {
+        handleError(error);
+    }
+};

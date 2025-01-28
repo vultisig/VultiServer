@@ -7,29 +7,33 @@ import { allocate_from_validation, generateMinTimeInputValidation, orders_valida
 import ToggleSwitch from "@/modules/core/components/ui/toggle-switch/ToggleSwitch";
 import SelectBox from "@/modules/core/components/ui/select-box/SelectBox";
 import { Input } from "@/modules/core/components/ui/input/Input";
-import { v4 as uuidv4 } from 'uuid';
 import DCAService from "../services/dcaService";
 import { Frequency, Policy } from "../models/policy";
 import { useNavigate } from "react-router-dom";
 import Button from "@/modules/core/components/ui/button/Button";
+import { generatePolicy } from "../utils/policy.utils";
 
 type DCAPluginPolicyProps = {
     data?: Policy,
-    closeFunc?: () => void
+    onSubmitCallback?: (data: Policy) => void
 }
 
 type PluginFormData = {
     orders: string, amount: string, interval: string, frequency: Frequency
 }
 
-const DCAPluginPolicyForm = ({ data, closeFunc }: DCAPluginPolicyProps) => {
-    const defaultValues: PluginFormData = { orders: "", amount: "", interval: "", frequency: "minute" }
-    if (data) {
-        defaultValues.amount = data.policy.total_amount
-        defaultValues.orders = data.policy.total_orders
-        defaultValues.interval = data.policy.schedule.interval
-        defaultValues.frequency = data.policy.schedule.frequency
+const DCAPluginPolicyForm = ({ data, onSubmitCallback }: DCAPluginPolicyProps) => {
+    const setDefaultValues = (data?: Policy): PluginFormData => {
+        const defaultValues: PluginFormData = { orders: "", amount: "", interval: "", frequency: "minute" };
+        if (data) {
+            defaultValues.amount = data.policy.total_amount
+            defaultValues.orders = data.policy.total_orders
+            defaultValues.interval = data.policy.schedule.interval
+            defaultValues.frequency = data.policy.schedule.frequency
+        }
+        return defaultValues
     }
+    const defaultValues: PluginFormData = setDefaultValues(data);
 
     const methods = useForm<PluginFormData>({
         defaultValues
@@ -37,31 +41,29 @@ const DCAPluginPolicyForm = ({ data, closeFunc }: DCAPluginPolicyProps) => {
     let navigate = useNavigate();
 
     const onSubmit = methods.handleSubmit(async submitData => {
-        const newPolicy: Policy = {
-            id: uuidv4(), // todo move to BE
-            public_key: "8540b779a209ef961bf20618b8e22c678e7bfbad37ec0",
-            plugin_type: "dca",
-            policy: {
-                chain_id: "1", // hardcoded for now
-                source_token_id: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // WETH
-                destination_token_id: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
-                total_amount: submitData.amount,
-                total_orders: submitData.orders,
-                schedule: {
-                    frequency: submitData.frequency,
-                    interval: submitData.interval,
-                    start_time: Date.now().toString(),
+        const policy: Policy = generatePolicy(submitData, data)
+        // check if form has passed data, this means we are editing policy
+        if (data) {
+            try {
+                await DCAService.updatePolicy(policy);
+
+                if (onSubmitCallback) {
+                    onSubmitCallback(data);
                 }
-            },
+
+                methods.reset();
+            } catch (error: any) {
+                console.error('Failed to create policy:', error.message);
+            }
+
+            return;
         }
 
         try {
-            await DCAService.createPolicy(newPolicy);
-            if (closeFunc) {
-                closeFunc();
-            } else {
-                navigate("/dca-plugin")
-            }
+            await DCAService.createPolicy(policy);
+            navigate("/dca-plugin")
+            methods.reset();
+
         } catch (error: any) {
             console.error('Failed to create policy:', error.message);
         }
