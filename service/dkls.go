@@ -76,6 +76,7 @@ func (t *DKLSTssService) ProceeDKLSKeygen(req types.VaultCreateRequest) (string,
 	if err != nil {
 		return "", "", fmt.Errorf("failed to keygen ECDSA: %w", err)
 	}
+	time.Sleep(500 * time.Millisecond)
 	// create EdDSA key
 	publicKeyEdDSA, _, err := t.keygenWithRetry(req.SessionID, req.HexEncryptionKey, req.LocalPartyId, true, partiesJoined)
 	if err != nil {
