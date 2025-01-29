@@ -280,7 +280,7 @@ func (t *DKLSTssService) processQcInbound(handle Handle,
 			// set isKeygenFinished to true , so the other go routine can be stopped
 			t.isKeygenFinished.Store(true)
 			return "", "", TssKeyGenTimeout
-		default:
+		case <-time.After(time.Millisecond * 100):
 			messages, err := relayClient.DownloadMessages(sessionID, localPartyID, "")
 			if err != nil {
 				t.logger.Error("fail to get messages", "error", err)
