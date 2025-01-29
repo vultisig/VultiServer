@@ -26,6 +26,7 @@ type MessengerImp struct {
 	messageCache     sync.Map
 	isGCM            bool
 	messageID        string
+	counter          int
 }
 
 func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool, messageID string) *MessengerImp {
@@ -36,7 +37,7 @@ func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool, messag
 		messageCache:     sync.Map{},
 		logger:           logrus.WithField("service", "messenger").Logger,
 		isGCM:            isGCM,
-		messageID:        messageID,
+		counter:          0,
 	}
 }
 func (m *MessengerImp) Send(from, to, body string) error {
@@ -57,21 +58,24 @@ func (m *MessengerImp) Send(from, to, body string) error {
 	}
 
 	buf, err := json.MarshalIndent(struct {
-		SessionID string   `json:"session_id,omitempty"`
-		From      string   `json:"from,omitempty"`
-		To        []string `json:"to,omitempty"`
-		Body      string   `json:"body,omitempty"`
-		Hash      string   `json:"hash,omitempty"`
+		SessionID  string   `json:"session_id,omitempty"`
+		From       string   `json:"from,omitempty"`
+		To         []string `json:"to,omitempty"`
+		Body       string   `json:"body,omitempty"`
+		Hash       string   `json:"hash,omitempty"`
+		SequenceNo int      `json:"sequence_no,omitempty"`
 	}{
-		SessionID: m.SessionID,
-		From:      from,
-		To:        []string{to},
-		Body:      body,
-		Hash:      hashStr,
+		SessionID:  m.SessionID,
+		From:       from,
+		To:         []string{to},
+		Body:       body,
+		Hash:       hashStr,
+		SequenceNo: m.counter,
 	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("fail to marshal message: %w", err)
 	}
+	m.counter++
 
 	url := fmt.Sprintf("%s/message/%s", m.Server, m.SessionID)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(buf))

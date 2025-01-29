@@ -24,7 +24,7 @@ func (s *WorkerService) HandleKeyGenerationDKLS(ctx context.Context, t *asynq.Ta
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
 	if req.LibType != types.DKLS {
-		return fmt.Errorf("invalid lib type: %s: %w", req.LibType, asynq.SkipRetry)
+		return fmt.Errorf("invalid lib type: %d: %w", req.LibType, asynq.SkipRetry)
 	}
 	s.logger.WithFields(logrus.Fields{
 		"name":           req.Name,

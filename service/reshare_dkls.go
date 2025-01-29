@@ -214,6 +214,9 @@ func (t *DKLSTssService) processQcOutbound(handle Handle,
 	defer wg.Done()
 	messenger := relay.NewMessenger(t.cfg.Relay.Server, sessionID, hexEncryptionKey, true, "")
 	mpcKeygenWrapper := t.GetMPCKeygenWrapper(isEdDSA)
+	defer func() {
+		t.logger.Infof("finish processQcOutbound")
+	}()
 	for {
 		outbound, err := mpcKeygenWrapper.QcSessionOutputMessage(handle)
 		if err != nil {
@@ -231,10 +234,10 @@ func (t *DKLSTssService) processQcOutbound(handle Handle,
 		for i := 0; i < len(parties); i++ {
 			receiver, err := mpcKeygenWrapper.QcSessionMessageReceiver(handle, outbound, i)
 			if err != nil {
-				t.logger.Error("failed to get receiver message", "error", err)
+				t.logger.Errorf("failed to get receiver message err: %s", err)
 			}
 			if len(receiver) == 0 {
-				continue
+				break
 			}
 
 			t.logger.Infoln("Sending message to", receiver)
@@ -285,6 +288,7 @@ func (t *DKLSTssService) processQcInbound(handle Handle,
 			}
 			for _, message := range messages {
 				if message.From == localPartyID {
+					t.logger.Error("Received message from self, skipping")
 					continue
 				}
 				cacheKey := fmt.Sprintf("%s-%s-%s", sessionID, localPartyID, message.Hash)
@@ -298,12 +302,12 @@ func (t *DKLSTssService) processQcInbound(handle Handle,
 					continue
 				}
 
-				t.logger.Infoln("Received message from", message.From)
 				isFinished, err := mpcWrapper.QcSessionInputMessage(handle, inboundBody)
 				if err != nil {
 					t.logger.Error("fail to apply input message", "error", err)
 					continue
 				}
+				t.logger.Infof("apply inbound message to dkls: %s, from: %s, %d", message.Hash, message.From, message.SequenceNo)
 				if err := relayClient.DeleteMessageFromServer(sessionID, localPartyID, message.Hash, ""); err != nil {
 					t.logger.Error("fail to delete message", "error", err)
 				}
