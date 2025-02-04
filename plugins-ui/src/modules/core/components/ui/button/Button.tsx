@@ -2,25 +2,34 @@ import { ReactNode } from "react";
 import "./Button.css";
 
 type ButtonProps = {
-    type: "primary" | "secondary" | "tertiary",
-    size: "small" | "medium"
-    children: ReactNode,
-    className?: string,
-    onClick: () => any,
-    style?: {},
-}
+  type: "button" | "submit";
+  styleType: "primary" | "secondary" | "tertiary";
+  size: "small" | "medium";
+  children: ReactNode;
+  className?: string;
+  style?: {};
+  onClick?: () => any;
+};
 
-const Button = ({ type, size, children, className, onClick, style }: ButtonProps) => {
-
-    return (
-        <button
-            onClick={onClick}
-            className={`button ${type} ${size} ${className}`}
-            style={style}
-        >
-            {children}
-        </button>
-    );
+const Button = ({
+  type,
+  styleType,
+  size,
+  children,
+  className,
+  onClick,
+  style,
+}: ButtonProps) => {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      className={`button ${styleType} ${size} ${className}`}
+      style={style}
+    >
+      {children}
+    </button>
+  );
 };
 
 export default Button;

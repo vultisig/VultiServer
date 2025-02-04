@@ -41,7 +41,6 @@ input[type="number"]::-webkit-outer-spin-button {
 .input-field-outline {
     display: flex;
     justify-content: space-between;
-    margin-top: 16px;
 
     label {
         margin-bottom: 8px;
@@ -77,7 +76,7 @@ label {
 
 select {
     position: absolute;
-    top: 53%;
+    top: 55%;
     right: 5%;
     font-size: 12px;
     background: initial;
@@ -120,20 +119,6 @@ select {
     left: calc(50% - 18px);
     margin-top: -16px;
     margin-bottom: -16px;
-}
-
-.form-title {
-    font-weight: 600;
-    font-size: 24px;
-    color: #FFFFFF;
-}
-
-.form-subtitle {
-    font-weight: 400;
-    font-size: 0.875rem;
-    color: #CBD7E9;
-    margin-bottom: 24px;
-    margin-top: 8px;
 }
 
 .error {

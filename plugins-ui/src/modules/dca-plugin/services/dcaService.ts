@@ -19,10 +19,10 @@ const DCAService = {
     },
 
     /**
- * Updates policy to the API.
- * @param {Policy} policy - The policy to be created.
- * @returns {Promise<Object>} A promise that resolves to the created policy.
- */
+     * Updates policy to the API.
+     * @param {Policy} policy - The policy to be created.
+     * @returns {Promise<Object>} A promise that resolves to the created policy.
+    */
     updatePolicy: async (policy: Policy) => {
         try {
             const endpoint = '/plugin/policy';
@@ -41,7 +41,7 @@ const DCAService = {
     getPolicies: async () => {
         try {
             const endpoint = '/plugin/policy';
-            const newPolicy = await get(endpoint, { headers: { public_key: "8540b779a209ef961bf20618b8e22c678e7bfbad37ec0" } });
+            const newPolicy = await get(endpoint, { headers: { public_key: "8540b779a209ef961bf20618b8e22c678e7bfbad37ec0" } }); // todo do not hardcode
             return newPolicy;
         } catch (error) {
             console.error('Error getting policies:', error);
@@ -51,7 +51,7 @@ const DCAService = {
 
     /**
      * Delete policy from the API.
-     *  * @param {id} string - The policy to be deleted.
+     * @param {id} string - The policy to be deleted.
      */
     deletePolicy: async (id: string) => {
         try {
