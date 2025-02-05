@@ -12,10 +12,15 @@ import Modal from "@/modules/core/components/ui/modal/Modal";
 import DCAPluginPolicyForm from "../DCAPluginPolicyForm";
 import { supportedTokens } from "../../data/tokens";
 
-const ExpandableDCAPlugin = () => {
+type ExpandableDCAPluginProps = {
+    chain: string, 
+    provider: any, // TODO: define provider type
+}
+
+const ExpandableDCAPlugin = (props: ExpandableDCAPluginProps) => {
   const [policyMap, setPolicyMap] = useState(new Map<string, Policy>());
   const [modalId, setModalId] = useState("");
-
+  
   useEffect(() => {
     async function fetchPolicies() {
       try {
@@ -61,7 +66,7 @@ const ExpandableDCAPlugin = () => {
               <h3>DCA Plugin</h3>
               <h4>
                 Allows you to dollar cost average into any supported token like
-                Etherium
+                Ethereum
               </h4>
             </div>
             <Link to="/dca-plugin/form">
@@ -117,6 +122,8 @@ const ExpandableDCAPlugin = () => {
       ;
       <Modal isOpen={modalId !== ""} onClose={() => setModalId("")}>
         <DCAPluginPolicyForm
+          chain={props.chain} 
+          provider={props.provider} 
           data={policyMap.get(modalId)}
           onSubmitCallback={handleFormSubmit}
         />

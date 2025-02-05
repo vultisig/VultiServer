@@ -153,6 +153,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	return c.JSON(http.StatusOK, ti.ID)
 }
 
+// TODO: verify the signature to authorize the operation
 func (s *Server) GetPluginPolicyById(c echo.Context) error {
 	policyID := c.Param("policyId")
 	if policyID == "" {
@@ -219,6 +220,8 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
+	s.logger.Warn("Policy Signature", policy.Signature)
+
 	if err := s.db.UpdatePluginPolicy(policy); err != nil {
 		return fmt.Errorf("failed to insert policy: %w", err)
 	}
@@ -255,6 +258,7 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	return c.JSON(http.StatusOK, policies)
 }
 
+// TODO: verify the signature to authorize the operation
 func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {

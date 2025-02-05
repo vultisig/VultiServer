@@ -14,6 +14,7 @@ export type Policy = {
       start_time: string;
     };
   };
+  signature: string,
 };
 
 export type Frequency = "minute" | "hour" | "day" | "week" | "month";

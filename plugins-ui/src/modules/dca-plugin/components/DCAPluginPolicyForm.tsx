@@ -30,11 +30,15 @@ type DCAPolicyForm = {
 };
 
 type DCAPluginPolicyProps = {
+  chain: string;
+  provider: any;
   data?: Policy;
   onSubmitCallback?: (data: Policy) => void;
 };
 
 const DCAPluginPolicyForm = ({
+  chain,
+  provider,
   data,
   onSubmitCallback,
 }: DCAPluginPolicyProps) => {
@@ -44,11 +48,96 @@ const DCAPluginPolicyForm = ({
     defaultValues,
   });
 
+  const signCustomMessage = async (hexMessage: string, walletAddress: string) => {
+      if (window.vultisig?.ethereum) {
+          try {
+              const signature = await window.vultisig.ethereum.request({
+                  method: "personal_sign",
+                  params: [hexMessage, walletAddress],
+              });
+              return signature
+          } catch (error) {
+              return Error("Failed to sign the message: " + error);
+          }
+      }
+  };
+
+  const getConnectedEthereum = async (provider: any) => {
+      if (provider) {
+          try {
+              const accounts = await provider.request({ method: "eth_accounts" });
+              if (accounts.length) {
+                  console.log(`Currently connected address:`, accounts);
+                  return accounts;
+              } else {
+                  console.log(`Currently no account is connected to this dapp:`, accounts);
+              }
+          } catch (error) {
+              console.error("Ethereum getting connected accounts failed", error);
+          }
+      } else {
+          alert("No Ethereum provider found. Please install VultiConnect or MetaMask.");
+      }
+  };
+
+  const getConnectedAccountsChain = async (chain: string, provider: any) => {
+      if (provider) {
+          try {
+              const accounts = await provider.request({ method: "get_accounts" });
+              if (accounts.length) {
+                  console.log(`Currently connected address:`, accounts);
+                  return accounts;
+              } else {
+                  console.log(`Currently no account is connected to this dapp:`, accounts);
+              }
+          } catch (error) {
+              console.error(`${chain} getting connected accounts failed`, error);
+          }
+      } else {
+          alert(`No ${chain} provider found. Please install VultiConnect.`);
+      }
+  };
+            
+  const signPolicy = async (policy: Policy, chain: string, provider: any) => {
+      const toHex = (str: string) => {
+          return Array
+              .from(str)
+              .map(char => char.charCodeAt(0).toString(16).padStart(2, '0'))
+              .join('');
+      }  
+
+      const serializedPolicy = JSON.stringify(policy);
+      const hexMessage = toHex(serializedPolicy);
+      
+      let accounts = [];
+      if (chain === "ethereum") {
+          accounts = await getConnectedEthereum(provider);
+      } else {
+          accounts = await getConnectedAccountsChain(chain, provider);
+      }
+
+      if (!accounts || accounts.length === 0) {
+          console.error('Need to connect to an Ethereum wallet');
+          return;
+      }
+
+      const signature = await signCustomMessage(hexMessage, accounts[0]);
+      if (signature == null || signature instanceof Error) {
+          // TODO: show propper error message to the user
+          console.error("Failed to sign the message");
+          return;
+      }
+      // if the popup gets closed during key singing (even if threshold is reached)
+      // it will terminate and not generate a signature
+      policy.signature = signature;
+  }   
+
   const handleUserSubmit: SubmitHandler<DCAPolicyForm> = async (submitData) => {
     const policy: Policy = generatePolicy(submitData, data);
     // check if form has passed data, this means we are editing policy
     if (data) {
       try {
+        await signPolicy(policy, chain, provider);
         await DCAService.updatePolicy(policy);
 
         if (onSubmitCallback) {
@@ -64,6 +153,7 @@ const DCAPluginPolicyForm = ({
     }
 
     try {
+      await signPolicy(policy, chain, provider);
       await DCAService.createPolicy(policy);
       navigate("/dca-plugin");
       reset();
