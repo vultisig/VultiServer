@@ -25,12 +25,13 @@ type PayrollPolicy struct {
 }
 
 type DCAPolicy struct {
-	ChainID            string   `json:"chain_id"`
-	SourceTokenID      string   `json:"source_token_id"`
-	DestinationTokenID string   `json:"destination_token_id"`
-	TotalAmount        string   `json:"total_amount"`
-	TotalOrders        string   `json:"total_orders"`
-	Schedule           Schedule `json:"schedule"`
+	ChainID            string     `json:"chain_id"`
+	SourceTokenID      string     `json:"source_token_id"`
+	DestinationTokenID string     `json:"destination_token_id"`
+	TotalAmount        string     `json:"total_amount"`
+	TotalOrders        string     `json:"total_orders"`
+	Schedule           Schedule   `json:"schedule"`
+	PriceRange         PriceRange `json:"price_range"`
 }
 
 type PayrollRecipient struct {
@@ -43,4 +44,9 @@ type Schedule struct {
 	Interval  string `json:"interval"`
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time,omitempty"`
+}
+
+type PriceRange struct {
+	Min string `json:"min"`
+	Max string `json:"max"`
 }

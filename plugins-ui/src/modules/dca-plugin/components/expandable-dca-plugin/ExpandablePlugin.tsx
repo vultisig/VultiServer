@@ -5,29 +5,24 @@ import TrashIcon from "@/assets/Trash.svg?react";
 import Accordion from "@/modules/core/components/ui/accordion/Accordion";
 import Button from "@/modules/core/components/ui/button/Button";
 import { useEffect, useState } from "react";
-import DCAService from "../../services/dcaService";
-import { Policy } from "../../models/policy";
-import { Link } from "react-router-dom";
 import Modal from "@/modules/core/components/ui/modal/Modal";
-import DCAPluginPolicyForm from "../DCAPluginPolicyForm";
 import { supportedTokens } from "../../data/tokens";
+import PolicyService from "@/modules/policy-form/services/policyService";
+import PolicyForm from "@/modules/policy-form/components/PolicyForm";
+import { PluginPolicy } from "@/modules/policy-form/models/policy";
 
-type ExpandableDCAPluginProps = {
-    chain: string, 
-    provider: any, // TODO: define provider type
-}
+const ExpandableDCAPlugin = () => {
+  const [policyMap, setPolicyMap] = useState(new Map<string, PluginPolicy>());
 
-const ExpandableDCAPlugin = (props: ExpandableDCAPluginProps) => {
-  const [policyMap, setPolicyMap] = useState(new Map<string, Policy>());
   const [modalId, setModalId] = useState("");
-  
+
   useEffect(() => {
     async function fetchPolicies() {
       try {
-        const fetchedPolicies = await DCAService.getPolicies();
+        const fetchedPolicies = await PolicyService.getPolicies();
 
-        const constructPolicyMap: Map<string, Policy> = new Map(
-          fetchedPolicies?.map((p: Policy) => [p.id, p]) // Convert the array into [key, value] pairs
+        const constructPolicyMap: Map<string, PluginPolicy> = new Map(
+          fetchedPolicies?.map((p: PluginPolicy) => [p.id, p]) // Convert the array into [key, value] pairs
         );
 
         setPolicyMap(constructPolicyMap);
@@ -39,14 +34,14 @@ const ExpandableDCAPlugin = (props: ExpandableDCAPluginProps) => {
     fetchPolicies();
   }, []);
 
-  const handleFormSubmit = (data: Policy) => {
+  const handleFormSubmit = (data: PluginPolicy) => {
     policyMap.set(data.id, data);
     setModalId("");
   };
 
   const deletePolicy = async (policyId: string) => {
     try {
-      await DCAService.deletePolicy(policyId);
+      await PolicyService.deletePolicy(policyId);
       const updatedPolicyMap = new Map(policyMap);
       updatedPolicyMap.delete(policyId);
       setPolicyMap(updatedPolicyMap);
@@ -69,16 +64,6 @@ const ExpandableDCAPlugin = (props: ExpandableDCAPluginProps) => {
                 Ethereum
               </h4>
             </div>
-            <Link to="/dca-plugin/form">
-              <Button
-                type="button"
-                styleType="primary"
-                size="medium"
-                style={{ paddingTop: 8, paddingBottom: 8 }}
-              >
-                Add new
-              </Button>
-            </Link>
           </>
         }
         expandButton={{ text: "See all policies", style: { color: "#33E6BF" } }}
@@ -87,10 +72,18 @@ const ExpandableDCAPlugin = (props: ExpandableDCAPluginProps) => {
           Array.from(policyMap).map(([key, value]) => (
             <div key={key} className="policy">
               <div className="group">
-                {supportedTokens[value.policy.source_token_id].image}
-                {supportedTokens[value.policy.destination_token_id].image}&nbsp;
-                {supportedTokens[value.policy.source_token_id].name}/
-                {supportedTokens[value.policy.destination_token_id].name}
+                {supportedTokens[value.policy.source_token_id as string]
+                  ?.image || "?"}
+                {supportedTokens[value.policy.destination_token_id as string]
+                  ?.image || "?"}
+                &nbsp;
+                {supportedTokens[value.policy.source_token_id as string]
+                  ?.name ||
+                  `Unknown token address: ${value.policy.source_token_id}`}
+                /
+                {supportedTokens[value.policy.destination_token_id as string]
+                  ?.name ||
+                  `Unknown token address: ${value.policy.destination_token_id}`}
                 {key}
               </div>
               <div className="group">
@@ -119,11 +112,12 @@ const ExpandableDCAPlugin = (props: ExpandableDCAPluginProps) => {
           ))}
         {policyMap.size === 0 && <>There is nothing to show yet.</>}
       </Accordion>
-      ;
-      <Modal isOpen={modalId !== ""} onClose={() => setModalId("")}>
-        <DCAPluginPolicyForm
-          chain={props.chain} 
-          provider={props.provider} 
+      <Modal
+        isOpen={modalId !== ""}
+        onClose={() => setModalId("")}
+        variant="panel"
+      >
+        <PolicyForm
           data={policyMap.get(modalId)}
           onSubmitCallback={handleFormSubmit}
         />

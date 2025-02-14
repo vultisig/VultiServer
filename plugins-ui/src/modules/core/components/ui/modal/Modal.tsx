@@ -7,14 +7,21 @@ type ModalProps = {
   isOpen: boolean;
   children: ReactNode;
   onClose: () => void;
+  variant?: "modal" | "panel";
 };
 
-function Modal({ isOpen, children, onClose }: ModalProps) {
+function Modal({ isOpen, children, onClose, variant = "modal" }: ModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
+    <div
+      className={`modal-overlay ${variant === "panel" ? "panel-overlay" : ""}`}
+      onClick={onClose}
+    >
+      <div
+        className={`modal-content ${variant === "panel" ? "panel-content" : ""}`}
+        onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+      >
         <Button
           type="button"
           styleType="tertiary"

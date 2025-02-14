@@ -1,0 +1,61 @@
+form {
+    padding: 20px;
+}
+
+form .form-control {
+    background-color: transparent;
+    border: none;
+    color: #D1D5DB;
+}
+  
+form button[type="submit"] {
+    background-color: #33E6BF;
+    color: #02122B;
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    border-radius: 99px;
+    border: none;
+    cursor: pointer;
+}
+  
+form button[type="submit"]:hover {
+    background-color: #0FBF93;
+}
+
+.form-group {
+    margin: 10px 0;
+}
+
+fieldset {
+    border: none;
+}
+
+.form-row {
+    fieldset {
+        display: flex;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+    }
+    }
+
+.input-background {
+    flex: 1;
+    .form-control {
+        background-color: #061B3A;
+        border: 1px solid #11284A;
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 8px;
+    }
+} 
+  
+.stacked-input {
+    label, input {
+        width: 100%; /* Both label and input take full width of their parent div */
+        display: block; /* Makes label and input stack vertically */
+        box-sizing: border-box; /* Prevents padding from affecting width */
+    }
+}
+
+  

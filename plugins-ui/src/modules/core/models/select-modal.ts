@@ -1,7 +1,7 @@
-import { ReactNode } from "react";
+import { ReactElement } from "react";
 
 export type Option = {
   id: string;
   name: string;
-  image: ReactNode;
+  image: ReactElement;
 };

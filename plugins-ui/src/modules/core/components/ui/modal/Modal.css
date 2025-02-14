@@ -28,3 +28,75 @@
     top: 2px;
     right: 2px;
 }
+
+.panel-overlay {
+    justify-content: flex-end;
+}
+
+.panel-content {
+    width: 475px;
+    height: 100vh;
+    right: 0;
+    position: fixed;
+    top: 0;
+    background: #02122B;
+    box-shadow: -4px 0 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease-in-out;
+    overflow: scroll;
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.modal-header h2 {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    font-weight: 500;
+    color: #F0F4FC;
+    margin: 0;
+    padding-bottom: 16px;
+}
+
+.modal-header input {
+    width: 92%;
+    padding: 16px;
+    color: #8295AE;
+    font-weight: 500;
+    font-size: 1rem;
+    border: 1px solid #11284A;
+    background-color: #061B3A;
+    border-radius: 12px;
+}
+
+.modal-options {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.modal-option {
+    display: flex;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.modal-option:hover {
+    background: #FFFFFF0A;
+}
+
+.modal-option:focus {
+    background: #FFFFFF14;
+    border: 1px solid #4879FD;
+    outline: none
+}
+
+.modal-no-options {
+    padding: 8px;
+    color: #888;
+}

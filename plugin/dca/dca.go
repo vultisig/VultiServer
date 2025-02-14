@@ -110,6 +110,10 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		return fmt.Errorf("total orders must be greater than 0")
 	}
 
+	if dcaPolicy.PriceRange.Min != "" && dcaPolicy.PriceRange.Max != "" && dcaPolicy.PriceRange.Min >= dcaPolicy.PriceRange.Max {
+		return fmt.Errorf("min price range should be equal or lower than max price range")
+	}
+
 	// if dcaPolicy.SlippagePercentage == "" {
 	// 	return fmt.Errorf("slippage percentage is required")
 	// }

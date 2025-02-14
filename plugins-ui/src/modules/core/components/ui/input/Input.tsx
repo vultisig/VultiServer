@@ -29,10 +29,10 @@ export const Input = ({
 
   return (
     <>
-      <label htmlFor={id}>{label}</label>
       {isInvalid && inputError?.error?.message && (
         <InputError message={inputError.error.message} />
       )}
+      <label htmlFor={id}>{label}</label>
       <input
         id={id}
         type={type}
