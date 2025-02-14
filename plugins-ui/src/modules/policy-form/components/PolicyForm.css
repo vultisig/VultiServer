@@ -1,5 +1,7 @@
-form {
-    padding: 20px;
+.policy-form {
+    display: flex;
+    flex-direction: column;
+    padding: 20px
 }
 
 form .form-control {
@@ -9,6 +11,7 @@ form .form-control {
 }
   
 form button[type="submit"] {
+    width: 100%;
     background-color: #33E6BF;
     color: #02122B;
     padding: 10px 20px;

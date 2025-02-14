@@ -4,8 +4,9 @@ import {
   supportedTokens,
 } from "@/modules/dca-plugin/data/tokens";
 import TokenSelector from "@/modules/shared/token-selector/TokenSelector";
-import { asNumber, RJSFSchema, UiSchema, WidgetProps } from "@rjsf/utils";
+import { asNumber, RJSFSchema, UiSchema } from "@rjsf/utils";
 import { Policy } from "../models/policy";
+import { SummaryData } from "@/modules/shared/summary/summary.model";
 
 export const schema: RJSFSchema = {
   type: "object",
@@ -221,4 +222,27 @@ export const getFormData = (data: Policy): Policy => {
   }
 
   return formData;
+};
+
+export const getSummaryData = (
+  formData: Record<string, unknown>
+): SummaryData | null => {
+  return {
+    title: "DCA Summary",
+    data: [
+      {
+        key: "Sell Total",
+        value: `${formData.total_amount} ${supportedTokens[formData.source_token_id as string].name}`,
+      },
+      {
+        key: "Sell per order",
+        value: `${(formData.total_amount as number) / (formData.total_orders as number)} ${supportedTokens[formData.source_token_id as string].name}`,
+      },
+      {
+        key: "To buy",
+        value: `${supportedTokens[formData.destination_token_id as string].name}`,
+      },
+      { key: "Platform fee", value: "0.1%" },
+    ],
+  };
 };

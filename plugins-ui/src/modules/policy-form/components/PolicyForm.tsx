@@ -4,6 +4,7 @@ import "./PolicyForm.css";
 import {
   defaultFormData,
   getFormData,
+  getSummaryData,
   getUiSchema,
   schema,
 } from "../schema/dcaSchema"; // todo these should be dynamic once we have the marketplace
@@ -12,6 +13,8 @@ import { PluginPolicy } from "../models/policy";
 import PolicyService from "../services/policyService";
 import { useState } from "react";
 import { signPolicy } from "@/modules/shared/wallet/wallet.utils";
+import Summary from "@/modules/shared/summary/Summary";
+import { SummaryData } from "@/modules/shared/summary/summary.model";
 
 type PolicyFormProps = {
   data?: PluginPolicy;
@@ -20,9 +23,22 @@ type PolicyFormProps = {
 
 const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
   const policyId = data?.id || "";
+
   const initialFormData = data ? getFormData(data?.policy) : defaultFormData; // Define the initial form state
   const [formData, setFormData] = useState(initialFormData);
+
+  const initialSummaryData: SummaryData | null =
+    getSummaryData(initialFormData);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(
+    initialSummaryData
+  );
+
   const [formKey, setFormKey] = useState(0); // Changing this forces remount
+
+  const onChange = (e: IChangeEvent) => {
+    setFormData(e.formData);
+    setSummaryData(getSummaryData(e.formData));
+  };
 
   const onSubmit = async (submitData: IChangeEvent) => {
     // todo do not hardcode dca once we have the marketplace
@@ -57,7 +73,7 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
   };
 
   return (
-    <>
+    <div className="policy-form">
       <Form
         key={formKey} // Forces full re-render on reset
         idPrefix="dca" // todo this should be dynamic once we have the marketplace
@@ -66,10 +82,11 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
         validator={validator}
         formData={formData}
         onSubmit={onSubmit}
-        onChange={(e) => setFormData(e.formData)}
+        onChange={onChange}
         showErrorList="bottom"
       />
-    </>
+      {summaryData && <Summary {...summaryData} />}
+    </div>
   );
 };
 

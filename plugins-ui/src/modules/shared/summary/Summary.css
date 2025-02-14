@@ -1,0 +1,11 @@
+.summary-content {
+    padding: 8px;
+    border: 1px solid #11284A;
+    border-radius: 8px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px;
+}

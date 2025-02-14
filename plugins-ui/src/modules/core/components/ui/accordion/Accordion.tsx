@@ -21,7 +21,7 @@ const Accordion = ({ header, expandButton, children }: AccordionProps) => {
   };
 
   return (
-    <div className={`accordion ${isOpen ? "expanded" : ""}`}>
+    <div className="accordion">
       <div className="accordion-header">
         {header}
         <Button
