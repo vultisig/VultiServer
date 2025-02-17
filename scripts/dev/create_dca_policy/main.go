@@ -97,6 +97,7 @@ func main() {
 		TotalOrders:        "2",
 		Schedule: types.Schedule{
 			Frequency: frequency,
+			Interval:  "",
 			StartTime: time.Now().UTC().Add(20 * time.Second).Format(time.RFC3339),
 		},
 	}

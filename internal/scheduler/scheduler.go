@@ -47,7 +47,7 @@ func (s *SchedulerService) Stop() {
 }
 
 func (s *SchedulerService) run() {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -71,10 +71,6 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 	s.logger.Info("Triggers: ", triggers)
 
 	for _, trigger := range triggers {
-		s.logger.WithFields(logrus.Fields{
-			"policy_id": trigger.PolicyID,
-			"last_exec": trigger.LastExecution,
-		}).Info("Processing trigger")
 		// Parse cron expression
 		schedule, err := cron.ParseStandard(trigger.CronExpression)
 		if err != nil {
@@ -85,19 +81,24 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 		// Check if it's time to execute
 		var nextTime time.Time
 		if trigger.LastExecution != nil {
-			nextTime = schedule.Next(*trigger.LastExecution)
+			nextTime = schedule.Next(trigger.LastExecution.In(time.UTC))
+
+			s.logger.WithFields(logrus.Fields{
+				"current_time_utc": time.Now().UTC(),
+				"next_time_utc":    nextTime.UTC(),
+				"delay_duration":   nextTime.UTC().Sub(time.Now().UTC()),
+			}).Info("Next execution details")
 		} else {
-			nextTime = schedule.Next(time.Now().Add(-24 * time.Hour))
+			nextTime = time.Now().UTC().Add(-1 * time.Minute)
+
+			s.logger.WithFields(logrus.Fields{
+				"current_time": time.Now(),
+				"next_time":    nextTime,
+			}).Info("New trigger details")
 		}
 
 		nextTime = nextTime.UTC()
 
-		s.logger.WithFields(logrus.Fields{
-			"current_time": time.Now().UTC(),
-			"next_time":    nextTime,
-			"policy_id":    trigger.PolicyID,
-			"last_exec":    trigger.LastExecution,
-		}).Info("Checking execution time")
 		if time.Now().UTC().After(nextTime) {
 			triggerEvent := types.PluginTriggerEvent{
 				PolicyID: trigger.PolicyID,
@@ -124,6 +125,9 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 				"task_id":   ti.ID,
 				"policy_id": trigger.PolicyID,
 			}).Info("Enqueued trigger task")
+
+			// TODO: quick hack to prevent multiple executions
+			time.Sleep(1 * time.Minute)
 		}
 	}
 

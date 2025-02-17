@@ -9,19 +9,24 @@ import (
 
 type Config struct {
 	Server struct {
-		Port           int64  `mapstructure:"port" json:"port,omitempty"`
-		Host           string `mapstructure:"host" json:"host,omitempty"`
-		VaultsFilePath string `mapstructure:"vaults_file_path" json:"vaults_file_path,omitempty"`
-		Mode           string `mapstructure:"mode" json:"mode,omitempty"`
-		Database       struct {
+		Host     string `mapstructure:"host" json:"host,omitempty"`
+		Port     int64  `mapstructure:"port" json:"port,omitempty"`
+		Database struct {
 			DSN string `mapstructure:"dsn" json:"dsn,omitempty"`
 		} `mapstructure:"database" json:"database,omitempty"`
+		VaultsFilePath string `mapstructure:"vaults_file_path" json:"vaults_file_path,omitempty"`
+		Mode           string `mapstructure:"mode" json:"mode,omitempty"`
+		Plugin         struct {
+			Type string `mapstructure:"type" json:"type,omitempty"`
+			Eth  struct {
+				Rpc     string `mapstructure:"rpc" json:"rpc,omitempty"`
+				Uniswap struct {
+					V2Router string `mapstructure:"v2_router" json:"v2_router,omitempty"`
+					Deadline int64  `mapstructure:"deadline" json:"deadline,omitempty"`
+				} `mapstructure:"uniswap" json:"uniswap,omitempty"`
+			} `mapstructure:"eth" json:"eth,omitempty"`
+		} `mapstructure:"plugin" json:"plugin,omitempty"`
 	} `mapstructure:"server" json:"server"`
-
-	Plugin struct {
-		Type         string                 `mapstructure:"type" json:"type,omitempty"`
-		PluginConfig map[string]interface{} `mapstructure:"plugin_config" json:"plugin_config,omitempty"`
-	} `mapstructure:"plugin" json:"plugin,omitempty"`
 
 	Redis struct {
 		Host     string `mapstructure:"host" json:"host,omitempty"`
@@ -67,16 +72,7 @@ func ReadConfig(configName string) (*Config, error) {
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 
-	viper.SetDefault("Server.Port", 8080)
-	viper.SetDefault("Server.Host", "localhost")
 	viper.SetDefault("Server.VaultsFilePath", "vaults")
-	viper.SetDefault("Server.Mode", "vultiserver")
-	viper.SetDefault("Redis.Host", "localhost")
-	viper.SetDefault("Redis.Port", "6379")
-	viper.SetDefault("Redis.User", "")
-	viper.SetDefault("Redis.Password", "")
-	viper.SetDefault("Redis.DB", 0)
-	viper.SetDefault("Relay.Server", "https://api.vultisig.com/router")
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("fail to reading config file, %w", err)

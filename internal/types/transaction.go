@@ -9,12 +9,13 @@ import (
 type TransactionStatus string
 
 const (
-	StatusPending       TransactionStatus = "PENDING"
-	StatusSigningFailed TransactionStatus = "SIGNING_FAILED"
-	StatusSigned        TransactionStatus = "SIGNED"
-	StatusBroadcast     TransactionStatus = "BROADCAST"
-	StatusMined         TransactionStatus = "MINED"
-	StatusRejected      TransactionStatus = "REJECTED"
+	StatusSigningInProgress TransactionStatus = "SIGNING_IN_PROGRESS"
+	StatusSigningFailed     TransactionStatus = "SIGNING_FAILED"
+	StatusSigned            TransactionStatus = "SIGNED"
+	StatusBroadcast         TransactionStatus = "BROADCAST"
+	StatusPending           TransactionStatus = "PENDING"
+	StatusMined             TransactionStatus = "MINED"
+	StatusRejected          TransactionStatus = "REJECTED"
 )
 
 type TransactionHistory struct {
@@ -26,4 +27,13 @@ type TransactionHistory struct {
 	UpdatedAt    time.Time              `json:"updated_at"`
 	Metadata     map[string]interface{} `json:"metadata"`
 	ErrorMessage *string                `json:"error_message,omitempty"`
+}
+
+type SignedTransaction struct {
+	PolicyID    string
+	TxHash      string
+	RawTx       string
+	Signature   string
+	Metadata    map[string]any
+	BroadcastAt *time.Time
 }

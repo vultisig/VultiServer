@@ -56,7 +56,7 @@ func main() {
 		sdClient,
 		blockStorage,
 		cfg.Server.Mode,
-		cfg.Plugin.Type,
+		cfg.Server.Plugin.Type,
 		cfg.Server.Database.DSN,
 	)
 	if err := server.StartServer(); err != nil {

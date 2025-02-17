@@ -11,11 +11,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
+	"github.com/vultisig/mobile-tss-lib/tss"
 
+	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -26,6 +30,7 @@ import (
 	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
 	"github.com/vultisig/vultisigner/storage/postgres"
+	"github.com/vultisig/vultisigner/uniswap"
 )
 
 type WorkerService struct {
@@ -38,10 +43,13 @@ type WorkerService struct {
 	inspector    *asynq.Inspector
 	plugin       plugin.Plugin
 	db           storage.DatabaseStorage
+	rpcClient    *ethclient.Client
 }
 
 // NewWorker creates a new worker service
 func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, blockStorage *storage.BlockStorage, inspector *asynq.Inspector) (*WorkerService, error) {
+	logger := logrus.WithField("service", "worker").Logger
+
 	redis, err := storage.NewRedisStorage(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("storage.NewRedisStorage failed: %w", err)
@@ -49,31 +57,48 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 
 	db, err := postgres.NewPostgresBackend(false, cfg.Server.Database.DSN)
 	if err != nil {
-		logrus.Fatalf("Failed to connect to database: %v", err)
+		return nil, fmt.Errorf("fail to connect to database: %w", err)
+	}
+
+	rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
+	if err != nil {
+		return nil, err
 	}
 
 	var plugin plugin.Plugin
 	if cfg.Server.Mode == "pluginserver" {
-		switch cfg.Plugin.Type {
+		switch cfg.Server.Plugin.Type {
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
 		case "dca":
-			plugin = dca.NewDCAPlugin(db)
+			uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
+			uniswapCfg := uniswap.NewConfig(
+				rpcClient,
+				&uniswapV2RouterAddress,
+				2000000, // TODO: config
+				50000,   // TODO: config
+				time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
+			)
+			plugin, err = dca.NewDCAPlugin(uniswapCfg, db, logger)
+			if err != nil {
+				return nil, fmt.Errorf("fail to initialize DCA plugin: %w", err)
+			}
 		default:
-			logrus.Fatalf("Invalid plugin type: %s", cfg.Plugin.Type)
+			logger.Fatalf("Invalid plugin type: %s", cfg.Server.Plugin.Type)
 		}
 	}
 
 	return &WorkerService{
-		redis:        redis,
 		cfg:          cfg,
-		logger:       logrus.WithField("service", "worker").Logger,
+		db:           db,
+		redis:        redis,
+		blockStorage: blockStorage,
+		rpcClient:    rpcClient,
 		queueClient:  queueClient,
 		sdClient:     sdClient,
-		blockStorage: blockStorage,
-		plugin:       plugin,
-		db:           db,
 		inspector:    inspector,
+		plugin:       plugin,
+		logger:       logger,
 	}, nil
 }
 
@@ -87,11 +112,13 @@ func (s *WorkerService) incCounter(name string, tags []string) {
 		s.logger.Errorf("fail to count metric, err: %v", err)
 	}
 }
+
 func (s *WorkerService) measureTime(name string, start time.Time, tags []string) {
 	if err := s.sdClient.Timing(name, time.Since(start), tags, 1); err != nil {
 		s.logger.Errorf("fail to measure time metric, err: %v", err)
 	}
 }
+
 func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
@@ -144,7 +171,6 @@ func (s *WorkerService) HandleKeyGeneration(ctx context.Context, t *asynq.Task) 
 }
 
 func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error {
-	s.logger.Info("Starting HandleKeySign")
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		s.logger.Error("Context cancelled")
 		return err
@@ -187,6 +213,7 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 
 	return nil
 }
+
 func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
@@ -363,6 +390,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		"plugin_type": policy.PluginType,
 	}).Info("Retrieved policy for signing")
 
+	// Propose transactions to sign
 	signRequests, err := s.plugin.ProposeTransactions(policy)
 	if err != nil {
 		s.logger.Errorf("Failed to create signing request: %v", err)
@@ -370,7 +398,6 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	}
 
 	for _, signRequest := range signRequests {
-
 		policyUUID, err := uuid.Parse(signRequest.PolicyID)
 		if err != nil {
 			s.logger.Errorf("Failed to parse policy ID as UUID: %v", err)
@@ -432,12 +459,14 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 		// prepare local sign request
 		signRequest.KeysignRequest.StartSession = true
-		signRequest.KeysignRequest.Parties = []string{"1", "2"}
+		signRequest.KeysignRequest.Parties = []string{common.PluginPartyID, common.VerifierPartyID}
 		buf, err := json.Marshal(signRequest.KeysignRequest)
 		if err != nil {
 			s.logger.Errorf("Failed to marshal local sign request: %v", err)
 			return err
 		}
+
+		s.logger.Debug("PLUGIN WORKER: KEYSIGN TASK")
 
 		// Enqueue TypeKeySign directly
 		ti, err := s.queueClient.Enqueue(
@@ -475,8 +504,21 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 
-		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s",
-			signResp.StatusCode, string(respBody))
+		var signatures map[string]tss.KeysignResponse
+		if err := json.Unmarshal(result, &signatures); err != nil {
+			return fmt.Errorf("failed to unmarshal signatures: %w", err)
+		}
+
+		var signature tss.KeysignResponse
+		for _, sig := range signatures {
+			signature = sig
+			break
+		}
+
+		err = s.plugin.SigningComplete(ctx, signature, signRequest, policy)
+		if err != nil {
+			return fmt.Errorf("fail to complete signing: %w", err)
+		}
 	}
 
 	return nil

@@ -13,3 +13,4 @@ config.json
 cmd/worker/worker
 .devenv/
 .*.sw?
+_tmp_

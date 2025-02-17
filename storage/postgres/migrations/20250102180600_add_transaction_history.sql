@@ -1,6 +1,13 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TYPE transaction_status AS ENUM ('SIGNED', 'BROADCAST', 'MINED', 'REJECTED');
+CREATE TYPE transaction_status AS ENUM (
+    'PENDING',
+    'SIGNING_FAILED',
+    'SIGNED',
+    'BROADCAST',
+    'MINED',
+    'REJECTED'
+);
 
 CREATE TABLE transaction_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

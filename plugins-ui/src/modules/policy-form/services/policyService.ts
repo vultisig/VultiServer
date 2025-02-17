@@ -43,7 +43,7 @@ const PolicyService = {
       const endpoint = "/plugin/policy";
       const newPolicy = await get(endpoint, {
         headers: {
-          public_key: "8540b779a209ef961bf20618b8e22c678e7bfbad37ec0", // todo do not hardcode
+          public_key: "037c4092a5928c32722df3ac6d02955b20a868fcc58d03ef5e38b1589e09349257", // TODO: get Vault's pub key
         },
       });
       return newPolicy;

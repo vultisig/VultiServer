@@ -64,6 +64,7 @@ func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) 
         INSERT INTO transaction_history (
             policy_id, tx_body, status, metadata
         ) VALUES ($1, $2, $3, $4)
+				RETURNING id
     `
 
 	var txID uuid.UUID
@@ -75,7 +76,7 @@ func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) 
 	).Scan(&txID)
 
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, fmt.Errorf("failed to create transaction history: %w", err)
 	}
 
 	return txID, nil

@@ -20,7 +20,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
+	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/scheduler"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
@@ -29,6 +32,7 @@ import (
 	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/storage"
 	"github.com/vultisig/vultisigner/storage/postgres"
+	"github.com/vultisig/vultisigner/uniswap"
 )
 
 type Server struct {
@@ -58,13 +62,14 @@ func NewServer(port int64,
 	mode string,
 	pluginType string,
 	dsn string) *Server {
+	logger := logrus.WithField("service", "api").Logger
 
-	logrus.Info("Initializing new server...")
-	logrus.Infof("Server mode: %s, plugin type: %s", mode, pluginType)
+	logger.Info("Initializing new server...")
+	logger.Infof("Server mode: %s, plugin type: %s", mode, pluginType)
 
 	db, err := postgres.NewPostgresBackend(false, dsn)
 	if err != nil {
-		logrus.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatalf("Failed to connect to database: %v", err)
 	}
 
 	var plugin plugin.Plugin
@@ -74,18 +79,37 @@ func NewServer(port int64,
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
 		case "dca":
-			plugin = dca.NewDCAPlugin(db)
+			cfg, err := config.ReadConfig("config-plugin")
+			if err != nil {
+				logger.Fatal("failed to read plugin config", err)
+			}
+			rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
+			if err != nil {
+				logger.Fatal("failed to initialize rpc client", err)
+			}
+			uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
+			uniswapCfg := uniswap.NewConfig(
+				rpcClient,
+				&uniswapV2RouterAddress,
+				2000000, // TODO: config
+				50000,   // TODO: config
+				time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
+			)
+			plugin, err = dca.NewDCAPlugin(uniswapCfg, db, logger)
+			if err != nil {
+				logger.Fatal("fail to initialize DCA plugin: ", err)
+			}
 		default:
-			logrus.Fatalf("Invalid plugin type: %s", pluginType)
+			logger.Fatalf("Invalid plugin type: %s", pluginType)
 		}
 		schedulerService = scheduler.NewSchedulerService(
 			db,
-			logrus.WithField("service", "scheduler").Logger,
+			logger.WithField("service", "scheduler").Logger,
 			client,
 			redisOpts,
 		)
 		schedulerService.Start()
-		logrus.Info("Scheduler service started")
+		logger.Info("Scheduler service started")
 	}
 	return &Server{
 		port:          port,
@@ -94,12 +118,12 @@ func NewServer(port int64,
 		inspector:     inspector,
 		vaultFilePath: vaultFilePath,
 		sdClient:      sdClient,
-		logger:        logrus.WithField("service", "api").Logger,
 		blockStorage:  blockStorage,
 		mode:          mode,
 		plugin:        plugin,
 		db:            db,
 		scheduler:     schedulerService,
+		logger:        logger,
 	}
 }
 
@@ -118,8 +142,8 @@ func (s *Server) StartServer() error {
 	e.GET("/ping", s.Ping)
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	e.POST("/signFromPlugin", s.SignPluginMessages)
-	grp := e.Group("/vault")
 
+	grp := e.Group("/vault")
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
 	//grp.POST("/upload", s.UploadVault)
@@ -135,7 +159,7 @@ func (s *Server) StartServer() error {
 	pluginGroup := e.Group("/plugin")
 	// Only enable plugin signing routes if the server is running in plugin mode
 	if s.mode == "pluginserver" {
-		pluginGroup.POST("/sign", s.SignPluginMessages)
+		// pluginGroup.POST("/sign", s.SignPluginMessages)
 
 		configGroup := pluginGroup.Group("/configure")
 
@@ -171,6 +195,7 @@ func (s *Server) statsdMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		return err
 	}
 }
+
 func (s *Server) Ping(c echo.Context) error {
 	return c.String(http.StatusOK, "Vultiserver is running")
 }
@@ -322,6 +347,7 @@ func (s *Server) DownloadVault(c echo.Context) error {
 	return c.Blob(http.StatusOK, "application/octet-stream", content)
 
 }
+
 func (s *Server) extractXPassword(c echo.Context) (string, error) {
 	passwd := c.Request().Header.Get("x-password")
 	if passwd == "" {
@@ -337,6 +363,7 @@ func (s *Server) extractXPassword(c echo.Context) (string, error) {
 
 	return passwd, nil
 }
+
 func (s *Server) GetVault(c echo.Context) error {
 	publicKeyECDSA := c.Param("publicKeyECDSA")
 	if publicKeyECDSA == "" {
@@ -369,6 +396,7 @@ func (s *Server) GetVault(c echo.Context) error {
 		LocalPartyId:   vault.LocalPartyId,
 	})
 }
+
 func (s *Server) DeleteVault(c echo.Context) error {
 	publicKeyECDSA := c.Param("publicKeyECDSA")
 	if publicKeyECDSA == "" {
@@ -405,6 +433,8 @@ func (s *Server) DeleteVault(c echo.Context) error {
 
 // SignMessages is a handler to process Keysing request
 func (s *Server) SignMessages(c echo.Context) error {
+	s.logger.Debug("VERIFIER SERVER: SIGN MESSAGES")
+
 	var req types.KeysignRequest
 	if err := c.Bind(&req); err != nil {
 		return fmt.Errorf("fail to parse request, err: %w", err)
@@ -472,6 +502,7 @@ func (s *Server) GetKeysignResult(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, result)
 }
+
 func (s *Server) isValidHash(hash string) bool {
 	if len(hash) != 66 {
 		return false
@@ -479,6 +510,7 @@ func (s *Server) isValidHash(hash string) bool {
 	_, err := hex.DecodeString(hash)
 	return err == nil
 }
+
 func (s *Server) ExistVault(c echo.Context) error {
 	publicKeyECDSA := c.Param("publicKeyECDSA")
 	if publicKeyECDSA == "" {
@@ -561,6 +593,7 @@ func (s *Server) ResendVaultEmail(c echo.Context) error {
 	s.logger.Info("Email task enqueued: ", taskInfo.ID)
 	return nil
 }
+
 func (s *Server) createVerificationCode(ctx context.Context, publicKeyECDSA string) (string, error) {
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 	code := rnd.Intn(9000) + 1000

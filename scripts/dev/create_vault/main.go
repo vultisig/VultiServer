@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
+	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/types"
 )
@@ -56,7 +57,7 @@ func main() {
 		SessionID:          uuid.New().String(),
 		HexEncryptionKey:   "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 		HexChainCode:       "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-		LocalPartyId:       "1",
+		LocalPartyId:       common.PluginPartyID,
 		EncryptionPassword: "your-secure-password",
 		Email:              "example@example.com",
 		StartSession:       false,
@@ -78,9 +79,9 @@ func main() {
 	fmt.Printf(" - %d\n", resp.StatusCode)
 
 	fmt.Printf("Creating vault on plugin server - http://%s:%d/vault/create", pluginHost, pluginConfig.Server.Port)
-	createVaultRequest.LocalPartyId = "2"
+	createVaultRequest.LocalPartyId = common.VerifierPartyID
 	createVaultRequest.StartSession = true
-	createVaultRequest.Parties = []string{"1", "2"}
+	createVaultRequest.Parties = []string{common.PluginPartyID, common.VerifierPartyID}
 
 	reqBytes, err = json.Marshal(createVaultRequest)
 	if err != nil {

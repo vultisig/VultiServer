@@ -1,34 +1,43 @@
 # vultiserver
+
 server:
-  port: "8080"
-  host: "localhost"
-  vaults_file_path: "/tmp/vultisigner/server/vaults"
+  host: localhost
+  port: 8080
   database:
-    dsn: "postgres://myuser:mypassword@localhost:5432/vs-plugins-vultiserver?sslmode=disable"
+    dsn: postgres://myuser:mypassword@localhost:5432/vs-plugins-vultiserver?sslmode=disable
+  vaults_file_path: /tmp/vultisigner/server/vaults
+  mode: vultiserver
+  plugin:
+    type: dca
+    eth:
+      rpc: http://127.0.0.1:8545
+      uniswap:
+        v2_router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
+        deadline: 5 # minutes
 
 relay:
-  server: "https://api.vultisig.com/router"
+  server: https://api.vultisig.com/router
 
 redis:
-  host: "localhost"
-  port: "6379"
+  host: localhost
+  port: 6379
   password: ""
-  db: "0"
+  db: 0
 
 block_storage:
-  type: "s3"
-  endpoint: "http://localhost:9000"
-  bucket: "vultiserver"  
-  access_key: "minioadmin"
-  secret: "minioadmin"
-  region: "us-east-1"
-  host: "http://localhost:9000"
+  type: s3
+  endpoint: http://localhost:9000
+  bucket: vultiserver  
+  access_key: minioadmin
+  secret: minioadmin
+  region: us-east-1
+  host: http://localhost:9000
   force_path_style: true
   disable_ssl: true
 
 email_server:
-  api_key: "key-1234567890"
+  api_key: key-1234567890
 
 datadog:
-  host: "localhost"
-  port: "8125"
+  host: localhost
+  port: 8125

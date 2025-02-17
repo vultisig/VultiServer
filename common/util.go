@@ -7,12 +7,22 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 
+	"github.com/eager7/dogd/btcec"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ulikunitz/xz"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
+)
+
+const (
+	PluginPartyID   = "plugin-service"
+	VerifierPartyID = "verifier-service"
 )
 
 func CompressData(data []byte) ([]byte, error) {
@@ -173,4 +183,28 @@ func GetVaultName(vault *vaultType.Vault) string {
 		}
 	}
 	return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
+}
+
+func DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath string) (*common.Address, error) {
+	derivedPubKeyHex, err := tss.GetDerivedPubKey(compressedPubKeyHex, hexChainCode, derivePath, false)
+	if err != nil {
+		return nil, err
+	}
+
+	derivedPubKeyBytes, err := hex.DecodeString(derivedPubKeyHex)
+	if err != nil {
+		return nil, err
+	}
+
+	derivedPubKey, err := btcec.ParsePubKey(derivedPubKeyBytes, btcec.S256())
+	if err != nil {
+		return nil, err
+	}
+
+	uncompressedPubKeyBytes := derivedPubKey.SerializeUncompressed()
+	pubKeyBytesWithoutPrefix := uncompressedPubKeyBytes[1:]
+	hash := crypto.Keccak256(pubKeyBytesWithoutPrefix)
+	address := common.BytesToAddress(hash[12:])
+
+	return &address, nil
 }

@@ -1,6 +1,7 @@
 package payroll
 
 import (
+	"context"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
 )
@@ -199,6 +201,10 @@ func (p *PayrollPlugin) ValidateTransactionProposal(policy types.PluginPolicy, t
 		}
 	}
 
+	return nil
+}
+
+func (p *PayrollPlugin) SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest types.PluginKeysignRequest, policy types.PluginPolicy) error {
 	return nil
 }
 

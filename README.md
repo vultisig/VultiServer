@@ -18,29 +18,16 @@
 
 Verify the buckets were created by visiting the MinIO Console: http://localhost:9001 (username: minioadmin, password: minioadmin)
 
-### 2. Create required directories
 
-Create directories for vault storage with the appropriate permissions
-
-`make gen-vault-dirs`
-
-
-### 3. Configure postgre db 
-
-```
-createdb -U myuser vs-plugins-plugin
-createdb -U myuser vs-plugins-vultiserver
-```
-
-### 4. Start
+### 2. Start the servers and workers
 
 Start the services in the following order, each one in a different terminal:
+
+Servers:
 ```sh
 make signer-server
 make plugin-server
 ```
-
-Confirm the servers are running via `GET /ping`, it provide a simple health check for the Api Server, the return value is `Vultisigner is running`
 
 Workers:
 ```sh
@@ -51,7 +38,7 @@ make plugin-worker
 For clean restart, do `make down`, and restart the servers/workers again.
 
 
-### 5. Key Generation
+### 3. Key Generation
 
 - name: Vault name
 - session_id: Key generation session ID (random UUID)
@@ -96,7 +83,7 @@ curl -X POST http://localhost:8080/vault/create \
 }'
 ```
 
-### 6. Key Signing
+### 4. Key Signing
 
 Before starting the keysign, make sure to replace the public key by the one appearing in the logs of the keygen. 
 
@@ -142,7 +129,7 @@ curl -X POST http://localhost:8080/vault/sign \
 }'
 ```
 
-## 7. Resharing
+## 5. Resharing
 
 Allow user to reshare the vault share
 
@@ -175,27 +162,66 @@ curl -X POST http://localhost:8081/vault/reshare \
 }'
 ```
 
-## Verify code
+<!-- ## 6. Verify code
+
 `GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
-if server return http status code 200, it means the code is valid , other status code means the code is invalid
+if server return http status code 200, it means the code is valid , other status code means the code is invalid -->
 
+# 7. Test Scripts
 
-
-# Run test script 
-
-```
-go run scripts/dev/create_vault.go --vault test_1
-```
-
-then 
-```
-go run scripts/dev/create_payroll_policy.go --vault test_1
+```sh
+export RPC_URL=http://127.0.0.1:8545
+export VAULT_NAME=TestVault26
+export STATE_DIR=vaults
+export PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 
 ```
 
-You will be prompted to enter infos, here are dummy ones : 
+## 7.1 Create vault
 
-- Token contract (usdc) `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
-- recipient address `0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67`
-- amount `10`
+```sh
+  go run scripts/dev/create_vault/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+## 7.2 Init vault balance
+
+Send some amount of native ETH to the vault
+```sh
+  go run scripts/dev/add_balance/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+Mint some amount of WETH
+```sh
+```
+
+```sh
+  cast balance 0x577D1Cd9F904F95bA56f0CE9D8e8b6a1a72577ec --rpc-url $RPC_URL
+  cast nonce 0x577D1Cd9F904F95bA56f0CE9D8e8b6a1a72577ec --rpc-url $RPC_URL
+```
+
+## 7.4 Create DCA plugin policy
+
+Approve the source token amount
+```sh
+```
+
+```sh
+  go run scripts/dev/create_dca_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+-	Enter source token contract address: `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` WETH
+- Enter destination contract address: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` UCDC
+- Enter the input amount for swap: `100000000000000000`
+- schedule frequency : `5-minutely`
+
+## 7.4 Create Payroll plugin policy
+
+```sh
+  go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+- Enter token contract: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` UCDC
+Enter recipients and amounts one by one - enter 'done' when finished
+- Enter a recipient address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+- Enter the amount for this recipient: `1000`
 - `done`
-- schedule frequency : `monthly`
+- schedule frequency : `5-minutely`

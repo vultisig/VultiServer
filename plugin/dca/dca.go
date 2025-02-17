@@ -1,17 +1,28 @@
 package dca
 
 import (
+	"context"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
+	"github.com/vultisig/mobile-tss-lib/tss"
+	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/signing"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
+	"github.com/vultisig/vultisigner/uniswap"
 )
 
 const (
@@ -21,14 +32,82 @@ const (
 )
 
 type DCAPlugin struct {
-	db storage.DatabaseStorage
+	uniswapClient *uniswap.Client
+	rpcClient     *ethclient.Client
+	db            storage.DatabaseStorage
+	logger        *logrus.Logger
 }
 
-func NewDCAPlugin(db storage.DatabaseStorage) *DCAPlugin {
-	return &DCAPlugin{db}
+func NewDCAPlugin(uniswapCfg *uniswap.Config, db storage.DatabaseStorage, logger *logrus.Logger) (*DCAPlugin, error) {
+	pluginConfig, err := config.ReadConfig("config-plugin")
+	if err != nil {
+		return nil, fmt.Errorf("fail to read plugin config: %w", err)
+	}
+
+	rpcClient, err := ethclient.Dial(pluginConfig.Server.Plugin.Eth.Rpc)
+	if err != nil {
+		return nil, fmt.Errorf("fail to connect to RPC client: %w", err)
+	}
+
+	uniswapClient, err := uniswap.NewClient(uniswapCfg)
+	if err != nil {
+		return nil, fmt.Errorf("fail to initialize Uniswap client: %w", err)
+	}
+
+	return &DCAPlugin{
+		uniswapClient: uniswapClient,
+		rpcClient:     rpcClient,
+		db:            db,
+		logger:        logger,
+	}, nil
 }
 
-func (p *DCAPlugin) SignPluginMessages(e echo.Context) error { return nil }
+// TODO: do we actually need this?
+func (p *DCAPlugin) SignPluginMessages(e echo.Context) error {
+	p.logger.Debug("DCA: SIGN PLUGIN MESSAGES")
+	return nil
+}
+
+func (p *DCAPlugin) SigningComplete(
+	ctx context.Context,
+	signature tss.KeysignResponse,
+	signRequest types.PluginKeysignRequest,
+	policy types.PluginPolicy,
+) error {
+	var dcaPolicy types.DCAPolicy
+	if err := json.Unmarshal(policy.Policy, &dcaPolicy); err != nil {
+		return fmt.Errorf("fail to unmarshal DCA policy: %w", err)
+	}
+
+	chainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)
+	if !ok {
+		return errors.New("fail to parse chain ID")
+	}
+
+	// currently we are only signing one transaction
+	txHash := signRequest.Messages[0]
+	if len(txHash) == 0 {
+		return errors.New("transaction hash is missing")
+	}
+
+	signedTx, _, err := signing.SignLegacyTx(signature, txHash, signRequest.Transaction, chainID)
+	if err != nil {
+		return fmt.Errorf("fail to sign transaction: %w", err)
+	}
+
+	err = p.rpcClient.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	receipt, err := bind.WaitMined(context.Background(), p.rpcClient, signedTx)
+	if err != nil {
+		return fmt.Errorf("fail to wait for transaction to be mined: %w", err)
+	}
+
+	p.logger.Info("transaction receipt status: ", receipt.Status)
+	return nil
+}
 
 func (p *DCAPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error {
 	if policyDoc == nil {
@@ -61,7 +140,7 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 
 	var dcaPolicy types.DCAPolicy
 	if err := json.Unmarshal(policyDoc.Policy, &dcaPolicy); err != nil {
-		return fmt.Errorf("failed to unmarshal DCA policy: %w", err)
+		return fmt.Errorf("fail to unmarshal DCA policy: %w", err)
 	}
 
 	mixedCaseTokenIn, err := gcommon.NewMixedcaseAddressFromString(dcaPolicy.SourceTokenID)
@@ -114,17 +193,6 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		return fmt.Errorf("min price range should be equal or lower than max price range")
 	}
 
-	// if dcaPolicy.SlippagePercentage == "" {
-	// 	return fmt.Errorf("slippage percentage is required")
-	// }
-	// slippage, err := strconv.ParseFloat(dcaPolicy.SlippagePercentage, 64)
-	// if err != nil {
-	// 	return fmt.Errorf("invalid slippage percentage %s", dcaPolicy.SlippagePercentage)
-	// }
-	// if slippage <= 0 || slippage > 100 {
-	// 	return fmt.Errorf("slippage percentage must be between 0 and 100 %s", dcaPolicy.SlippagePercentage)
-	// }
-
 	if dcaPolicy.ChainID == "" {
 		return fmt.Errorf("chain id is required")
 	}
@@ -132,14 +200,162 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 	return nil
 }
 
-func (p *DCAPlugin) ConfigurePlugin(e echo.Context) error { return nil }
-
-func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error) {
-	return nil, nil
-}
-
-func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
+// TODO: do we actually need this?
+func (p *DCAPlugin) ConfigurePlugin(e echo.Context) error {
 	return nil
 }
 
-func (p *DCAPlugin) Frontend() embed.FS { return embed.FS{} }
+func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error) {
+	p.logger.Debug("DCA: PROPOSE TRANSACTIONS")
+
+	var txs []types.PluginKeysignRequest
+
+	// validate policy
+	err := p.ValidatePluginPolicy(policy)
+	if err != nil {
+		return txs, fmt.Errorf("fail to validate plugin policy: %w", err)
+	}
+
+	var dcaPolicy types.DCAPolicy
+	if err := json.Unmarshal(policy.Policy, &dcaPolicy); err != nil {
+		return txs, fmt.Errorf("fail to unmarshal dca policy, err: %w", err)
+	}
+
+	// build transactions
+	// TODO: get theses values from the vault
+	derivePath := "m/44'/60'/0'/0/0"                                                       // ethereum
+	hexChainCode := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"     // vault's chain code
+	hexEncryptionKey := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" // vault's encryption key
+	vaultPassword := "your-secure-password"                                                // vault's password
+
+	signerAddress, err := common.DeriveAddress(policy.PublicKey, hexChainCode, derivePath)
+	if err != nil {
+		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to derive address: %w", err)
+	}
+
+	chainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)
+	if !ok {
+		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to parse chain id: %w", err)
+	}
+
+	rawTxsData, err := p.generateSwapTransactions(chainID, signerAddress, dcaPolicy.SourceTokenID, dcaPolicy.DestinationTokenID, dcaPolicy.TotalAmount)
+	if err != nil {
+		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to generate transaction hash: %w", err)
+	}
+
+	for _, data := range rawTxsData {
+		signRequest := types.PluginKeysignRequest{
+			KeysignRequest: types.KeysignRequest{
+				PublicKey:        policy.PublicKey,
+				Messages:         []string{hex.EncodeToString(data.TxHash)},
+				SessionID:        uuid.New().String(),
+				HexEncryptionKey: hexEncryptionKey,
+				DerivePath:       derivePath,
+				IsECDSA:          true, // TODO:
+				VaultPassword:    vaultPassword,
+				StartSession:     false,
+				Parties:          []string{common.PluginPartyID, common.VerifierPartyID},
+			},
+			Transaction: hex.EncodeToString(data.RlpTxBytes),
+			PluginID:    policy.PluginID,
+			PolicyID:    policy.ID,
+		}
+		txs = append(txs, signRequest)
+	}
+
+	return txs, nil
+}
+
+func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
+	p.logger.Debug("DCA: VALIDATE TRANSACTION PROPOSAL")
+	return nil
+}
+
+func (p *DCAPlugin) Frontend() embed.FS {
+	return embed.FS{}
+}
+
+type RawTxData struct {
+	TxHash     []byte
+	RlpTxBytes []byte
+}
+
+func (p *DCAPlugin) generateSwapTransactions(chainID *big.Int, signerAddress *gcommon.Address, srcToken, destToken string, strAmount string) ([]RawTxData, error) {
+	srcTokenAddress := gcommon.HexToAddress(srcToken)
+	destTokenAddress := gcommon.HexToAddress(destToken)
+	tokensPair := []gcommon.Address{srcTokenAddress, destTokenAddress}
+
+	swapAmountIn, ok := new(big.Int).SetString(strAmount, 10)
+	if !ok {
+		return []RawTxData{}, fmt.Errorf("fail to parse swap amount")
+	}
+
+	// fetch token pair amount out
+	expectedAmountOut, err := p.uniswapClient.GetExpectedAmountOut(swapAmountIn, tokensPair)
+	if err != nil {
+		return []RawTxData{}, fmt.Errorf("fail to get expected amount out: %w", err)
+	}
+	p.logger.Info("Expected amount out: ", expectedAmountOut.String())
+
+	// TODO: remove, probably we dont need slippage percentage
+	slippagePercentage := 1.0
+	amountOutMin := p.uniswapClient.CalculateAmountOutMin(expectedAmountOut, slippagePercentage)
+
+	// TODO: validate the price range (if specified)
+
+	rawTxsData := []RawTxData{}
+
+	// TODO:
+	// remove, it is not responsibility of the plugin
+	// the user should have the coresponding amount of WETH
+	// in their wallet
+
+	// mint WETH
+	p.logger.Info("Minting WETH")
+	p.logTokenBalances(p.uniswapClient, signerAddress, srcTokenAddress, destTokenAddress)
+	txHash, rawTx, err := p.uniswapClient.MintWETH(chainID, signerAddress, swapAmountIn, srcTokenAddress)
+	if err != nil {
+		return []RawTxData{}, fmt.Errorf("fail to mint WETH: %w", err)
+	}
+	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
+	p.logTokenBalances(p.uniswapClient, signerAddress, srcTokenAddress, destTokenAddress)
+
+	// TODO:
+	// approve should be done by the Vault user, during policy
+	// configuration, since it is not responsibility of the plugin
+	// to approve tokens so there will be only one transaction to sign
+
+	p.logger.Info("Approving Uniswap Router to spend: ", srcTokenAddress.Hex())
+	// approve Router to spend input token
+	txHash, rawTx, err = p.uniswapClient.ApproveERC20Token(chainID, signerAddress, srcTokenAddress, *p.uniswapClient.GetRouterAddress(), swapAmountIn)
+	if err != nil {
+		return []RawTxData{}, fmt.Errorf("fail to approve token: %w", err)
+	}
+	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
+
+	// swap tokens
+	txHash, rawTx, err = p.uniswapClient.SwapTokens(chainID, signerAddress, swapAmountIn, amountOutMin, tokensPair)
+	if err != nil {
+		return []RawTxData{}, fmt.Errorf("fail to swap tokens: %w", err)
+	}
+	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
+	p.logTokenBalances(p.uniswapClient, signerAddress, srcTokenAddress, destTokenAddress)
+
+	return rawTxsData, nil
+}
+
+func (p *DCAPlugin) logTokenBalances(client *uniswap.Client, signerAddress *gcommon.Address, tokenInAddress, tokenOutAddress gcommon.Address) {
+	tokenInBalance, err := client.GetTokenBalance(signerAddress, tokenInAddress)
+	if err != nil {
+		p.logger.Error("Input token balance: ", err)
+		return
+	}
+	p.logger.Info("Input token balance: ", tokenInBalance.String())
+
+	tokenOutBalance, err := client.GetTokenBalance(signerAddress, tokenOutAddress)
+	if err != nil {
+		p.logger.Error("Output token balance: ", err)
+		return
+	}
+	p.logger.Info("Output token balance: ", tokenOutBalance.String())
+}
