@@ -40,16 +40,41 @@ func (p *PostgresBackend) DeletePluginPolicy(id string) error {
 		return fmt.Errorf("database pool is nil")
 	}
 
-	query := `
-        DELETE FROM plugin_policies 
-        WHERE id = $1`
+	// TODO: pass from outside
+	ctx := context.Background()
 
-	err := p.pool.QueryRow(context.Background(), query, id).Scan(
-		id,
-	)
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin db transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
 
-	if err != nil && err.Error() != "no rows in result set" {
+	_, err = tx.Exec(ctx, `
+		DELETE FROM transaction_history 
+		WHERE policy_id = $1
+	`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete transaction history: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		DELETE FROM time_triggers
+		WHERE policy_id = $1
+	`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete time triggers: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		DELETE FROM plugin_policies 
+		WHERE id = $1
+	`, id)
+	if err != nil {
 		return fmt.Errorf("failed to delete policy: %w", err)
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit db transaction: %w", err)
 	}
 
 	return nil
