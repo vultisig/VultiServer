@@ -213,7 +213,17 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
-	policies, err := s.db.GetAllPluginPolicies(publicKey)
+	pluginType := c.Request().Header.Get("plugin_type")
+	if pluginType == "" {
+		err := fmt.Errorf("missing required header: plugin_type")
+		message := map[string]interface{}{
+			"error": err.Error(),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	policies, err := s.db.GetAllPluginPolicies(publicKey, pluginType)
 	if err != nil {
 		message := map[string]interface{}{
 			"error":   err.Error(),
@@ -279,7 +289,9 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
-	if err := s.db.InsertPluginPolicy(policy); err != nil {
+	insertedPolicy, err := s.db.InsertPluginPolicy(policy)
+
+	if err != nil {
 		return fmt.Errorf("failed to insert policy: %w", err)
 	}
 
@@ -297,7 +309,7 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		}
 	}
 
-	return c.NoContent(http.StatusOK)
+	return c.JSON(http.StatusOK, insertedPolicy)
 }
 
 // TODO: verify the signature to authorize the operation
@@ -349,7 +361,8 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 
 	s.logger.Debug("Policy Signature", policy.Signature)
 
-	if err := s.db.UpdatePluginPolicy(policy); err != nil {
+	updatedPolicy, err := s.db.UpdatePluginPolicy(policy)
+	if err != nil {
 		return fmt.Errorf("failed to insert policy: %w", err)
 	}
 
@@ -357,7 +370,7 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		s.logger.Errorf("Failed to update last execution: %v", err)
 	}
 
-	return c.NoContent(http.StatusNoContent)
+	return c.JSON(http.StatusOK, updatedPolicy)
 }
 
 // TODO: verify the signature to authorize the operation

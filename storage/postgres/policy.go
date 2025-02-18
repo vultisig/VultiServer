@@ -8,31 +8,72 @@ import (
 	"github.com/vultisig/vultisigner/internal/types"
 )
 
-func (d *PostgresBackend) InsertPluginPolicy(policyDoc types.PluginPolicy) error {
+func (p *PostgresBackend) InsertPluginPolicy(policyDoc types.PluginPolicy) (types.PluginPolicy, error) {
+	if p.pool == nil {
+		return types.PluginPolicy{}, fmt.Errorf("database pool is nil")
+	}
 	policyJSON, err := json.Marshal(policyDoc.Policy)
 	if err != nil {
-		return fmt.Errorf("failed to marshal policy: %w", err)
+		return types.PluginPolicy{}, fmt.Errorf("failed to marshal policy: %w", err)
 	}
 
-	_, err = d.pool.Exec(context.Background(), "INSERT INTO plugin_policies (id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, policy) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)", policyDoc.ID, policyDoc.PublicKey, policyDoc.PluginID, policyDoc.PluginVersion, policyDoc.PolicyVersion, policyDoc.PluginType, policyDoc.Signature, policyJSON)
+	query := `INSERT INTO plugin_policies
+	(id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, policy)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	RETURNING *
+	`
 
-	return err
+	var policy types.PluginPolicy
+	err = p.pool.QueryRow(context.Background(), query, policyDoc.ID, policyDoc.PublicKey, policyDoc.PluginID, policyDoc.PluginVersion, policyDoc.PolicyVersion, policyDoc.PluginType, policyDoc.Signature, policyJSON).Scan(
+		&policy.ID,
+		&policy.PublicKey,
+		&policy.PluginID,
+		&policy.PluginVersion,
+		&policy.PolicyVersion,
+		&policy.PluginType,
+		&policy.Signature,
+		&policy.Policy,
+	)
+
+	if err != nil {
+		return types.PluginPolicy{}, err
+	}
+
+	return policy, nil
 }
 
-func (p *PostgresBackend) UpdatePluginPolicy(policyDoc types.PluginPolicy) error {
+func (p *PostgresBackend) UpdatePluginPolicy(policyDoc types.PluginPolicy) (types.PluginPolicy, error) {
 	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
+		return types.PluginPolicy{}, fmt.Errorf("database pool is nil")
 	}
 
 	policyJSON, err := json.Marshal(policyDoc.Policy)
 	if err != nil {
-		return fmt.Errorf("failed to marshal policy: %w", err)
+		return types.PluginPolicy{}, fmt.Errorf("failed to marshal policy: %w", err)
 	}
 
-	_, err = p.pool.Exec(context.Background(), `UPDATE plugin_policies 
-	SET id = $1, public_key = $2, plugin_id = $3, plugin_version = $4, policy_version = $5, plugin_type = $6, signature = $7, policy = $8
-	WHERE id = $1`, policyDoc.ID, policyDoc.PublicKey, policyDoc.PluginID, policyDoc.PluginVersion, policyDoc.PolicyVersion, policyDoc.PluginType, policyDoc.Signature, policyJSON)
-	return err
+	query := `UPDATE plugin_policies 
+	SET public_key = $2, plugin_type = $3, signature = $4, policy = $5
+	WHERE id = $1
+	RETURNING *
+	`
+
+	var policy types.PluginPolicy
+	err = p.pool.QueryRow(context.Background(), query, policyDoc.ID, policyDoc.PublicKey, policyDoc.PluginType, policyDoc.Signature, policyJSON).Scan(
+		&policy.ID,
+		&policy.PublicKey,
+		&policy.PluginID,
+		&policy.PluginVersion,
+		&policy.PolicyVersion,
+		&policy.PluginType,
+		&policy.Signature,
+		&policy.Policy,
+	)
+	if err != nil {
+		return types.PluginPolicy{}, err
+	}
+
+	return policy, nil
 }
 
 func (p *PostgresBackend) DeletePluginPolicy(id string) error {
@@ -112,7 +153,7 @@ func (p *PostgresBackend) GetPluginPolicy(id string) (types.PluginPolicy, error)
 	return policy, nil
 }
 
-func (p *PostgresBackend) GetAllPluginPolicies(public_key string) ([]types.PluginPolicy, error) {
+func (p *PostgresBackend) GetAllPluginPolicies(publicKey string, pluginType string) ([]types.PluginPolicy, error) {
 	if p.pool == nil {
 		return []types.PluginPolicy{}, fmt.Errorf("database pool is nil")
 	}
@@ -120,9 +161,10 @@ func (p *PostgresBackend) GetAllPluginPolicies(public_key string) ([]types.Plugi
 	query := `
         SELECT id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, policy 
         FROM plugin_policies
-		WHERE public_key = $1`
+		WHERE public_key = $1
+		AND plugin_type = $2`
 
-	rows, err := p.pool.Query(context.Background(), query, public_key)
+	rows, err := p.pool.Query(context.Background(), query, publicKey, pluginType)
 	if err != nil {
 		return nil, err
 	}

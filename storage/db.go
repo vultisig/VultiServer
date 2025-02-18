@@ -8,10 +8,10 @@ import (
 type DatabaseStorage interface {
 	Close() error
 
-	InsertPluginPolicy(policyDoc types.PluginPolicy) error
+	InsertPluginPolicy(policyDoc types.PluginPolicy) (types.PluginPolicy, error)
 	GetPluginPolicy(id string) (types.PluginPolicy, error)
-	GetAllPluginPolicies(public_key string) ([]types.PluginPolicy, error)
-	UpdatePluginPolicy(policyDoc types.PluginPolicy) error
+	GetAllPluginPolicies(publicKey string, pluginType string) ([]types.PluginPolicy, error)
+	UpdatePluginPolicy(policyDoc types.PluginPolicy) (types.PluginPolicy, error)
 	DeletePluginPolicy(id string) error
 
 	CreateTimeTrigger(trigger types.TimeTrigger) error
