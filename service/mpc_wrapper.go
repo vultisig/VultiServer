@@ -20,7 +20,6 @@ type MPCKeygenWrapper interface {
 }
 type MPCKeysignWrapper interface {
 	SignSetupMsgNew(keyID []byte, chainPath []byte, messageHash []byte, ids []byte) ([]byte, error)
-	FinishSetupMsgNew(sessionID []byte, messageHash []byte, ids []byte) ([]byte, error)
 	SignSessionFromSetup(setup []byte, id []byte, shareOrPresign Handle) (Handle, error)
 	SignSessionOutputMessage(session Handle) ([]byte, error)
 	SignSessionMessageReceiver(session Handle, message []byte, index int) ([]byte, error)
@@ -180,12 +179,7 @@ func (w *MPCWrapperImp) SignSetupMsgNew(keyID []byte, chainPath []byte, messageH
 	}
 	return session.DklsSignSetupMsgNew(keyID, chainPath, messageHash, ids)
 }
-func (w *MPCWrapperImp) FinishSetupMsgNew(sessionID []byte, messageHash []byte, ids []byte) ([]byte, error) {
-	if w.isEdDSA {
-		return eddsaSession.SchnorrFinishSetupMsgNew(sessionID, messageHash, ids)
-	}
-	return session.DklsFinishSetupMsgNew(sessionID, messageHash, ids)
-}
+
 func (w *MPCWrapperImp) SignSessionFromSetup(setup []byte, id []byte, shareOrPresign Handle) (Handle, error) {
 	if w.isEdDSA {
 		h, err := eddsaSession.SchnorrSignSessionFromSetup(setup, id, eddsaSession.Handle(shareOrPresign))
