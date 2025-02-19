@@ -7,6 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"math/big"
 	"strings"
 
@@ -163,6 +166,12 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		}
 	}
 
+	sourceAddrPolicy := gcommon.HexToAddress(dcaPolicy.SourceTokenID)
+	destAddrPolicy := gcommon.HexToAddress(dcaPolicy.DestinationTokenID)
+	if sourceAddrPolicy == gcommon.HexToAddress("0x0") || destAddrPolicy == gcommon.HexToAddress("0x0") {
+		return fmt.Errorf("invalid token addresses")
+	}
+
 	if dcaPolicy.SourceTokenID == dcaPolicy.DestinationTokenID {
 		return fmt.Errorf("source token and destination token addresses are the same")
 	}
@@ -237,7 +246,6 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 	if !ok {
 		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to parse chain id: %w", err)
 	}
-
 	rawTxsData, err := p.generateSwapTransactions(chainID, signerAddress, dcaPolicy.SourceTokenID, dcaPolicy.DestinationTokenID, dcaPolicy.TotalAmount)
 	if err != nil {
 		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to generate transaction hash: %w", err)
@@ -267,8 +275,174 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 }
 
 func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
-	p.logger.Debug("DCA: VALIDATE TRANSACTION PROPOSAL")
+	p.logger.Info("DCA: VALIDATE TRANSACTION PROPOSAL")
+
+	if len(txs) == 0 {
+		return fmt.Errorf("no transactions provided for validation")
+	}
+	// TODO: get these values from the vault.
+	hexChainCode := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" // vault's chain code
+	derivePath := "m/44'/60'/0'/0/0"                                                   // ethereum
+
+	if err := p.ValidatePluginPolicy(policy); err != nil {
+		return fmt.Errorf("failed to validate plugin policy: %w", err)
+	}
+
+	var dcaPolicy types.DCAPolicy
+	if err := json.Unmarshal(policy.Policy, &dcaPolicy); err != nil {
+		return fmt.Errorf("failed to unmarshal DCA policy: %w", err)
+	}
+
+	// Validate policy params.
+	policyChainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)
+	if !ok {
+		return fmt.Errorf("failed to parse chain ID: %s", dcaPolicy.ChainID)
+	}
+
+	sourceAddrPolicy := gcommon.HexToAddress(dcaPolicy.SourceTokenID)
+	destAddrPolicy := gcommon.HexToAddress(dcaPolicy.DestinationTokenID)
+
+	totalAmount, ok := new(big.Int).SetString(dcaPolicy.TotalAmount, 10)
+	if !ok {
+		return fmt.Errorf("invalid total amount")
+	}
+
+	signerAddress, err := common.DeriveAddress(policy.PublicKey, hexChainCode, derivePath)
+	if err != nil {
+		return fmt.Errorf("failed to derive address: %w", err)
+	}
+	// Validate each transaction
+	for _, tx := range txs {
+		if err := p.validateTransaction(tx, totalAmount, policyChainID, &sourceAddrPolicy, &destAddrPolicy, signerAddress); err != nil {
+			return fmt.Errorf("failed to validate transaction: %w", err)
+		}
+	}
 	return nil
+}
+
+func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignRequest, totalAmountPolicy, policyChainID *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
+	// Parse the transaction
+	var tx *gtypes.Transaction
+	txBytes, err := hex.DecodeString(keysignRequest.Transaction)
+	if err != nil {
+		return fmt.Errorf("failed to decode transaction bytes: %w", err)
+	}
+	err = rlp.DecodeBytes(txBytes, &tx)
+	if err != nil {
+		return fmt.Errorf("fail to parse RLP transaction: %w", err)
+	}
+
+	// Validate chain ID
+	if tx.ChainId().Cmp(policyChainID) != 0 {
+		return fmt.Errorf("chain ID mismatch: expected %s, got %s", policyChainID.String(), tx.ChainId().String())
+	}
+
+	// Validate destination address
+	txDestination := tx.To()
+	if txDestination == nil {
+		return fmt.Errorf("transaction missing destination address")
+	}
+	if p.uniswapClient.GetRouterAddress() != txDestination {
+		// TODO: change when mint and approve transactions are removed.
+		p.logger.Warn("invalid router address", "address", txDestination)
+	}
+
+	// Validate gas parameters
+	if tx.Gas() == 0 {
+		return fmt.Errorf("invalid gas limit: must be greater than zero")
+	}
+	if tx.GasPrice().Cmp(big.NewInt(0)) <= 0 {
+		return fmt.Errorf("invalid gas price: must be greater than zero")
+	}
+
+	// Validate transaction data
+	if len(tx.Data()) == 0 {
+		return fmt.Errorf("transaction contains empty payload")
+	}
+
+	parsedRouterABI, err := p.getRouterABI()
+	if err != nil {
+		return fmt.Errorf("failed to parse router ABI: %w", err)
+	}
+	method, err := parsedRouterABI.MethodById(tx.Data())
+	if err != nil {
+		p.logger.Warn("failed to find method in router ABI")
+	}
+	if method != nil && method.Name != "swapExactTokensForTokens" {
+		return fmt.Errorf("unexpected transaction method: expected 'swapExactTokensForTokens', got %s'", method.Name)
+	}
+
+	// Validate swap parameters if it's a swap transaction
+	if method != nil && method.Name == "swapExactTokensForTokens" {
+		p.logger.Info("DCA: method is swapExactTokensForTokens")
+		if err := p.validateSwapParameters(tx, method, totalAmountPolicy, sourceAddrPolicy, destAddrPolicy, signerAddress); err != nil {
+			return fmt.Errorf("failed to validate swap parameters: %w", err)
+		}
+	}
+	return nil
+}
+func (p *DCAPlugin) validateSwapParameters(tx *gtypes.Transaction, method *abi.Method, totalAmountPolicy *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
+	inputData := tx.Data()[4:]
+	decodedParams, err := method.Inputs.Unpack(inputData)
+	if err != nil {
+		return fmt.Errorf("failed to decode transaction swap parameters: %w", err)
+	}
+	path, ok := decodedParams[2].([]gcommon.Address)
+	if !ok || len(path) < 2 {
+		return fmt.Errorf("invalid swap path: must contain at least 2 tokens")
+	}
+
+	if path[0] != *sourceAddrPolicy || path[len(path)-1] != *destAddrPolicy {
+		return fmt.Errorf("swap path tokens mismatch: expected source=%s, destination=%s", *sourceAddrPolicy, *destAddrPolicy)
+	}
+
+	// TODO: change this validation to not compare the total amount, but to validate it is in valid range.
+	amountIn, ok := decodedParams[0].(*big.Int)
+	if !ok {
+		return fmt.Errorf("failed to parse swap amount: invalid format")
+	}
+	if amountIn.Cmp(totalAmountPolicy) > 0 {
+		return fmt.Errorf("swap amount exceeds policy limit: max=%s, got=%s", totalAmountPolicy.String(), amountIn.String())
+	}
+
+	// Validate destination address matches signer
+	to, ok := decodedParams[3].(gcommon.Address)
+	if !ok || to != *signerAddress {
+		return fmt.Errorf("invalid swap destination: expected=%s, got=%s", *signerAddress, to.String())
+	}
+
+	return nil
+}
+func (p *DCAPlugin) getRouterABI() (abi.ABI, error) {
+	routerABI := `[
+        {
+            "name": "swapExactTokensForTokens",
+            "type": "function",
+            "inputs": [
+                {
+                    "name": "amountIn",
+                    "type": "uint256"
+                },
+                {
+                    "name": "amountOutMin",
+                    "type": "uint256"
+                },
+                {
+                    "name": "path",
+                    "type": "address[]"
+                },
+                {
+                    "name": "to",
+                    "type": "address"
+                },
+                {
+                    "name": "deadline",
+                    "type": "uint256"
+                }
+            ]
+        }
+    ]`
+	return abi.JSON(strings.NewReader(routerABI))
 }
 
 func (p *DCAPlugin) Frontend() embed.FS {

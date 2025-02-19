@@ -289,6 +289,9 @@ func (uc *Client) GetExpectedAmountOut(amountIn *big.Int, path []common.Address)
 
 func (uc *Client) rlpUnsignedTxAndHash(tx *types.Transaction, chainID *big.Int) ([]byte, []byte, error) {
 	// post EIP-155 transaction
+	V := new(big.Int).Set(chainID)
+	V = V.Mul(V, big.NewInt(2))
+	V = V.Add(V, big.NewInt(35))
 	rawTx, err := rlp.EncodeToBytes([]interface{}{
 		tx.Nonce(),
 		tx.GasPrice(),
@@ -296,9 +299,9 @@ func (uc *Client) rlpUnsignedTxAndHash(tx *types.Transaction, chainID *big.Int) 
 		tx.To(),
 		tx.Value(),
 		tx.Data(),
-		chainID,
-		uint(0),
-		uint(0),
+		V,       // chain id
+		uint(0), // r
+		uint(0), // s
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to rlp encode transaction: %v", err)

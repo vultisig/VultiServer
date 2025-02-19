@@ -173,7 +173,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	metadata["task_id"] = ti.ID
-	if err := s.db.UpdateTransactionStatus(txID, types.StatusPending, metadata); err != nil {
+	if err := s.db.UpdateTransactionStatus(txID, types.StatusSigned, metadata); err != nil {
 		s.logger.Errorf("Failed to update transaction with task ID: %v", err)
 	}
 
@@ -295,15 +295,12 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return fmt.Errorf("failed to insert policy: %w", err)
 	}
 
-	// TODO: sync policies and triggers on on both plugin
-	// and verifier servers in a db transaction, rollback
-	// if policy sync fails
-	if err := s.SyncPolicyOnVerifier(policy); err != nil {
-		return fmt.Errorf("failed to sync policy with verifier: %w", err)
-	}
-
 	// TODO: handle trigger updates
 	if s.scheduler != nil {
+		if err := s.SyncPolicyOnVerifier(policy); err != nil {
+			return fmt.Errorf("failed to sync policy with verifier: %w", err)
+		}
+
 		if err := s.scheduler.CreateTimeTrigger(policy); err != nil {
 			s.logger.Errorf("Failed to create time trigger: %v", err)
 		}
@@ -433,6 +430,10 @@ func calculateTransactionHash(txData string) (string, error) {
 		return "", err
 	}
 
-	hash := tx.Hash().Hex()[2:]
+	chainID := tx.ChainId()
+
+	signer := gtypes.NewEIP155Signer(chainID)
+
+	hash := signer.Hash(tx).String()[2:]
 	return hash, nil
 }
