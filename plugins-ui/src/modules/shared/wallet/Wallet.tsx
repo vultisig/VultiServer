@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getCurrentProvider } from "./wallet.utils";
+import { getCurrentProvider, isSupportedChainType } from "./wallet.utils";
 import ChainSelector from "@/modules/core/components/ui/chain-selector/ChainSelector";
 import Button from "@/modules/core/components/ui/button/Button";
 
@@ -8,10 +8,13 @@ const Wallet = () => {
   const [provider, setProvider] = useState<any>(null);
 
   useEffect(() => {
-    localStorage.setItem("chain", chain);
-    const currentProvider = getCurrentProvider(chain);
-    setProvider(currentProvider);
-    console.log("Chain:", chain);
+    if (isSupportedChainType(chain)) {
+      localStorage.setItem("chain", chain);
+
+      const currentProvider = getCurrentProvider(chain);
+      setProvider(currentProvider);
+      console.log("Chain:", chain);
+    }
   }, [chain]);
 
   const connectEthereum = async (provider: any) => {
@@ -44,29 +47,31 @@ const Wallet = () => {
     }
   };
 
-  const connectWallet = async (chain: string, provider: any) => {
-    if (chain === "ethereum") {
-      if (window.vultisig?.ethereum) {
-        console.log("VultiConnect Ethereum provider is available!");
-        await connectEthereum(provider);
-      } else if (window.ethereum) {
-        console.log("Ethereum provider available (MetaMask or VultiConnect)");
-        // Fallback to MetaMask-compatible logic
-      }
-    } else {
-      if (window[chain] || window.vultisig?.[chain]) {
-        console.log("VultiConnect provider is available!");
-        await connectChain(chain, provider);
+  const connectWallet = async (chain: string | null, provider: any) => {
+    if (isSupportedChainType(chain)) {
+      if (chain === "ethereum") {
+        if (window.vultisig?.ethereum) {
+          console.log("VultiConnect Ethereum provider is available!");
+          await connectEthereum(provider);
+        } else if (window.ethereum) {
+          console.log("Ethereum provider available (MetaMask or VultiConnect)");
+          // Fallback to MetaMask-compatible logic
+        }
       } else {
-        console.log("No compatible provider found.");
-        alert(`No ${chain} provider found. Please install VultiConnect.`);
+        if (window[chain] || window.vultisig?.[chain]) {
+          console.log("VultiConnect provider is available!");
+          await connectChain(chain, provider);
+        } else {
+          console.log("No compatible provider found.");
+          alert(`No ${chain} provider found. Please install VultiConnect.`);
+        }
       }
     }
   };
 
   return (
     <>
-      <ChainSelector chain={chain} setChain={setChain} />
+      {chain && <ChainSelector chain={chain} setChain={setChain} />}
 
       <Button
         size="medium"

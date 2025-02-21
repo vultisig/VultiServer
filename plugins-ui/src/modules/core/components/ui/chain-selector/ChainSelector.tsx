@@ -5,7 +5,12 @@ const networks = [
   // TODO: add more networks as needed
 ];
 
-const ChainSelector = ({ chain, setChain }) => {
+type ChainSelectorProps = {
+  chain: string;
+  setChain: (chain: string) => void;
+};
+
+const ChainSelector = ({ chain, setChain }: ChainSelectorProps) => {
   return (
     <select
       style={{

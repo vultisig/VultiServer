@@ -37,7 +37,7 @@ const getConnectedEthereum = async (provider: any) => {
   }
 };
 
-const getConnectedAccountsChain = async (chain: string, provider: any) => {
+const getConnectedAccountsChain = async (chain: ChainType, provider: any) => {
   if (provider) {
     try {
       const accounts = await provider.request({ method: "get_accounts" });
@@ -58,7 +58,11 @@ const getConnectedAccountsChain = async (chain: string, provider: any) => {
   }
 };
 
-export const getCurrentProvider = (chain: string) => {
+export type ChainType = "ethereum" | "bitcoin" | "thorchain";
+export const isSupportedChainType = (value: unknown): value is ChainType =>
+  value === "ethereum" || value === "bitcoin" || value === "thorchain";
+
+export const getCurrentProvider = (chain: ChainType) => {
   return chain === "ethereum"
     ? window.vultisig?.ethereum || window.ethereum
     : window[chain] || window.vultisig?.[chain];
@@ -66,39 +70,40 @@ export const getCurrentProvider = (chain: string) => {
 
 export const signPolicy = async (policy: PluginPolicy) => {
   const chain = localStorage.getItem("chain");
-  const provider = getCurrentProvider(chain);
 
-  const toHex = (str: string) => {
-    return (
-      "0x" +
-      Array.from(str)
-        .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
-        .join("")
-    );
-  };
+  if (isSupportedChainType(chain)) {
+    const provider = getCurrentProvider(chain);
+    const toHex = (str: string) => {
+      return (
+        "0x" +
+        Array.from(str)
+          .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
+          .join("")
+      );
+    };
+    const serializedPolicy = JSON.stringify(policy);
+    const hexMessage = toHex(serializedPolicy);
 
-  const serializedPolicy = JSON.stringify(policy);
-  const hexMessage = toHex(serializedPolicy);
+    let accounts = [];
+    if (chain === "ethereum") {
+      accounts = await getConnectedEthereum(provider);
+    } else {
+      accounts = await getConnectedAccountsChain(chain, provider);
+    }
 
-  let accounts = [];
-  if (chain === "ethereum") {
-    accounts = await getConnectedEthereum(provider);
-  } else {
-    accounts = await getConnectedAccountsChain(chain, provider);
+    if (!accounts || accounts.length === 0) {
+      console.error("Need to connect to an Ethereum wallet");
+      return;
+    }
+
+    const signature = await signCustomMessage(hexMessage, accounts[0]);
+    if (signature == null || signature instanceof Error) {
+      // TODO: show propper error message to the user
+      console.error("Failed to sign the message");
+      return;
+    }
+    // if the popup gets closed during key singing (even if threshold is reached)
+    // it will terminate and not generate a signature
+    policy.signature = signature;
   }
-
-  if (!accounts || accounts.length === 0) {
-    console.error("Need to connect to an Ethereum wallet");
-    return;
-  }
-
-  const signature = await signCustomMessage(hexMessage, accounts[0]);
-  if (signature == null || signature instanceof Error) {
-    // TODO: show propper error message to the user
-    console.error("Failed to sign the message");
-    return;
-  }
-  // if the popup gets closed during key singing (even if threshold is reached)
-  // it will terminate and not generate a signature
-  policy.signature = signature;
 };
