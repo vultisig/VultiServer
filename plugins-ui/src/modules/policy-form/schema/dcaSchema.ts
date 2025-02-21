@@ -1,6 +1,6 @@
 import {
-  ALLOCATE_TOKEN,
-  BUY_TOKEN,
+  USDC_TOKEN,
+  WETH_TOKEN,
   supportedTokens,
 } from "@/modules/dca-plugin/data/tokens";
 import TokenSelector from "@/modules/shared/token-selector/TokenSelector";
@@ -184,8 +184,8 @@ export const getUiSchema = (policyId: string, policy: Policy): UiSchema => {
 
 export const defaultFormData = {
   chain_id: "1",
-  source_token_id: ALLOCATE_TOKEN,
-  destination_token_id: BUY_TOKEN,
+  source_token_id: WETH_TOKEN,
+  destination_token_id: USDC_TOKEN,
   total_amount: asNumber(null),
   total_orders: asNumber(null),
   schedule: {

@@ -1,5 +1,5 @@
-export const ALLOCATE_TOKEN = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
-export const BUY_TOKEN = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+export const USDC_TOKEN = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+export const WETH_TOKEN = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 import { ReactElement } from "react";
 
 type Option = {
