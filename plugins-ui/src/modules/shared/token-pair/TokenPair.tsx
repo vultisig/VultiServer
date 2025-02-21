@@ -1,4 +1,4 @@
-import { supportedTokens } from "@/modules/dca-plugin/data/tokens";
+import { supportedTokens } from "@/modules/shared/data/tokens";
 import { cloneElement } from "react";
 import "./TokenPair.css";
 

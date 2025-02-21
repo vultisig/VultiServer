@@ -1,8 +1,8 @@
-import { PluginPolicy, Policy } from "@/modules/policy-form/models/policy";
-import { supportedTokens } from "@/modules/dca-plugin/data/tokens";
+import { PluginPolicy, Policy } from "@/modules/policy/models/policy";
+import { supportedTokens } from "@/modules/shared/data/tokens";
 import { ColumnDef } from "@tanstack/react-table";
-import TokenPair from "../shared/token-pair/TokenPair";
-import PolicyActions from "./components/PolicyActions";
+import TokenPair from "../../shared/token-pair/TokenPair";
+import PolicyActions from "../components/policy-actions/PolicyActions";
 
 export const mapData = (
   pluginPolicy: PluginPolicy
@@ -47,7 +47,12 @@ export const dcaPolicyColumns: ColumnDef<string, any>[] = [
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ getValue }) => (getValue() ? "Active" : "Inactive"),
+    cell: ({ getValue }) =>
+      getValue() ? (
+        <div style={{ color: "#13C89D" }}>Active</div>
+      ) : (
+        <div style={{ color: "#8295AE" }}>Inactive</div>
+      ),
   },
   {
     header: "Actions",

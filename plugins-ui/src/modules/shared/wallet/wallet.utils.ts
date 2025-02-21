@@ -1,4 +1,4 @@
-import { PluginPolicy } from "@/modules/policy-form/models/policy";
+import { PluginPolicy } from "@/modules/policy/models/policy";
 
 const signCustomMessage = async (hexMessage: string, walletAddress: string) => {
   if (window.vultisig?.ethereum) {

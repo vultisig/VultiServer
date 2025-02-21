@@ -2,13 +2,13 @@ import {
   USDC_TOKEN,
   WETH_TOKEN,
   supportedTokens,
-} from "@/modules/dca-plugin/data/tokens";
-import TokenSelector from "@/modules/shared/token-selector/TokenSelector";
+} from "@/modules/shared/data/tokens";
 import { asNumber, RJSFSchema, UiSchema } from "@rjsf/utils";
 import { Policy } from "../models/policy";
 import { SummaryData } from "@/modules/shared/summary/summary.model";
 
 export const schema: RJSFSchema = {
+  title: "DCA Plugin Policy",
   type: "object",
   required: [
     "total_amount",
@@ -52,7 +52,7 @@ export const schema: RJSFSchema = {
       },
     },
     total_orders: {
-      title: "Over",
+      title: "Over (orders)",
       type: "number",
       minimum: 1,
     },
@@ -88,7 +88,7 @@ const uiSchema: UiSchema = {
     },
   },
   source_token_id: {
-    "ui:widget": TokenSelector,
+    "ui:widget": "TokenSelector",
     "ui:options": {
       label: false,
       classNames: "input-background stacked-input",
@@ -102,7 +102,7 @@ const uiSchema: UiSchema = {
     },
   },
   destination_token_id: {
-    "ui:widget": TokenSelector,
+    "ui:widget": "TokenSelector",
     "ui:options": {
       classNames: "input-background stacked-input",
     },
@@ -160,7 +160,10 @@ export const getUiSchema = (policyId: string, policy: Policy): UiSchema => {
   if (policyId) {
     return {
       ...{
-        "ui:title": `${supportedTokens[policy.source_token_id as string].name}/${supportedTokens[policy.destination_token_id as string].name}`,
+        "ui:options": {
+          source_token_id: policy.source_token_id,
+          destination_token_id: policy.destination_token_id,
+        },
       },
       ...{
         "ui:description": "Edit configuration settings for this pair.",
@@ -174,7 +177,6 @@ export const getUiSchema = (policyId: string, policy: Policy): UiSchema => {
     };
   }
   return {
-    ...{ "ui:title": "DCA Plugin Policy" },
     ...{
       "ui:description": "Set up configuration settings for DCA Plugin Policy",
     },

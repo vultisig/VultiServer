@@ -1,7 +1,8 @@
 import Button from "@/modules/core/components/ui/button/Button";
 import ChevronDown from "@/assets/ChevronDown.svg?react";
+import Search from "@/assets/Search.svg?react";
 import { cloneElement, useState } from "react";
-import { supportedTokens } from "@/modules/dca-plugin/data/tokens";
+import { supportedTokens } from "@/modules/shared/data/tokens";
 import Modal from "@/modules/core/components/ui/modal/Modal";
 
 type TokenSelectorProps = {
@@ -49,14 +50,17 @@ const TokenSelector = ({ value, onChange }: TokenSelectorProps) => {
         variant="modal"
       >
         <div className="modal-header">
-          <h2>Select token</h2>
-          <input
-            id="seatch"
-            name="search"
-            type="text"
-            placeholder="Search token"
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <h2>Select a token</h2>
+          <div className="input-container">
+            <input
+              id="seatch"
+              name="search"
+              type="text"
+              placeholder="Search by token"
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <Search className="icon" width="20px" height="20px" />
+          </div>
         </div>
         <ul className="modal-options">
           {filteredOptions.length > 0 ? (

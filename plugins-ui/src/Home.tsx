@@ -1,7 +1,7 @@
 import "./Home.css";
-import PolicyForm from "./modules/policy-form/components/PolicyForm";
-import { PolicyProvider } from "./modules/policy-form/context/PolicyProvider";
-import PolicyTable from "./modules/policy-table/components/PolicyTable";
+import PolicyForm from "./modules/policy/components/policy-form/PolicyForm";
+import { PolicyProvider } from "./modules/policy/context/PolicyProvider";
+import PolicyTable from "./modules/policy/components/policy-table/PolicyTable";
 import Wallet from "./modules/shared/wallet/Wallet";
 
 const Home = () => {

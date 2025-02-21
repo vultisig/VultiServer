@@ -24,7 +24,7 @@
 }
 
 .secondary:hover {
-    color: var(--text-primary-color);
+    background-color: var(--button-secondary-hover-color);
 }
 
 .tertiary {

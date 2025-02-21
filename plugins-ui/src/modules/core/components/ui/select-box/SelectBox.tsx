@@ -1,18 +1,48 @@
+import { CSSProperties, useState } from "react";
+import ChevronDown from "@/assets/ChevronDown.svg?react";
+import "./SelectBox.css";
+
 type SelectBoxProps = {
-  name: string;
+  label?: string;
   options: string[];
-  defaultValue: string;
+  value: string;
+  onSelectChange: (option: string) => void;
+  style?: CSSProperties;
 };
-export default function SelectBox({ options, defaultValue }: SelectBoxProps) {
+
+const SelectBox = ({
+  label,
+  options,
+  value,
+  onSelectChange,
+  style,
+}: SelectBoxProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedOption, setSelectedOption] = useState(value);
+
+  const handleSelect = (option: string) => {
+    onSelectChange(option);
+    setSelectedOption(option);
+    setIsOpen(false);
+  };
   return (
-    <>
-      <select aria-label="select option" defaultValue={defaultValue}>
+    <div style={style} className="custom-dropdown">
+      <div className="dropdown-toggle" onClick={() => setIsOpen(!isOpen)}>
+        {label}
+        <div className="toggle-choice">
+          {selectedOption}
+          <ChevronDown width="20px" height="20px" />
+        </div>
+      </div>
+      <ul className={`dropdown-menu ${isOpen ? "open" : ""}`}>
         {options.map((option) => (
-          <option key={option} value={option}>
+          <li key={option} onClick={() => handleSelect(option)}>
             {option}
-          </option>
+          </li>
         ))}
-      </select>
-    </>
+      </ul>
+    </div>
   );
-}
+};
+
+export default SelectBox;

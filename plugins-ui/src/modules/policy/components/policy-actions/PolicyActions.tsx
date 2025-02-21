@@ -2,9 +2,9 @@ import Button from "@/modules/core/components/ui/button/Button";
 import TrashIcon from "@/assets/Trash.svg?react";
 import PenIcon from "@/assets/Pen.svg?react";
 import PauseIcon from "@/assets/Pause.svg?react";
-import { usePolicies } from "@/modules/policy-form/context/PolicyProvider";
+import { usePolicies } from "@/modules/policy/context/PolicyProvider";
 import Modal from "@/modules/core/components/ui/modal/Modal";
-import PolicyForm from "@/modules/policy-form/components/PolicyForm";
+import PolicyForm from "@/modules/policy/components/policy-form/PolicyForm";
 import { useState } from "react";
 
 type PolicyActionsProps = {

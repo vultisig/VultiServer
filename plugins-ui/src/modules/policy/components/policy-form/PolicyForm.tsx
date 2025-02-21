@@ -1,19 +1,21 @@
 import Form, { IChangeEvent } from "@rjsf/core";
 import validator from "@rjsf/validator-ajv8";
 import "./PolicyForm.css";
+import { generatePolicy } from "../../utils/policy.util";
+import { PluginPolicy } from "../../models/policy";
+import { useState } from "react";
+import Summary from "@/modules/shared/summary/Summary";
+import { SummaryData } from "@/modules/shared/summary/summary.model";
+import { usePolicies } from "../../context/PolicyProvider";
 import {
   defaultFormData,
   getFormData,
   getSummaryData,
   getUiSchema,
   schema,
-} from "../schema/dcaSchema"; // todo these should be dynamic once we have the marketplace
-import { generatePolicy } from "../utils/policy.util";
-import { PluginPolicy } from "../models/policy";
-import { useState } from "react";
-import Summary from "@/modules/shared/summary/Summary";
-import { SummaryData } from "@/modules/shared/summary/summary.model";
-import { usePolicies } from "../context/PolicyProvider";
+} from "../../schema/dcaFormSchema";
+import { TitleFieldTemplate } from "../policy-title/PolicyTitle";
+import TokenSelector from "@/modules/shared/token-selector/TokenSelector";
 
 type PolicyFormProps = {
   data?: PluginPolicy;
@@ -86,7 +88,9 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
         formData={formData}
         onSubmit={onSubmit}
         onChange={onChange}
-        showErrorList="bottom"
+        showErrorList={false}
+        templates={{ TitleFieldTemplate }}
+        widgets={{ TokenSelector: TokenSelector }}
       />
       {summaryData && <Summary {...summaryData} />}
     </div>

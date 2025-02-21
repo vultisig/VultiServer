@@ -6,9 +6,10 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
-import { usePolicies } from "@/modules/policy-form/context/PolicyProvider";
-import { mapData, dcaPolicyColumns } from "../dcaTableSchema"; // todo these should be dynamic once we have the marketplace
-import PolicyFilters from "./PolicyFilters";
+import { usePolicies } from "@/modules/policy/context/PolicyProvider";
+import { mapData, dcaPolicyColumns } from "../../schema/dcaTableSchema"; // todo these should be dynamic once we have the marketplace
+import PolicyFilters from "../policy-filters/PolicyFilters";
+import "./PolicyTable.css";
 
 const columns = [...dcaPolicyColumns];
 
@@ -40,7 +41,7 @@ const PolicyTable = () => {
   return (
     <div>
       <PolicyFilters onFiltersChange={setColumnFilters} />
-      <table bgcolor="#061B3A" cellPadding={7}>
+      <table className="policy-table">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
@@ -69,7 +70,9 @@ const PolicyTable = () => {
           ))}
           {table.getRowModel().rows.length === 0 && (
             <tr>
-              <td>Nothing to see here yet.</td>
+              <td colSpan={table.getAllColumns().length}>
+                Nothing to see here yet.
+              </td>
             </tr>
           )}
         </tbody>
