@@ -10,15 +10,14 @@ import {
 } from "../schema/dcaSchema"; // todo these should be dynamic once we have the marketplace
 import { generatePolicy } from "../utils/policy.util";
 import { PluginPolicy } from "../models/policy";
-import PolicyService from "../services/policyService";
 import { useState } from "react";
-import { signPolicy } from "@/modules/shared/wallet/wallet.utils";
 import Summary from "@/modules/shared/summary/Summary";
 import { SummaryData } from "@/modules/shared/summary/summary.model";
+import { usePolicies } from "../context/PolicyProvider";
 
 type PolicyFormProps = {
   data?: PluginPolicy;
-  onSubmitCallback: (data: PluginPolicy) => void;
+  onSubmitCallback?: (data: PluginPolicy) => void;
 };
 
 const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
@@ -26,6 +25,7 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
 
   const initialFormData = data ? getFormData(data?.policy) : defaultFormData; // Define the initial form state
   const [formData, setFormData] = useState(initialFormData);
+  const { addPolicy, updatePolicy } = usePolicies();
 
   const initialSummaryData: SummaryData | null =
     getSummaryData(initialFormData);
@@ -51,9 +51,11 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
     // check if form has policyId, this means we are editing policy
     if (policyId) {
       try {
-        await signPolicy(policy);
-        await PolicyService.updatePolicy(policy);
-        onSubmitCallback(policy);
+        await updatePolicy(policy);
+
+        if (onSubmitCallback) {
+          onSubmitCallback(policy);
+        }
       } catch (error: any) {
         console.error("Failed to create policy:", error.message);
       }
@@ -62,11 +64,12 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
     }
 
     try {
-      await signPolicy(policy);
-      await PolicyService.createPolicy(policy);
+      addPolicy(policy);
       setFormData(initialFormData); // Reset formData to initial state
       setFormKey((prevKey) => prevKey + 1); // Change key to force remount
-      onSubmitCallback(policy);
+      if (onSubmitCallback) {
+        onSubmitCallback(policy);
+      }
     } catch (error: any) {
       console.error("Failed to create policy:", error.message);
     }

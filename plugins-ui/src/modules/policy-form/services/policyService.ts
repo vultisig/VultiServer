@@ -7,7 +7,7 @@ const PolicyService = {
    * @param {PluginPolicy} pluginPolicy - The policy to be created.
    * @returns {Promise<Object>} A promise that resolves to the created policy.
    */
-  createPolicy: async (pluginPolicy: PluginPolicy) => {
+  createPolicy: async (pluginPolicy: PluginPolicy): Promise<PluginPolicy> => {
     try {
       const endpoint = "/plugin/policy";
       const newPolicy = await post(endpoint, pluginPolicy);
@@ -23,13 +23,13 @@ const PolicyService = {
    * @param {PluginPolicy} pluginPolicy - The policy to be created.
    * @returns {Promise<Object>} A promise that resolves to the created policy.
    */
-  updatePolicy: async (pluginPolicy: PluginPolicy) => {
+  updatePolicy: async (pluginPolicy: PluginPolicy): Promise<PluginPolicy> => {
     try {
       const endpoint = "/plugin/policy";
       const newPolicy = await put(endpoint, pluginPolicy);
       return newPolicy;
     } catch (error) {
-      console.error("Error creating policy:", error);
+      console.error("Error updating policy:", error);
       throw error;
     }
   },
@@ -38,7 +38,7 @@ const PolicyService = {
    * Get policies from the API.
    * @returns {Promise<Object>} A promise that resolves to the fetched policies.
    */
-  getPolicies: async () => {
+  getPolicies: async (): Promise<PluginPolicy[]> => {
     try {
       const endpoint = "/plugin/policy";
       const newPolicy = await get(endpoint, {
