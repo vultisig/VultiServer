@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	gcommon "github.com/ethereum/go-ethereum/common"
@@ -198,8 +199,18 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		return fmt.Errorf("total orders must be greater than 0")
 	}
 
-	if dcaPolicy.PriceRange.Min != "" && dcaPolicy.PriceRange.Max != "" && dcaPolicy.PriceRange.Min >= dcaPolicy.PriceRange.Max {
-		return fmt.Errorf("min price range should be equal or lower than max price range")
+	if dcaPolicy.PriceRange.Min != "" && dcaPolicy.PriceRange.Max != "" {
+		minPrice, ok := new(big.Int).SetString(dcaPolicy.PriceRange.Min, 10)
+		if !ok {
+			return fmt.Errorf("invalid min price %s", dcaPolicy.PriceRange.Min)
+		}
+		maxPrice, ok := new(big.Int).SetString(dcaPolicy.PriceRange.Max, 10)
+		if !ok {
+			return fmt.Errorf("invalid max price %s", dcaPolicy.PriceRange.Max)
+		}
+		if minPrice.Cmp(maxPrice) > 0 {
+			return fmt.Errorf("min price should be equal or lower than max price")
+		}
 	}
 
 	if dcaPolicy.ChainID == "" {
