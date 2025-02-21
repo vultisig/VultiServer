@@ -10,26 +10,26 @@
 }
 
 .primary {
-    background-color: #33E6BF;
-    color: #02122B;
+    background-color: var(--button-tertiary-color);
+    color: var(--text-primary-color);
 }
 
 .primary:hover {
-    background-color: #0FBF93;
+    background-color: var(--button-tertiary-hover-color);
 }
 
 .secondary {
-    background-color: #11284A;
-    color: #F0F4FC;
+    background-color: var(--button-secondary-color);
+    color: var(--text-primary-color);
 }
 
 .secondary:hover {
-    background-color: #3B6A91;
+    color: var(--text-primary-color);
 }
 
 .tertiary {
     background: none;
-    color: #F0F4FC;
+    color: var(--text-primary-color);
     border: none;
     padding: 0;
 }

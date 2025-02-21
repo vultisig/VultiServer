@@ -7,13 +7,13 @@
 form .form-control {
     background-color: transparent;
     border: none;
-    color: #D1D5DB;
+    color: var(--text-primary-color);
 }
   
 form button[type="submit"] {
     width: 100%;
-    background-color: #33E6BF;
-    color: #02122B;
+    background-color: var(--button-tertiary-color);
+    color: var(--text-primary-color);
     padding: 10px 20px;
     font-size: 0.875rem;
     border-radius: 99px;
@@ -22,7 +22,7 @@ form button[type="submit"] {
 }
   
 form button[type="submit"]:hover {
-    background-color: #0FBF93;
+    background-color: var(--button-tertiary-hover-color);
 }
 
 .form-group {
@@ -40,13 +40,20 @@ fieldset {
         margin: 0;
         padding: 0;
     }
+}
+
+.control-label {
+    margin-bottom: 8px;
+    .required {
+        display: none;
     }
+}
 
 .input-background {
     flex: 1;
     .form-control {
-        background-color: #061B3A;
-        border: 1px solid #11284A;
+        background-color: var(--background-secondary-color);
+        border: 1px solid var(--border-light-color);
         border-radius: 12px;
         padding: 16px;
         margin-top: 8px;
@@ -61,4 +68,19 @@ fieldset {
     }
 }
 
+.text-danger {
+    color: var(--alert-error-color);
+    list-style-type: none;
+}
+
+.has-error {
+    .form-control {
+
+        border: 1px solid var(--alert-error-color);
+    }
+}
+
+.error-detail {
+    padding: 0;
+}
   

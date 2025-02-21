@@ -16,7 +16,8 @@
     border-radius: 16px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     position: relative;
-    background: #02122B;
+    background-color: var(--background-tertiary-color);
+    z-index: 10000; /* Ensure content is above the overlay */
 
     .form {
         border: none;
@@ -39,7 +40,7 @@
     right: 0;
     position: fixed;
     top: 0;
-    background: #02122B;
+    background: var(--background-primary-color);
     box-shadow: -4px 0 6px rgba(0, 0, 0, 0.1);
     transition: transform 0.3s ease-in-out;
     overflow: scroll;
@@ -55,20 +56,34 @@
     font-size: 1.125rem;
     line-height: 1.75rem;
     font-weight: 500;
-    color: #F0F4FC;
+    color: var(--text-primary-color);
     margin: 0;
     padding-bottom: 16px;
 }
 
 .modal-header input {
-    width: 92%;
-    padding: 16px;
-    color: #8295AE;
+    width: 100%;
+    padding: 1rem;
+    color: var(--text-extra-light-color);
     font-weight: 500;
     font-size: 1rem;
-    border: 1px solid #11284A;
-    background-color: #061B3A;
+    border: 1px solid var(--border-light-color);
+    background-color: var(--background-secondary-color);
     border-radius: 12px;
+}
+
+.input-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none; /* Prevent interaction */
 }
 
 .modal-options {
@@ -81,22 +96,25 @@
 
 .modal-option {
     display: flex;
+    align-items: center;
     padding: 8px 16px;
     border-radius: 8px;
     cursor: pointer;
 }
 
 .modal-option:hover {
-    background: #FFFFFF0A;
+    background: var(--background-secondary-color);
 }
 
-.modal-option:focus {
-    background: #FFFFFF14;
-    border: 1px solid #4879FD;
+.modal-option:focus-visible {
+    background: var(--background-secondary-color);
     outline: none
 }
 
 .modal-no-options {
     padding: 8px;
-    color: #888;
+    color: var(--text-extra-light-color);
 }
+
+* {scrollbar-width: thin;
+    scrollbar-color: var(--background-secondary-color) var(--background-tertiary-color); /* Thumb color, Track color */}

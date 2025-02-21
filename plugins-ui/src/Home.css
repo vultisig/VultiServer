@@ -6,7 +6,7 @@
   
   .navbar {
     height: 60px;
-    background-color: #02122B;
+    background-color: var(--background-primary-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -19,9 +19,9 @@
   
   .left-section {
     width: 35%;
-    background-color: #02122B;
-    border-right: 1px solid #1B3F73;
-    border-top: 1px solid #1B3F73;
+    background-color: var(--background-primary-color);
+    border-right: 1px solid var(--border-normal-color);
+    border-top: 1px solid var(--border-normal-color);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -29,8 +29,8 @@
   
   .right-section {
     width: 65%;
-    background-color: #02122B;
-    border-top: 1px solid #1B3F73;
+    background-color: var(--background-primary-color);
+    border-top: 1px solid var(--border-normal-color);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -38,6 +38,6 @@
   }
   
   .navbar, .left-section, .right-section {
-    color: #D1D5DB;
+    color: var(--text-light-color);
   }
   

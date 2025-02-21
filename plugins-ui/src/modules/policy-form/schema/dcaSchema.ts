@@ -28,7 +28,7 @@ export const schema: RJSFSchema = {
       type: "string",
     },
     destination_token_id: {
-      title: "To Buy",
+      title: "I want to buy",
       type: "string",
     },
     schedule: {
@@ -57,7 +57,6 @@ export const schema: RJSFSchema = {
       minimum: 1,
     },
     price_range: {
-      title: "Price Range (optional)",
       type: "object",
       items: {
         type: "object",
@@ -65,6 +64,7 @@ export const schema: RJSFSchema = {
       },
       properties: {
         min: {
+          title: "Price Range (optional)",
           type: "number",
         },
         max: {
@@ -84,7 +84,7 @@ const uiSchema: UiSchema = {
       width: "48%",
       marginRight: "2%",
       boxSizing: "border-box",
-      verticalAlign: "bottom",
+      verticalAlign: "top",
     },
   },
   source_token_id: {
@@ -97,11 +97,15 @@ const uiSchema: UiSchema = {
       display: "inline-block",
       width: "48%",
       boxSizing: "border-box",
-      verticalAlign: "bottom",
+      verticalAlign: "top",
+      marginTop: "37px",
     },
   },
   destination_token_id: {
     "ui:widget": TokenSelector,
+    "ui:options": {
+      classNames: "input-background stacked-input",
+    },
   },
   schedule: {
     "ui:options": { label: false },
@@ -125,16 +129,16 @@ const uiSchema: UiSchema = {
     "ui:classNames": "input-background stacked-input",
   },
   price_range: {
-    "ui:classNames": "form-row",
+    "ui:options": { label: false, classNames: "form-row" },
     min: {
       "ui:options": {
         classNames: "input-background stacked-input",
-        label: false,
         placeholder: "Min Price",
       },
       "ui:style": {
         display: "flex",
         flexDirection: "column",
+        justifyContent: "flex-end",
       },
     },
     max: {
@@ -146,6 +150,7 @@ const uiSchema: UiSchema = {
       "ui:style": {
         display: "flex",
         flexDirection: "column",
+        justifyContent: "flex-end",
       },
     },
   },

@@ -1,6 +1,6 @@
 .summary-content {
     padding: 8px;
-    border: 1px solid #11284A;
+    border: 1px solid var(--border-light-color);
     border-radius: 8px;
 }
 
