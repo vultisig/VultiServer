@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	PLUGIN_TYPE    = "dca"
-	PLUGIN_VERSION = "0.0.1"
-	POLICY_VERSION = "0.0.1"
+	pluginType    = "dca"
+	pluginVersion = "0.0.1"
+	policyVersion = "0.0.1"
 )
 
 type DCAPlugin struct {
@@ -123,11 +123,11 @@ func (p *DCAPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error {
 	}
 
 	if policyDoc.PolicyVersion == "" {
-		policyDoc.PolicyVersion = POLICY_VERSION
+		policyDoc.PolicyVersion = policyVersion
 	}
 
 	if policyDoc.PluginVersion == "" {
-		policyDoc.PluginVersion = PLUGIN_VERSION
+		policyDoc.PluginVersion = pluginVersion
 	}
 
 	if policyDoc.PluginID == "" {
@@ -138,8 +138,8 @@ func (p *DCAPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error {
 }
 
 func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
-	if policyDoc.PluginType != PLUGIN_TYPE {
-		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", PLUGIN_TYPE, policyDoc.PluginType)
+	if policyDoc.PluginType != pluginType {
+		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", pluginType, policyDoc.PluginType)
 	}
 
 	var dcaPolicy types.DCAPolicy

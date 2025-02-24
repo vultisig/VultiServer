@@ -3,31 +3,23 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/internal/types"
 )
 
-func (p *PostgresBackend) CreateTimeTrigger(trigger types.TimeTrigger) error {
-	logrus.Info("Creating time trigger in database")
-	if p.pool == nil {
-		return fmt.Errorf("database pool is nil")
-	}
-
-	query := `
+func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, trigger types.TimeTrigger) error {
+	_, err := tx.Exec(ctx, `
         INSERT INTO time_triggers 
         (policy_id, cron_expression, start_time, end_time, frequency) 
-        VALUES ($1, $2, $3, $4, $5)`
-
-	_, err := p.pool.Exec(context.Background(), query,
+        VALUES ($1, $2, $3, $4, $5)`,
 		trigger.PolicyID,
 		trigger.CronExpression,
 		trigger.StartTime,
-		// time.Now().UTC(),
 		trigger.EndTime,
-		trigger.Frequency)
-
+		trigger.Frequency,
+	)
 	return err
 }
 
@@ -78,5 +70,20 @@ func (p *PostgresBackend) UpdateTriggerExecution(policyID string) error {
         WHERE policy_id = $1`
 
 	_, err := p.pool.Exec(context.Background(), query, policyID, time.Now().UTC())
+	return err
+}
+
+func (p *PostgresBackend) UpdateTriggerTx(ctx context.Context, policyID string, trigger types.TimeTrigger, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, `
+        UPDATE time_triggers 
+        SET start_time = $2,
+            frequency = $3,
+            cron_expression = $4
+        WHERE policy_id = $1`,
+		policyID,
+		trigger.StartTime,
+		trigger.Frequency,
+		trigger.CronExpression,
+	)
 	return err
 }

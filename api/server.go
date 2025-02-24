@@ -12,27 +12,29 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/scheduler"
+	"github.com/vultisig/vultisigner/internal/syncer"
+	"github.com/vultisig/vultisigner/internal/tasks"
+	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/plugin"
+	"github.com/vultisig/vultisigner/plugin/dca"
+	"github.com/vultisig/vultisigner/plugin/payroll"
+	"github.com/vultisig/vultisigner/service"
+	"github.com/vultisig/vultisigner/storage"
+	"github.com/vultisig/vultisigner/storage/postgres"
+	"github.com/vultisig/vultisigner/uniswap"
+
 	"github.com/DataDog/datadog-go/statsd"
+	gcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-
-	gcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/vultisig/vultisigner/common"
-	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/scheduler"
-	"github.com/vultisig/vultisigner/internal/tasks"
-	"github.com/vultisig/vultisigner/internal/types"
-	"github.com/vultisig/vultisigner/plugin"
-	"github.com/vultisig/vultisigner/plugin/dca"
-	"github.com/vultisig/vultisigner/plugin/payroll"
-	"github.com/vultisig/vultisigner/storage"
-	"github.com/vultisig/vultisigner/storage/postgres"
-	"github.com/vultisig/vultisigner/uniswap"
 )
 
 type Server struct {
@@ -48,6 +50,8 @@ type Server struct {
 	plugin        plugin.Plugin
 	db            storage.DatabaseStorage
 	scheduler     *scheduler.SchedulerService
+	syncer        syncer.PolicySyncer
+	policyService service.Policy
 }
 
 // NewServer returns a new server.
@@ -74,6 +78,7 @@ func NewServer(port int64,
 
 	var plugin plugin.Plugin
 	var schedulerService *scheduler.SchedulerService
+	var syncerService syncer.PolicySyncer
 	if mode == "pluginserver" {
 		switch pluginType {
 		case "payroll":
@@ -110,7 +115,22 @@ func NewServer(port int64,
 		)
 		schedulerService.Start()
 		logger.Info("Scheduler service started")
+
+		logger.Info("Creating Syncer")
+		cfg, err := config.ReadConfig("config-server")
+		if err != nil {
+			logger.Fatalf("Failed to initialize DCA plugin: %w", err)
+		}
+
+		syncerService = syncer.NewSyncService(db, logger.WithField("service", "syncer").Logger, cfg)
+
 	}
+
+	policyService, err := service.NewPolicyService(db, syncerService, schedulerService, logger.WithField("service", "policy").Logger)
+	if err != nil {
+		logger.Fatalf("Failed to initialize policy service: %v", err)
+	}
+
 	return &Server{
 		port:          port,
 		redis:         redis,
@@ -124,6 +144,8 @@ func NewServer(port int64,
 		db:            db,
 		scheduler:     schedulerService,
 		logger:        logger,
+		syncer:        syncerService,
+		policyService: policyService,
 	}
 }
 

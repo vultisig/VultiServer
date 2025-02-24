@@ -47,11 +47,6 @@ func main() {
 
 	fmt.Printf("Public key for vault %s:\n%s\n", vaultName, key)
 
-	serverConfig, err := config.ReadConfig("config-server")
-	if err != nil {
-		panic(err)
-	}
-
 	pluginConfig, err := config.ReadConfig("config-plugin")
 	if err != nil {
 		panic(err)
@@ -110,24 +105,16 @@ func main() {
 	fmt.Println("DCA policy", string(policyBytes))
 	policy.Policy = policyBytes
 
-	serverHost := fmt.Sprintf("http://%s:%d", serverConfig.Server.Host, serverConfig.Server.Port)
 	pluginHost := fmt.Sprintf("http://%s:%d", pluginConfig.Server.Host, pluginConfig.Server.Port)
 
-	fmt.Printf("Creating policy on verifier server: %s\n", serverHost)
 	reqBytes, err := json.Marshal(policy)
 	if err != nil {
 		panic(err)
 	}
 
-	resp, err := http.Post(fmt.Sprintf("%s/plugin/policy", serverHost), "application/json", bytes.NewBuffer(reqBytes))
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Request sent: %d\n", resp.StatusCode)
-
 	fmt.Printf("Creating policy on plugin server: %s\n", pluginHost)
 
-	resp, err = http.Post(fmt.Sprintf("%s/plugin/policy", pluginHost), "application/json", bytes.NewBuffer(reqBytes))
+	resp, err := http.Post(fmt.Sprintf("%s/plugin/policy", pluginHost), "application/json", bytes.NewBuffer(reqBytes))
 	if err != nil {
 		panic(err)
 	}

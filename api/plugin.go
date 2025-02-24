@@ -1,20 +1,12 @@
 package api
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
-	gcommon "github.com/ethereum/go-ethereum/common"
-	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
-	"github.com/labstack/echo/v4"
-	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -23,6 +15,13 @@ import (
 	"github.com/vultisig/vultisigner/plugin/dca"
 	"github.com/vultisig/vultisigner/plugin/payroll"
 	"github.com/vultisig/vultisigner/uniswap"
+
+	gcommon "github.com/ethereum/go-ethereum/common"
+	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
+	"github.com/labstack/echo/v4"
 )
 
 func (s *Server) SignPluginMessages(c echo.Context) error {
@@ -39,7 +38,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	// Get policy from database
-	policy, err := s.db.GetPluginPolicy(req.PolicyID)
+	policy, err := s.db.GetPluginPolicy(c.Request().Context(), req.PolicyID)
 	if err != nil {
 		return fmt.Errorf("failed to get policy from database: %w", err)
 	}
@@ -50,40 +49,13 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	}
 
 	// We re-init plugin as verification server doesn't have plugin defined
-	var plugin plugin.Plugin
-	switch policy.PluginType {
-	case "payroll":
-		plugin = payroll.NewPayrollPlugin(s.db)
-	case "dca":
-		cfg, err := config.ReadConfig("config-plugin")
-		if err != nil {
-			logrus.Fatal("failed to read plugin config", err)
-		}
-		rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
-		if err != nil {
-			logrus.Fatal("failed to initialize rpc client", err)
-		}
-		uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
-		uniswapCfg := uniswap.NewConfig(
-			rpcClient,
-			&uniswapV2RouterAddress,
-			2000000, // TODO: config
-			50000,   // TODO: config
-			time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
-		)
-		plugin, err = dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
-		if err != nil {
-			return fmt.Errorf("fail to initialize DCA plugin: %w", err)
-		}
+	var plg plugin.Plugin
+	plg, err = s.initializePlugin(policy.PluginType)
+	if err != nil {
+		return fmt.Errorf("failed to initialize plugin: %w", err)
 	}
 
-	if plugin == nil {
-		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
-		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err)
-	}
-
-	if err := plugin.ValidateTransactionProposal(policy, []types.PluginKeysignRequest{req}); err != nil {
+	if err := plg.ValidateTransactionProposal(policy, []types.PluginKeysignRequest{req}); err != nil {
 		return fmt.Errorf("failed to validate transaction proposal: %w", err)
 	}
 
@@ -188,7 +160,7 @@ func (s *Server) GetPluginPolicyById(c echo.Context) error {
 		return fmt.Errorf("policy id is required")
 	}
 
-	policy, err := s.db.GetPluginPolicy(policyID)
+	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
 	if err != nil {
 		err = fmt.Errorf("failed to retrieve policy: %w", err)
 		message := map[string]interface{}{
@@ -223,7 +195,7 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
-	policies, err := s.db.GetAllPluginPolicies(publicKey, pluginType)
+	policies, err := s.policyService.GetPluginPolicies(c.Request().Context(), publicKey, pluginType)
 	if err != nil {
 		message := map[string]interface{}{
 			"error":   err.Error(),
@@ -244,69 +216,38 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	}
 
 	// We re-init plugin as verification server doesn't have plugin defined
-	var plugin plugin.Plugin
-	switch policy.PluginType {
-	case "payroll":
-		plugin = payroll.NewPayrollPlugin(s.db)
-	case "dca":
-		cfg, err := config.ReadConfig("config-plugin")
-		if err != nil {
-			return fmt.Errorf("failed to read plugin config, err: %w", err)
-		}
-		rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
-		if err != nil {
-			return err
-		}
-		uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
-		uniswapCfg := uniswap.NewConfig(
-			rpcClient,
-			&uniswapV2RouterAddress,
-			2000000, // TODO: config
-			50000,   // TODO: config
-			time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
-		)
-		plugin, err = dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
-		if err != nil {
-			return fmt.Errorf("fail to initialize DCA plugin: %w", err)
-		}
-	}
-
-	if plugin == nil {
-		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+	var plg plugin.Plugin
+	plg, err := s.initializePlugin(policy.PluginType)
+	if err != nil {
+		err = fmt.Errorf("failed to initialize plugin: %w", err)
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err)
+		return c.JSON(http.StatusBadRequest, err.Error())
 	}
 
-	if err := plugin.SetupPluginPolicy(&policy); err != nil {
+	if err := plg.SetupPluginPolicy(&policy); err != nil {
 		err = fmt.Errorf("failed to setup policy: %w", err)
 		s.logger.Error(err)
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
-	if err := plugin.ValidatePluginPolicy(policy); err != nil {
+	if err := plg.ValidatePluginPolicy(policy); err != nil {
 		err = fmt.Errorf("failed to validate policy: %w", err)
 		s.logger.Error(err)
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
-	insertedPolicy, err := s.db.InsertPluginPolicy(policy)
-
+	newPolicy, err := s.policyService.CreatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
-		return fmt.Errorf("failed to insert policy: %w", err)
+		err = fmt.Errorf("failed to create plugin policy: %w", err)
+		message := map[string]interface{}{
+			"error":   err.Error(),
+			"message": fmt.Sprintf("failed to create policy"),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
 	}
 
-	// TODO: handle trigger updates
-	if s.scheduler != nil {
-		if err := s.SyncPolicyOnVerifier(policy); err != nil {
-			return fmt.Errorf("failed to sync policy with verifier: %w", err)
-		}
-
-		if err := s.scheduler.CreateTimeTrigger(policy); err != nil {
-			s.logger.Errorf("Failed to create time trigger: %v", err)
-		}
-	}
-
-	return c.JSON(http.StatusOK, insertedPolicy)
+	return c.JSON(http.StatusOK, newPolicy)
 }
 
 // TODO: verify the signature to authorize the operation
@@ -317,40 +258,15 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	}
 
 	// We re-init plugin as verification server doesn't have plugin defined
-	var plugin plugin.Plugin
-	switch policy.PluginType {
-	case "payroll":
-		plugin = payroll.NewPayrollPlugin(s.db)
-	case "dca":
-		cfg, err := config.ReadConfig("config-plugin")
-		if err != nil {
-			logrus.Fatal("failed to read plugin config", err)
-		}
-		rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
-		if err != nil {
-			logrus.Fatal("failed to initialize rpc client", err)
-		}
-		uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
-		uniswapCfg := uniswap.NewConfig(
-			rpcClient,
-			&uniswapV2RouterAddress,
-			2000000, // TODO: config
-			50000,   // TODO: config
-			time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
-		)
-		plugin, err = dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
-		if err != nil {
-			return fmt.Errorf("fail to initialize DCA plugin: %w", err)
-		}
-	}
-
-	if plugin == nil {
-		err := fmt.Errorf("unknown plugin type: %s", policy.PluginType)
+	var plg plugin.Plugin
+	plg, err := s.initializePlugin(policy.PluginType)
+	if err != nil {
+		err = fmt.Errorf("failed to initialize plugin: %w", err)
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err)
+		return c.JSON(http.StatusBadRequest, err.Error())
 	}
 
-	if err := plugin.ValidatePluginPolicy(policy); err != nil {
+	if err := plg.ValidatePluginPolicy(policy); err != nil {
 		err = fmt.Errorf("failed to validate policy: %w", err)
 		s.logger.Error(err)
 		return c.JSON(http.StatusBadRequest, err)
@@ -358,13 +274,15 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 
 	s.logger.Debug("Policy Signature", policy.Signature)
 
-	updatedPolicy, err := s.db.UpdatePluginPolicy(policy)
+	updatedPolicy, err := s.policyService.UpdatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
-		return fmt.Errorf("failed to insert policy: %w", err)
-	}
-
-	if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
-		s.logger.Errorf("Failed to update last execution: %v", err)
+		err = fmt.Errorf("failed to update plugin policy: %w", err)
+		message := map[string]interface{}{
+			"error":   err.Error(),
+			"message": fmt.Sprintf("failed to update policy: %s", policy.ID),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
 	}
 
 	return c.JSON(http.StatusOK, updatedPolicy)
@@ -377,7 +295,7 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 		return fmt.Errorf("policy id is required")
 	}
 
-	if err := s.db.DeletePluginPolicy(policyID); err != nil {
+	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID); err != nil {
 		err = fmt.Errorf("failed to delte policy: %w", err)
 		message := map[string]interface{}{
 			"error":   err.Error(),
@@ -388,29 +306,6 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
-}
-
-func (s *Server) SyncPolicyOnVerifier(policy types.PluginPolicy) error {
-	policyBytes, err := json.Marshal(policy)
-	if err != nil {
-		return fmt.Errorf("fail to marshal policy, err: %w", err)
-	}
-
-	cfg, err := config.ReadConfig("config-server")
-	if err != nil {
-		return fmt.Errorf("fail to read plugin config, err: %w", err)
-	}
-
-	verifierPolicyEndpoint := fmt.Sprintf("http://%s:%d/plugin/policy", cfg.Server.Host, cfg.Server.Port)
-	resp, err := http.Post(verifierPolicyEndpoint, "application/json", bytes.NewBuffer(policyBytes))
-	if err != nil {
-		return fmt.Errorf("fail to sync policy with verifier server, err: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("fail to sync policy with verifier server, status: %d", resp.StatusCode)
-	}
-
-	return nil
 }
 
 // TODO: do we actually need this?
@@ -436,4 +331,36 @@ func calculateTransactionHash(txData string) (string, error) {
 
 	hash := signer.Hash(tx).String()[2:]
 	return hash, nil
+}
+
+func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
+	switch pluginType {
+	case "payroll":
+		return payroll.NewPayrollPlugin(s.db), nil
+
+	case "dca":
+		cfg, err := config.ReadConfig("config-plugin")
+		if err != nil {
+			return nil, fmt.Errorf("failed to read plugin config: %w", err)
+		}
+
+		rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize rpc client: %w", err)
+		}
+
+		uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
+		uniswapCfg := uniswap.NewConfig(
+			rpcClient,
+			&uniswapV2RouterAddress,
+			2000000, // TODO: config
+			50000,   // TODO: config
+			time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
+		)
+
+		return dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
+
+	default:
+		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
+	}
 }

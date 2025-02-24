@@ -378,7 +378,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		"policy_id": triggerEvent.PolicyID,
 	}).Info("plugin transaction request")
 
-	policy, err := s.db.GetPluginPolicy(triggerEvent.PolicyID)
+	policy, err := s.db.GetPluginPolicy(ctx, triggerEvent.PolicyID)
 	if err != nil {
 		s.logger.Errorf("db.GetPluginPolicy failed: %v", err)
 		return fmt.Errorf("db.GetPluginPolicy failed: %v: %w", err, asynq.SkipRetry)

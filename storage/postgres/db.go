@@ -66,7 +66,6 @@ func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) 
         ) VALUES ($1, $2, $3, $4)
 				RETURNING id
     `
-
 	var txID uuid.UUID
 	err := p.pool.QueryRow(context.Background(), query,
 		tx.PolicyID,
@@ -127,4 +126,8 @@ func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID) ([]types.Tra
 	}
 
 	return history, nil
+}
+
+func (p *PostgresBackend) Pool() *pgxpool.Pool {
+	return p.pool
 }

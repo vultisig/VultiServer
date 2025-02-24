@@ -1,8 +1,10 @@
 package scheduler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -134,7 +136,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 	return nil
 }
 
-func (s *SchedulerService) CreateTimeTrigger(policy types.PluginPolicy) error {
+func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy types.PluginPolicy, dbTx pgx.Tx) error {
 	if s.db == nil {
 		return fmt.Errorf("database backend is nil")
 	}
@@ -165,7 +167,36 @@ func (s *SchedulerService) CreateTimeTrigger(policy types.PluginPolicy) error {
 		Frequency:      policySchedule.Schedule.Frequency,
 	}
 
-	return s.db.CreateTimeTrigger(trigger)
+	return s.db.CreateTimeTriggerTx(ctx, dbTx, trigger)
+}
+
+func (s *SchedulerService) GetTriggerFromPolicy(policy types.PluginPolicy) (*types.TimeTrigger, error) {
+	var policySchedule struct {
+		Schedule struct {
+			Frequency string     `json:"frequency"`
+			StartTime time.Time  `json:"start_time"`
+			EndTime   *time.Time `json:"end_time,omitempty"`
+		} `json:"schedule"`
+	}
+
+	if err := json.Unmarshal(policy.Policy, &policySchedule); err != nil {
+		return nil, fmt.Errorf("failed to parse policy schedule: %w", err)
+	}
+
+	s.logger.Info("Frequency to cron")
+
+	cronExpr := frequencyToCron(policySchedule.Schedule.Frequency, policySchedule.Schedule.StartTime)
+
+	trigger := types.TimeTrigger{
+		PolicyID:       policy.ID,
+		CronExpression: cronExpr,
+		StartTime:      policySchedule.Schedule.StartTime,
+		EndTime:        policySchedule.Schedule.EndTime,
+		Frequency:      policySchedule.Schedule.Frequency,
+	}
+
+	return &trigger, nil
+
 }
 
 func frequencyToCron(frequency string, startTime time.Time) string {
