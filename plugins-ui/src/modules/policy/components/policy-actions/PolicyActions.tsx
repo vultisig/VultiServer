@@ -13,7 +13,15 @@ type PolicyActionsProps = {
 
 const PolicyActions = ({ policyId }: PolicyActionsProps) => {
   const [modalId, setModalId] = useState("");
-  const { policyMap, removePolicy } = usePolicies();
+  const { policyMap, updatePolicy, removePolicy } = usePolicies();
+
+  const handleUpdate = () => {
+    const policy = policyMap.get(policyId);
+    if (policy) {
+      policy.active = !policy.active;
+      updatePolicy(policy);
+    }
+  };
 
   return (
     <>
@@ -23,7 +31,7 @@ const PolicyActions = ({ policyId }: PolicyActionsProps) => {
           styleType="tertiary"
           size="small"
           style={{ color: "#DA2E2E", padding: "5px", margin: "0 5px" }}
-          onClick={() => console.log("todo implement", policyId)}
+          onClick={handleUpdate}
         >
           <PauseIcon width="20px" height="20px" color="#F0F4FC" />
         </Button>

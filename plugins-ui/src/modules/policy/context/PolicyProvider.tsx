@@ -37,11 +37,13 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const addPolicy = async (policy: PluginPolicy): Promise<void> => {
     try {
-      await signPolicy(policy);
-      const newPolicy = await PolicyService.createPolicy(policy);
-      const updatedPolicyMap = new Map(policyMap);
-      updatedPolicyMap.set(newPolicy.id, newPolicy);
-      setPolicyMap(updatedPolicyMap);
+      const signedSuceessfully = await signPolicy(policy);
+      if (signedSuceessfully) {
+        const newPolicy = await PolicyService.createPolicy(policy);
+        const updatedPolicyMap = new Map(policyMap);
+        updatedPolicyMap.set(newPolicy.id, newPolicy);
+        setPolicyMap(updatedPolicyMap);
+      }
     } catch (error: any) {
       console.error("Failed to create policy:", error.message);
     }
@@ -49,21 +51,34 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updatePolicy = async (policy: PluginPolicy): Promise<void> => {
     try {
-      await signPolicy(policy);
-      const updatedPolicy = await PolicyService.updatePolicy(policy);
-      const updatedPolicyMap = new Map(policyMap);
-      updatedPolicyMap.set(updatedPolicy.id, updatedPolicy);
-      setPolicyMap(updatedPolicyMap);
+      const signedSuceessfully = await signPolicy(policy);
+      if (signedSuceessfully) {
+        const updatedPolicy = await PolicyService.updatePolicy(policy);
+        const updatedPolicyMap = new Map(policyMap);
+        updatedPolicyMap.set(updatedPolicy.id, updatedPolicy);
+        setPolicyMap(updatedPolicyMap);
+      }
     } catch (error: any) {
       console.error("Failed to update policy:", error.message);
     }
   };
 
   const removePolicy = async (policyId: string): Promise<void> => {
-    await PolicyService.deletePolicy(policyId);
-    const updatedPolicyMap = new Map(policyMap);
-    updatedPolicyMap.delete(policyId);
-    setPolicyMap(updatedPolicyMap);
+    const policy = policyMap.get(policyId);
+
+    if (policy) {
+      try {
+        const signedSuceessfully = await signPolicy(policy);
+        if (signedSuceessfully) {
+          await PolicyService.deletePolicy(policyId);
+          const updatedPolicyMap = new Map(policyMap);
+          updatedPolicyMap.delete(policyId);
+          setPolicyMap(updatedPolicyMap);
+        }
+      } catch (error: any) {
+        console.error("Failed to delete policy:", error.message);
+      }
+    }
   };
 
   return (

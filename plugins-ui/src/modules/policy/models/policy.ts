@@ -6,6 +6,7 @@ export type PluginPolicy = {
   id: string;
   public_key: string;
   plugin_type: string;
+  active: boolean;
   policy: Policy;
   signature: string;
 };

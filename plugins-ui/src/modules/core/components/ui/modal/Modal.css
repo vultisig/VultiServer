@@ -93,6 +93,8 @@
     margin: 16px 0 0;
     max-height: 200px;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--background-secondary-color) var(--background-tertiary-color); 
 }
 
 .modal-option {
@@ -117,5 +119,3 @@
     color: var(--text-extra-light-color);
 }
 
-* {scrollbar-width: thin;
-    scrollbar-color: var(--background-secondary-color) var(--background-tertiary-color); /* Thumb color, Track color */}

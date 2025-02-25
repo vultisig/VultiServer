@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/jackc/pgx/v5"
 
 	"github.com/vultisig/vultisigner/internal/types"
@@ -48,7 +49,7 @@ func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey st
 	}
 
 	query := `
-        SELECT id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, policy 
+        SELECT id, public_key, plugin_id, plugin_version, policy_version, plugin_type, signature, active, policy 
         FROM plugin_policies
 		WHERE public_key = $1
 		AND plugin_type = $2`
@@ -69,6 +70,7 @@ func (p *PostgresBackend) GetAllPluginPolicies(ctx context.Context, publicKey st
 			&p.PolicyVersion,
 			&p.PluginType,
 			&p.Signature,
+			&p.Active,
 			&p.Policy,
 		)
 		if err != nil {
@@ -89,10 +91,10 @@ func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 	query := `
         INSERT INTO plugin_policies (
             id, public_key, plugin_id, plugin_version, 
-            policy_version, plugin_type, signature, policy
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            policy_version, plugin_type, signature, active, policy
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, public_key, plugin_id, plugin_version, 
-                  policy_version, plugin_type, signature, policy`
+                  policy_version, plugin_type, signature, active, policy`
 
 	var insertedPolicy types.PluginPolicy
 	err = dbTx.QueryRow(ctx, query,
@@ -103,6 +105,7 @@ func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		policy.PolicyVersion,
 		policy.PluginType,
 		policy.Signature,
+		policy.Active,
 		policyJSON,
 	).Scan(
 		&insertedPolicy.ID,
@@ -112,6 +115,7 @@ func (p *PostgresBackend) InsertPluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		&insertedPolicy.PolicyVersion,
 		&insertedPolicy.PluginType,
 		&insertedPolicy.Signature,
+		&insertedPolicy.Active,
 		&insertedPolicy.Policy,
 	)
 
@@ -132,11 +136,12 @@ func (p *PostgresBackend) UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
         UPDATE plugin_policies 
         SET public_key = $2, 
             plugin_type = $3, 
-            signature = $4, 
-            policy = $5
+            signature = $4,
+			active = $5,
+            policy = $6
         WHERE id = $1
         RETURNING id, public_key, plugin_id, plugin_version, 
-                  policy_version, plugin_type, signature, policy`
+                  policy_version, plugin_type, signature, active, policy`
 
 	var updatedPolicy types.PluginPolicy
 	err = dbTx.QueryRow(ctx, query,
@@ -144,6 +149,7 @@ func (p *PostgresBackend) UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		policy.PublicKey,
 		policy.PluginType,
 		policy.Signature,
+		policy.Active,
 		policyJSON,
 	).Scan(
 		&updatedPolicy.ID,
@@ -153,6 +159,7 @@ func (p *PostgresBackend) UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 		&updatedPolicy.PolicyVersion,
 		&updatedPolicy.PluginType,
 		&updatedPolicy.Signature,
+		&updatedPolicy.Active,
 		&updatedPolicy.Policy,
 	)
 

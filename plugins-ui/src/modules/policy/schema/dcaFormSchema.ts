@@ -23,6 +23,7 @@ export const schema: RJSFSchema = {
     total_amount: {
       title: "I want to Allocate",
       type: "number",
+      minimum: 1,
     },
     source_token_id: {
       type: "string",
@@ -84,7 +85,7 @@ const uiSchema: UiSchema = {
       width: "48%",
       marginRight: "2%",
       boxSizing: "border-box",
-      verticalAlign: "top",
+      verticalAlign: "bottom",
     },
   },
   source_token_id: {
@@ -97,7 +98,7 @@ const uiSchema: UiSchema = {
       display: "inline-block",
       width: "48%",
       boxSizing: "border-box",
-      verticalAlign: "top",
+      verticalAlign: "bottom",
       marginTop: "37px",
     },
   },

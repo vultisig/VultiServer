@@ -102,6 +102,7 @@ func main() {
 		PluginVersion: "1.0.0",
 		PolicyVersion: "1.0.0",
 		PluginType:    "payroll",
+		Active:        true,
 		Signature:     "0x0000000000000000000000000000000000000000000000000000000000000000",
 	}
 

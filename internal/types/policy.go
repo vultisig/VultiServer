@@ -15,6 +15,7 @@ type PluginPolicy struct {
 	PluginType    string          `json:"plugin_type" validate:"required"`
 	Signature     string          `json:"signature" validate:"required"`
 	Policy        json.RawMessage `json:"policy" validate:"required"`
+	Active        bool            `json:"active" validate:"required"`
 }
 
 type PayrollPolicy struct {

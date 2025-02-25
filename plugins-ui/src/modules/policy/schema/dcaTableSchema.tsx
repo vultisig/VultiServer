@@ -18,7 +18,7 @@ export const mapData = (
     toBuy:
       supportedTokens[pluginPolicy.policy.destination_token_id as string].name,
     orderInterval: `${(pluginPolicy.policy.schedule as Policy).interval} ${(pluginPolicy.policy.schedule as Policy).frequency}`,
-    status: true, // todo remove hardcoding when we have this in the DB
+    status: pluginPolicy.active,
   };
 };
 
@@ -49,9 +49,43 @@ export const dcaPolicyColumns: ColumnDef<string, any>[] = [
     header: "Status",
     cell: ({ getValue }) =>
       getValue() ? (
-        <div style={{ color: "#13C89D" }}>Active</div>
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            whiteSpace: "nowrap",
+            color: "#13C89D",
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              backgroundColor: "#13C89D",
+              borderRadius: "50%",
+            }}
+          ></span>
+          &nbsp; Active
+        </span>
       ) : (
-        <div style={{ color: "#8295AE" }}>Inactive</div>
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            whiteSpace: "nowrap",
+            color: "#8295AE",
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              backgroundColor: "#8295AE",
+              borderRadius: "50%",
+            }}
+          ></span>
+          &nbsp; Inactive
+        </span>
       ),
   },
   {
