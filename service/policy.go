@@ -11,7 +11,6 @@ import (
 )
 
 type Policy interface {
-
 	CreatePolicyWithSync(ctx context.Context, policy types.PluginPolicy) (*types.PluginPolicy, error)
 	UpdatePolicyWithSync(ctx context.Context, policy types.PluginPolicy) (*types.PluginPolicy, error)
 	DeletePolicyWithSync(ctx context.Context, policyID string) error

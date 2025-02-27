@@ -12,13 +12,14 @@ import (
 func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, trigger types.TimeTrigger) error {
 	_, err := tx.Exec(ctx, `
         INSERT INTO time_triggers 
-        (policy_id, cron_expression, start_time, end_time, frequency) 
-        VALUES ($1, $2, $3, $4, $5)`,
+        (policy_id, cron_expression, start_time, end_time, frequency, interval) 
+        VALUES ($1, $2, $3, $4, $5, $6)`,
 		trigger.PolicyID,
 		trigger.CronExpression,
 		trigger.StartTime,
 		trigger.EndTime,
 		trigger.Frequency,
+		trigger.Interval,
 	)
 	return err
 }
@@ -29,7 +30,7 @@ func (p *PostgresBackend) GetPendingTriggers() ([]types.TimeTrigger, error) {
 	}
 
 	query := `
-        SELECT policy_id, cron_expression, start_time, end_time, frequency, last_execution 
+        SELECT policy_id, cron_expression, start_time, end_time, frequency, interval, last_execution 
         FROM time_triggers 
         WHERE start_time <= NOW() 
         AND (end_time IS NULL OR end_time > NOW())`
@@ -49,6 +50,7 @@ func (p *PostgresBackend) GetPendingTriggers() ([]types.TimeTrigger, error) {
 			&t.StartTime,
 			&t.EndTime,
 			&t.Frequency,
+			&t.Interval,
 			&t.LastExecution)
 		if err != nil {
 			return nil, err
@@ -78,11 +80,13 @@ func (p *PostgresBackend) UpdateTriggerTx(ctx context.Context, policyID string, 
         UPDATE time_triggers 
         SET start_time = $2,
             frequency = $3,
-            cron_expression = $4
+            interval = $4,
+            cron_expression = $5
         WHERE policy_id = $1`,
 		policyID,
 		trigger.StartTime,
 		trigger.Frequency,
+		trigger.Interval,
 		trigger.CronExpression,
 	)
 	return err

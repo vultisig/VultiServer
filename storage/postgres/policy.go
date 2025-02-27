@@ -197,5 +197,4 @@ func (p *PostgresBackend) DeletePluginPolicyTx(ctx context.Context, dbTx pgx.Tx,
 	}
 
 	return nil
-
 }

@@ -8,5 +8,6 @@ type TimeTrigger struct {
 	StartTime      time.Time
 	EndTime        *time.Time
 	Frequency      string
+	Interval       int
 	LastExecution  *time.Time
 }

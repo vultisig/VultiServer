@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -215,6 +216,48 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 
 	if dcaPolicy.ChainID == "" {
 		return fmt.Errorf("chain id is required")
+	}
+
+	if err := validateInterval(dcaPolicy.Schedule.Interval, dcaPolicy.Schedule.Frequency); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateInterval(intervalStr string, frequency string) error {
+	interval, err := strconv.Atoi(intervalStr)
+	if err != nil {
+		return fmt.Errorf("invalid interval: %w", err)
+	}
+
+	if interval <= 0 {
+		return fmt.Errorf("interval must be greater than 0")
+	}
+
+	switch frequency {
+	case "minutely":
+		if interval < 15 {
+			return fmt.Errorf("minutely interval must be at least 15 minutes")
+		}
+	case "hourly":
+		if interval > 23 {
+			return fmt.Errorf("hourly interval must be at most 23 hours")
+		}
+	case "daily":
+		if interval > 31 {
+			return fmt.Errorf("daily interval must be at most 31 days")
+		}
+	case "weekly":
+		if interval > 52 {
+			return fmt.Errorf("weekly interval must be at most 52 weeks")
+		}
+	case "monthly":
+		if interval > 12 {
+			return fmt.Errorf("monthly interval must be at most 12 months")
+		}
+	default:
+		return fmt.Errorf("invalid frequency: %s", frequency)
 	}
 
 	return nil

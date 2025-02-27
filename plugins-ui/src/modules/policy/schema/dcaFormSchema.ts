@@ -47,8 +47,8 @@ export const schema: RJSFSchema = {
         frequency: {
           type: "string",
           title: "Time",
-          enum: ["5-minutely", "hourly", "daily", "weekly", "monthly"],
-          default: "5-minutely",
+          enum: ["minutely", "hourly", "daily", "weekly", "monthly"],
+          default: "minutely",
         },
       },
     },

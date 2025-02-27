@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/storage"
-	"io"
-	"net/http"
-	"time"
 )
 
 const (
@@ -40,13 +41,11 @@ func NewSyncService(db storage.DatabaseStorage, logger *logrus.Logger, cfg *conf
 	if db == nil {
 		logger.Fatal("database connection is nil")
 	}
-
 	return &Syncer{
 		db:     db,
 		logger: logger,
 		config: cfg,
 		client: &http.Client{
-
 			Timeout: defaultTimeout,
 		},
 		serverAddr: fmt.Sprintf("http://%s:%d", cfg.Server.Host, cfg.Server.Port),

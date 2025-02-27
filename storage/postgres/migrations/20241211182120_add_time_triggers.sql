@@ -7,6 +7,7 @@ CREATE TABLE time_triggers (
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP,
     frequency TEXT NOT NULL,
+    interval INTEGER NOT NULL,
     last_execution TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

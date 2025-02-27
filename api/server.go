@@ -123,7 +123,6 @@ func NewServer(port int64,
 		}
 
 		syncerService = syncer.NewSyncService(db, logger.WithField("service", "syncer").Logger, cfg)
-
 	}
 
 	policyService, err := service.NewPolicyService(db, syncerService, schedulerService, logger.WithField("service", "policy").Logger)
@@ -659,3 +658,4 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	}
 	return c.NoContent(http.StatusOK)
 }
+
