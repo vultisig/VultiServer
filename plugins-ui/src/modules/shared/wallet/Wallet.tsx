@@ -1,86 +1,52 @@
-import { useEffect, useState } from "react";
-import { getCurrentProvider, isSupportedChainType } from "./wallet.utils";
-import ChainSelector from "@/modules/core/components/ui/chain-selector/ChainSelector";
 import Button from "@/modules/core/components/ui/button/Button";
+import VulticonnectWalletService from "./vulticonnectWalletService";
+import { useState } from "react";
 
 const Wallet = () => {
-  const [chain, setChain] = useState(() => localStorage.getItem("chain"));
-  const [provider, setProvider] = useState<any>(null);
+  let chain = localStorage.getItem("chain") as string;
 
-  useEffect(() => {
-    if (isSupportedChainType(chain)) {
-      localStorage.setItem("chain", chain);
+  if (!chain) {
+    localStorage.setItem("chain", "ethereum");
+    chain = localStorage.getItem("chain") as string;
+  }
 
-      const currentProvider = getCurrentProvider(chain);
-      setProvider(currentProvider);
-      console.log("Chain:", chain);
-    }
-  }, [chain]);
+  const [connectedWallet, setConnectedWallet] = useState(false);
 
-  const connectEthereum = async (provider: any) => {
-    if (provider) {
-      try {
-        const accounts = await provider.request({
-          method: "eth_requestAccounts",
-        });
-        console.log("Connected to ethereum wallet:", accounts);
-      } catch (error) {
-        console.error("Ethereum connection failed", error);
-      }
-    } else {
-      alert(
-        "No ethereum provider found. Please install VultiConnect or MetaMask."
-      );
-    }
-  };
-
-  const connectChain = async (chain: string, provider: any) => {
-    if (provider) {
-      try {
-        const accounts = await provider.request({ method: "request_accounts" });
-        console.log(`Connected to ${chain} wallet:`, accounts);
-      } catch (error) {
-        console.error(`${chain} connection failed`, error);
-      }
-    } else {
-      alert(`No ${chain} provider found. Please install VultiConnect.`);
-    }
-  };
-
-  const connectWallet = async (chain: string | null, provider: any) => {
-    if (isSupportedChainType(chain)) {
-      if (chain === "ethereum") {
-        if (window.vultisig?.ethereum) {
-          console.log("VultiConnect Ethereum provider is available!");
-          await connectEthereum(provider);
-        } else if (window.ethereum) {
-          console.log("Ethereum provider available (MetaMask or VultiConnect)");
-          // Fallback to MetaMask-compatible logic
+  const connectWallet = async (chain: string) => {
+    switch (chain) {
+      // add more switch cases as more chains are supported
+      case "ethereum":
+        const accounts =
+          await VulticonnectWalletService.connectToVultiConnect();
+        if (accounts.length && accounts[0]) {
+          setConnectedWallet(true);
         }
-      } else {
-        if (window[chain] || window.vultisig?.[chain]) {
-          console.log("VultiConnect provider is available!");
-          await connectChain(chain, provider);
-        } else {
-          console.log("No compatible provider found.");
-          alert(`No ${chain} provider found. Please install VultiConnect.`);
-        }
-      }
+
+        break;
+
+      default:
+        alert(`Chain ${chain} is currently not supported.`); // toast
+        break;
     }
   };
 
   return (
     <>
-      {chain && <ChainSelector chain={chain} setChain={setChain} />}
-
-      <Button
-        size="medium"
-        styleType="primary"
-        type="button"
-        onClick={() => connectWallet(chain, provider)}
-      >
-        Connect Wallet
-      </Button>
+      {!connectedWallet && (
+        <Button
+          size="medium"
+          styleType="primary"
+          type="button"
+          onClick={() => connectWallet(chain)}
+        >
+          Connect Wallet
+        </Button>
+      )}
+      {connectedWallet && (
+        <Button size="medium" styleType="primary" type="button">
+          Connected
+        </Button>
+      )}
     </>
   );
 };

@@ -3,9 +3,11 @@ package api
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
+
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -156,15 +158,22 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 func (s *Server) GetPluginPolicyById(c echo.Context) error {
 	policyID := c.Param("policyId")
 	if policyID == "" {
-		return fmt.Errorf("policy id is required")
+		err := fmt.Errorf("policy id is required")
+		message := map[string]interface{}{
+			"message": "failed to get policy",
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+
+		return c.JSON(http.StatusBadRequest, message)
+
 	}
 
 	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
 	if err != nil {
-		err = fmt.Errorf("failed to retrieve policy: %w", err)
+		err = fmt.Errorf("failed to get policy: %w", err)
 		message := map[string]interface{}{
-			"error":   err.Error(),
-			"message": fmt.Sprintf("failed to retrieve policy: %s", policyID),
+			"message": fmt.Sprintf("failed to get policy: %s", policyID),
 		}
 		s.logger.Error(err)
 		return c.JSON(http.StatusInternalServerError, message)
@@ -178,7 +187,8 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	if publicKey == "" {
 		err := fmt.Errorf("missing required header: public_key")
 		message := map[string]interface{}{
-			"error": err.Error(),
+			"message": "failed to get policies",
+			"error":   err.Error(),
 		}
 		s.logger.Error(err)
 		return c.JSON(http.StatusBadRequest, message)
@@ -188,7 +198,8 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	if pluginType == "" {
 		err := fmt.Errorf("missing required header: plugin_type")
 		message := map[string]interface{}{
-			"error": err.Error(),
+			"message": "failed to get policies",
+			"error":   err.Error(),
 		}
 		s.logger.Error(err)
 		return c.JSON(http.StatusBadRequest, message)
@@ -197,8 +208,7 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	policies, err := s.policyService.GetPluginPolicies(c.Request().Context(), publicKey, pluginType)
 	if err != nil {
 		message := map[string]interface{}{
-			"error":   err.Error(),
-			"message": fmt.Sprintf("failed to retrieve policies for public_key: %s", publicKey),
+			"message": fmt.Sprintf("failed to get policies for public_key: %s", publicKey),
 		}
 		s.logger.Error(err)
 		return c.JSON(http.StatusInternalServerError, message)
@@ -220,27 +230,48 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	if err != nil {
 		err = fmt.Errorf("failed to initialize plugin: %w", err)
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err.Error())
+
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
+		}
+
+		return c.JSON(http.StatusBadRequest, message)
 	}
 
 	if err := plg.SetupPluginPolicy(&policy); err != nil {
 		err = fmt.Errorf("failed to setup policy: %w", err)
+		message := map[string]interface{}{
+			"message": "failed to setup policy",
+		}
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err)
+		return c.JSON(http.StatusInternalServerError, message)
 	}
 
 	if err := plg.ValidatePluginPolicy(policy); err != nil {
+		if errors.Unwrap(err) != nil {
+			err = fmt.Errorf("failed to validate policy: %w", err)
+			s.logger.Error(err)
+			message := map[string]interface{}{
+				"message": "failed to validate policy",
+			}
+			return c.JSON(http.StatusBadRequest, message)
+		}
+
 		err = fmt.Errorf("failed to validate policy: %w", err)
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err)
+		message := map[string]interface{}{
+			"error":   err.Error(), // only if error is not wrapped
+			"message": "failed to validate policy",
+		}
+
+		return c.JSON(http.StatusBadRequest, message)
 	}
 
 	newPolicy, err := s.policyService.CreatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
 		err = fmt.Errorf("failed to create plugin policy: %w", err)
 		message := map[string]interface{}{
-			"error":   err.Error(),
-			"message": fmt.Sprintf("failed to create policy"),
+			"message": "failed to create policy",
 		}
 		s.logger.Error(err)
 		return c.JSON(http.StatusInternalServerError, message)
@@ -260,15 +291,45 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	var plg plugin.Plugin
 	plg, err := s.initializePlugin(policy.PluginType)
 	if err != nil {
+		if errors.Unwrap(err) != nil {
+			err = fmt.Errorf("failed to initialize plugin: %w", err)
+
+			message := map[string]interface{}{
+				"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
+			}
+
+			s.logger.Error(err)
+			return c.JSON(http.StatusBadRequest, message)
+		}
+
 		err = fmt.Errorf("failed to initialize plugin: %w", err)
+
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
+			"error":   err.Error(),
+		}
+
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err.Error())
+		return c.JSON(http.StatusBadRequest, message)
 	}
 
 	if err := plg.ValidatePluginPolicy(policy); err != nil {
+		if errors.Unwrap(err) != nil {
+			err = fmt.Errorf("failed to validate policy: %w", err)
+			s.logger.Error(err)
+			message := map[string]interface{}{
+				"message": fmt.Sprintf("failed to validate policy: %s", policy.ID),
+			}
+			return c.JSON(http.StatusBadRequest, message)
+		}
+
 		err = fmt.Errorf("failed to validate policy: %w", err)
 		s.logger.Error(err)
-		return c.JSON(http.StatusBadRequest, err)
+		message := map[string]interface{}{
+			"error":   err.Error(), // only if error is not wrapped
+			"message": fmt.Sprintf("failed to validate policy: %s", policy.ID),
+		}
+		return c.JSON(http.StatusBadRequest, message)
 	}
 
 	s.logger.Debug("Policy Signature", policy.Signature)
@@ -277,7 +338,6 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	if err != nil {
 		err = fmt.Errorf("failed to update plugin policy: %w", err)
 		message := map[string]interface{}{
-			"error":   err.Error(),
 			"message": fmt.Sprintf("failed to update policy: %s", policy.ID),
 		}
 		s.logger.Error(err)
@@ -291,13 +351,19 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	policyID := c.Param("policyId")
 	if policyID == "" {
-		return fmt.Errorf("policy id is required")
+		err := fmt.Errorf("policy id is required")
+		message := map[string]interface{}{
+			"message": "failed to delete policy",
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+
+		return c.JSON(http.StatusBadRequest, message)
 	}
 
 	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID); err != nil {
 		err = fmt.Errorf("failed to delte policy: %w", err)
 		message := map[string]interface{}{
-			"error":   err.Error(),
 			"message": fmt.Sprintf("failed to delete policy: %s", policyID),
 		}
 		s.logger.Error(err)

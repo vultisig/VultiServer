@@ -12,6 +12,9 @@
     --background-primary-color: #02122B;
     --background-secondary-color: #061B3A;
     --background-tertiary-color: #11284A;
+    --background-error-color: #2B1111;
+    --background-success-color: #042436;
+    --background-warning-color: #362B17;
 
     /* borders */
     --border-light-color: #11284A;

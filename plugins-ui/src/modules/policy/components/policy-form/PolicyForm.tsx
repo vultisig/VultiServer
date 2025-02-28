@@ -53,25 +53,28 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
     // check if form has policyId, this means we are editing policy
     if (policyId) {
       try {
-        await updatePolicy(policy);
-
-        if (onSubmitCallback) {
-          onSubmitCallback(policy);
-        }
+        updatePolicy(policy).then((updatedSuccessfully) => {
+          if (updatedSuccessfully && onSubmitCallback) {
+            onSubmitCallback(policy);
+          }
+        });
       } catch (error: any) {
-        console.error("Failed to create policy:", error.message);
+        console.error("Failed to update policy:", error.message);
       }
 
       return;
     }
 
     try {
-      addPolicy(policy);
-      setFormData(initialFormData); // Reset formData to initial state
-      setFormKey((prevKey) => prevKey + 1); // Change key to force remount
-      if (onSubmitCallback) {
-        onSubmitCallback(policy);
-      }
+      addPolicy(policy).then((addedSuccessfully) => {
+        if (!addedSuccessfully) return;
+
+        setFormData(initialFormData); // Reset formData to initial state
+        setFormKey((prevKey) => prevKey + 1); // Change key to force remount
+        if (onSubmitCallback) {
+          onSubmitCallback(policy);
+        }
+      });
     } catch (error: any) {
       console.error("Failed to create policy:", error.message);
     }

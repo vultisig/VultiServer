@@ -5,25 +5,28 @@ const BASE_URL = import.meta.env.VITE_BASE_URL;
  * Throws an error if the response is not ok.
  */
 const handleResponse = async (response: any) => {
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Something went wrong');
-    }
+  if (!response.ok) {
+    const errorData = await response.json();
 
-    // Parse and return the response JSON
-    try {
-        return await response.json();
-    } catch (err) {
-        return;
-    }
+    throw new Error(
+      errorData.error || errorData.message || "Something went wrong"
+    );
+  }
+
+  // Parse and return the response JSON
+  try {
+    return await response.json();
+  } catch (err) {
+    return;
+  }
 };
 
 /**
  * Handles HTTP errors in a consistent way.
  */
 const handleError = (error: unknown) => {
-    console.error('HTTP Error:', error);
-    throw error;
+  console.error("HTTP Error:", error);
+  throw error;
 };
 
 /**
@@ -33,19 +36,19 @@ const handleError = (error: unknown) => {
  * @param {Object} options - Additional fetch options (e.g., headers).
  */
 export const post = async (endpoint: string, data: any, options?: any) => {
-    try {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-            ...options,
-        });
-        return handleResponse(response);
-    } catch (error) {
-        handleError(error);
-    }
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+      ...options,
+    });
+    return handleResponse(response);
+  } catch (error) {
+    handleError(error);
+  }
 };
 
 /**
@@ -54,19 +57,19 @@ export const post = async (endpoint: string, data: any, options?: any) => {
  * @param {Object} options - Additional fetch options (e.g., headers).
  */
 export const get = async (endpoint: string, options: any) => {
-    try {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            },
-            ...options,
-        });
-        return handleResponse(response);
-    } catch (error) {
-        handleError(error);
-    }
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+      ...options,
+    });
+    return handleResponse(response);
+  } catch (error) {
+    handleError(error);
+  }
 };
 
 /**
@@ -76,20 +79,20 @@ export const get = async (endpoint: string, options: any) => {
  * @param {Object} options - Additional fetch options (e.g., headers).
  */
 export const put = async (endpoint: string, data: any, options?: any) => {
-    try {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            },
-            body: JSON.stringify(data),
-            ...options,
-        });
-        return handleResponse(response);
-    } catch (error) {
-        handleError(error);
-    }
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+      body: JSON.stringify(data),
+      ...options,
+    });
+    return handleResponse(response);
+  } catch (error) {
+    handleError(error);
+  }
 };
 
 /**
@@ -98,13 +101,13 @@ export const put = async (endpoint: string, data: any, options?: any) => {
  * @param {Object} options - Additional fetch options (e.g., headers).
  */
 export const remove = async (endpoint: string, options?: any) => {
-    try {
-        const response = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'DELETE',
-            ...options,
-        });
-        return handleResponse(response);
-    } catch (error) {
-        handleError(error);
-    }
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: "DELETE",
+      ...options,
+    });
+    return handleResponse(response);
+  } catch (error) {
+    handleError(error);
+  }
 };
