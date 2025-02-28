@@ -92,15 +92,16 @@ func (p *PostgresBackend) UpdateTransactionStatus(txID uuid.UUID, status types.T
 	return err
 }
 
-func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID) ([]types.TransactionHistory, error) {
+func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error) {
 	query := `
         SELECT id, policy_id, tx_body, status, created_at, updated_at, metadata, error_message
         FROM transaction_history
         WHERE policy_id = $1
         ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
     `
 
-	rows, err := p.pool.Query(context.Background(), query, policyID)
+	rows, err := p.pool.Query(context.Background(), query, policyID, take, skip)
 	if err != nil {
 		return nil, err
 	}

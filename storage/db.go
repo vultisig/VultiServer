@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,7 +25,7 @@ type DatabaseStorage interface {
 
 	CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
-	GetTransactionHistory(policyID uuid.UUID) ([]types.TransactionHistory, error)
+	GetTransactionHistory(policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error)
 
 	Pool() *pgxpool.Pool
 }

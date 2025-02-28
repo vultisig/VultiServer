@@ -1,7 +1,6 @@
 .policy-form {
     display: flex;
     flex-direction: column;
-    padding: 20px
 }
 
 form .form-control {

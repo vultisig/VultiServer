@@ -378,6 +378,32 @@ func (s *Server) ConfigurePlugin(c echo.Context) error {
 	return nil
 }
 
+func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
+	policyID := c.Param("policyId")
+	if policyID == "" {
+		err := fmt.Errorf("policy id is required")
+		message := map[string]interface{}{
+			"message": "failed to get policy",
+			"error":   err.Error(),
+		}
+
+		return c.JSON(http.StatusBadRequest, message)
+
+	}
+
+	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(policyID)
+	if err != nil {
+		err = fmt.Errorf("failed to get policy history: %w", err)
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("failed to get policy history: %s", policyID),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, policyHistory)
+}
+
 func calculateTransactionHash(txData string) (string, error) {
 	tx := &gtypes.Transaction{}
 	rawTx, err := hex.DecodeString(txData)

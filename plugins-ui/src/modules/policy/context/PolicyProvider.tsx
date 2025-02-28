@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { PluginPolicy } from "../models/policy";
+import { PluginPolicy, PolicyTransactionHistory } from "../models/policy";
 import PolicyService from "../services/policyService";
 import { isSupportedChainType } from "@/modules/shared/wallet/wallet.utils";
 import Toast from "@/modules/core/components/ui/toast/Toast";
@@ -10,6 +10,7 @@ interface PolicyContextType {
   addPolicy: (policy: PluginPolicy) => Promise<boolean>;
   updatePolicy: (policy: PluginPolicy) => Promise<boolean>;
   removePolicy: (policyId: string) => Promise<void>;
+  getPolicyHistory: (policyId: string) => Promise<PolicyTransactionHistory[]>;
 }
 
 const PolicyContext = createContext<PolicyContextType | undefined>(undefined);
@@ -154,6 +155,24 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
     return "";
   };
 
+  const getPolicyHistory = async (
+    policyId: string
+  ): Promise<PolicyTransactionHistory[]> => {
+    try {
+      const history = await PolicyService.getPolicyTransactionHistory(policyId);
+      return history;
+    } catch (error: any) {
+      console.error("Failed to get policy history:", error);
+      setToast({
+        message: error.message,
+        error: error.error,
+        type: "error",
+      });
+
+      return [];
+    }
+  };
+
   return (
     <PolicyContext.Provider
       value={{
@@ -161,6 +180,7 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         addPolicy,
         updatePolicy,
         removePolicy,
+        getPolicyHistory,
       }}
     >
       {children}

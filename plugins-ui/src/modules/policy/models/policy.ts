@@ -10,3 +10,9 @@ export type PluginPolicy = {
   policy: Policy;
   signature: string;
 };
+
+export type PolicyTransactionHistory = {
+  id: string;
+  updated_at: string;
+  status: string;
+};

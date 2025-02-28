@@ -1,5 +1,5 @@
 import { post, get, put, remove } from "@/modules/core/services/httpService";
-import { PluginPolicy } from "../models/policy";
+import { PluginPolicy, PolicyTransactionHistory } from "../models/policy";
 
 const PolicyService = {
   /**
@@ -49,6 +49,28 @@ const PolicyService = {
         },
       });
       return newPolicy;
+    } catch (error) {
+      console.error("Error getting policies:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get policy transaction history from the API.
+   * @returns {Promise<Object>} A promise that resolves to the fetched policies.
+   */
+  getPolicyTransactionHistory: async (
+    policyId: string
+  ): Promise<PolicyTransactionHistory[]> => {
+    try {
+      const endpoint = `/plugin/policy/history/${policyId}`;
+      const history = await get(endpoint, {
+        headers: {
+          public_key:
+            "0316f0222eebc5d9ab3bd3c4a1059e7f3528526df974a4a0bd7fe7ffc5ae383578", // TODO: get Vault's pub key
+        },
+      });
+      return history;
     } catch (error) {
       console.error("Error getting policies:", error);
       throw error;

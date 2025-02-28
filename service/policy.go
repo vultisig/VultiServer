@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/internal/scheduler"
 	"github.com/vultisig/vultisigner/internal/syncer"
@@ -16,6 +18,7 @@ type Policy interface {
 	DeletePolicyWithSync(ctx context.Context, policyID string) error
 	GetPluginPolicies(ctx context.Context, pluginType, publicKey string) ([]types.PluginPolicy, error)
 	GetPluginPolicy(ctx context.Context, policyID string) (types.PluginPolicy, error)
+	GetPluginPolicyTransactionHistory(policyID string) ([]types.TransactionHistory, error)
 }
 
 type PolicyService struct {
@@ -136,7 +139,6 @@ func (s *PolicyService) DeletePolicyWithSync(ctx context.Context, policyID strin
 	return nil
 }
 
-
 func (s *PolicyService) GetPluginPolicies(ctx context.Context, pluginType, publicKey string) ([]types.PluginPolicy, error) {
 	policies, err := s.db.GetAllPluginPolicies(ctx, pluginType, publicKey)
 	if err != nil {
@@ -151,4 +153,19 @@ func (s *PolicyService) GetPluginPolicy(ctx context.Context, policyID string) (t
 		return types.PluginPolicy{}, fmt.Errorf("failed to get policy: %w", err)
 	}
 	return policy, nil
+}
+
+func (s *PolicyService) GetPluginPolicyTransactionHistory(policyID string) ([]types.TransactionHistory, error) {
+	// Convert string to UUID
+	u, err := uuid.Parse(policyID)
+	if err != nil {
+		return []types.TransactionHistory{}, fmt.Errorf("invalid policyis: %s", policyID)
+	}
+
+	history, err := s.db.GetTransactionHistory(u, 30, 0) // take the last 30 records and skip the first 0
+	if err != nil {
+		return []types.TransactionHistory{}, fmt.Errorf("failed to get policy history: %w", err)
+	}
+
+	return history, nil
 }
