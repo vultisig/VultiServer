@@ -189,29 +189,17 @@ Send some amount of native ETH to the vault
   go run scripts/dev/add_balance/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
 ```
 
-Mint some amount of WETH
+Mint some amount of ERC20 Token. If "-token" is not present, the script will default to minting WETH.
 ```sh
+  go run scripts/dev/mint_erc20/main.go -state-dir $STATE_DIR -vault $VAULT_NAME -token $TOKEN_ADDRESS
 ```
 
+Check balance and nonce of Vault
 ```sh
   cast balance 0x577D1Cd9F904F95bA56f0CE9D8e8b6a1a72577ec --rpc-url $RPC_URL
   cast nonce 0x577D1Cd9F904F95bA56f0CE9D8e8b6a1a72577ec --rpc-url $RPC_URL
 ```
 
-## 7.4 Create DCA plugin policy
-
-Approve the source token amount
-```sh
-```
-
-```sh
-  go run scripts/dev/create_dca_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
-```
-
--	Enter source token contract address: `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` WETH
-- Enter destination contract address: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` UCDC
-- Enter the input amount for swap: `100000000000000000`
-- schedule frequency : `5-minutely`
 
 ## 7.4 Create Payroll plugin policy
 

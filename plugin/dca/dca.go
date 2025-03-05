@@ -531,31 +531,12 @@ func (p *DCAPlugin) generateSwapTransactions(chainID *big.Int, signerAddress *gc
 
 	// TODO: validate the price range (if specified)
 
-	rawTxsData := []RawTxData{}
+	var rawTxsData []RawTxData
 
-	// TODO:
-	// remove, it is not responsibility of the plugin
-	// the user should have the coresponding amount of WETH
-	// in their wallet
-
-	// mint WETH
-	p.logger.Info("Minting WETH")
-	p.logTokenBalances(p.uniswapClient, signerAddress, srcTokenAddress, destTokenAddress)
-	txHash, rawTx, err := p.uniswapClient.MintWETH(chainID, signerAddress, swapAmountIn, srcTokenAddress)
-	if err != nil {
-		return []RawTxData{}, fmt.Errorf("fail to mint WETH: %w", err)
-	}
-	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
-	p.logTokenBalances(p.uniswapClient, signerAddress, srcTokenAddress, destTokenAddress)
-
-	// TODO:
-	// approve should be done by the Vault user, during policy
-	// configuration, since it is not responsibility of the plugin
-	// to approve tokens so there will be only one transaction to sign
-
+	// from a UX perspective, it is better to do the "approve" tx as part of the DCA execution rather than having it be part of the policy creation/update
 	p.logger.Info("Approving Uniswap Router to spend: ", srcTokenAddress.Hex())
 	// approve Router to spend input token
-	txHash, rawTx, err = p.uniswapClient.ApproveERC20Token(chainID, signerAddress, srcTokenAddress, *p.uniswapClient.GetRouterAddress(), swapAmountIn)
+	txHash, rawTx, err := p.uniswapClient.ApproveERC20Token(chainID, signerAddress, srcTokenAddress, *p.uniswapClient.GetRouterAddress(), swapAmountIn)
 	if err != nil {
 		return []RawTxData{}, fmt.Errorf("fail to approve token: %w", err)
 	}
