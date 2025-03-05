@@ -22,8 +22,8 @@ export const schema: RJSFSchema = {
     },
     total_amount: {
       title: "I want to Allocate",
-      type: "number",
-      minimum: 1,
+      type: "string",
+      pattern: "^(?!0$)(?!0+\\.0*$)[0-9]+(\\.[0-9]+)?$", // Only digits 0-9, . and the total amount should not be 0
     },
     source_token_id: {
       type: "string",
@@ -79,13 +79,14 @@ export const schema: RJSFSchema = {
 const uiSchema: UiSchema = {
   chain_id: { "ui:widget": "hidden" },
   total_amount: {
+    "ui:widget": "WeiConverter",
     "ui:classNames": "input-background stacked-input",
     "ui:style": {
       display: "inline-block",
       width: "48%",
       marginRight: "2%",
       boxSizing: "border-box",
-      verticalAlign: "bottom",
+      verticalAlign: "top",
     },
   },
   source_token_id: {
@@ -98,7 +99,7 @@ const uiSchema: UiSchema = {
       display: "inline-block",
       width: "48%",
       boxSizing: "border-box",
-      verticalAlign: "bottom",
+      verticalAlign: "top",
       marginTop: "37px",
     },
   },
@@ -194,7 +195,7 @@ export const defaultFormData = {
   chain_id: "1",
   source_token_id: WETH_TOKEN,
   destination_token_id: USDC_TOKEN,
-  total_amount: asNumber(null),
+  total_amount: "",
   total_orders: asNumber(null),
   schedule: {
     frequency: "minute",
@@ -208,7 +209,7 @@ export const getFormData = (data: Policy): Policy => {
     chain_id: data?.chain_id,
     source_token_id: data?.source_token_id,
     destination_token_id: data?.destination_token_id,
-    total_amount: asNumber(data?.total_amount as string),
+    total_amount: data?.total_amount,
     total_orders: asNumber(data?.total_orders as string),
     schedule: {
       frequency: (data?.schedule as Policy)?.frequency,

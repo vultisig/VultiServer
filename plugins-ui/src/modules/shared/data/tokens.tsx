@@ -6,6 +6,7 @@ type Option = {
   id: string;
   name: string;
   image: ReactElement;
+  decimals: number;
 };
 
 // list of currently supported tokens
@@ -78,6 +79,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
     id: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
@@ -111,6 +113,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 6,
   },
   "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984": {
     id: "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
@@ -173,6 +176,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0xdAC17F958D2ee523a2206206994597C13D831ec7": {
     id: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
@@ -204,6 +208,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 6,
   },
   "0x514910771AF9Ca656af840dff83E8264EcF986CA": {
     id: "0x514910771AF9Ca656af840dff83E8264EcF986CA",
@@ -233,6 +238,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0xB8c77482e45F1F44dE1745F52C74426C631bDD52": {
     id: "0xB8c77482e45F1F44dE1745F52C74426C631bDD52",
@@ -262,6 +268,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599": {
     id: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
@@ -295,6 +302,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 8,
   },
   "0x6B175474E89094C44Da98b954EedeAC495271d0F": {
     id: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
@@ -326,6 +334,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2": {
     id: "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
@@ -355,6 +364,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0xc00e94cb662c3520282e6f5717214004a7f26888": {
     id: "0xc00e94cb662c3520282e6f5717214004a7f26888",
@@ -386,6 +396,7 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
   "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9": {
     id: "0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9",
@@ -426,5 +437,6 @@ export const supportedTokens: { [key: string]: Option } = {
         </defs>
       </svg>
     ),
+    decimals: 18,
   },
 };

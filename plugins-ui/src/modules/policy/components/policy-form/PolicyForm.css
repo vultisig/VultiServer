@@ -72,7 +72,7 @@ fieldset {
 }
 
 .has-error {
-    .form-control {
+    .form-control, #wei {
 
         border: 1px solid var(--alert-error-color);
     }

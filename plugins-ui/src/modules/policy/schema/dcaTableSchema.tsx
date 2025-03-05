@@ -3,17 +3,24 @@ import { supportedTokens } from "@/modules/shared/data/tokens";
 import { ColumnDef } from "@tanstack/react-table";
 import TokenPair from "../../shared/token-pair/TokenPair";
 import PolicyActions from "../components/policy-actions/PolicyActions";
+import { ethers } from "ethers";
 
 export const mapData = (
   pluginPolicy: PluginPolicy
 ): { [key: string]: unknown } => {
+  const weiAmount = ethers
+    .formatUnits(
+      pluginPolicy.policy.total_amount as string,
+      supportedTokens[pluginPolicy.policy.source_token_id as string].decimals
+    )
+    .toString();
   return {
     policyId: pluginPolicy.id,
     pair: [
       pluginPolicy.policy.source_token_id as string,
       pluginPolicy.policy.destination_token_id as string,
     ],
-    sell: `${pluginPolicy.policy.total_amount as string} ${supportedTokens[pluginPolicy.policy.source_token_id as string].name}`,
+    sell: `${weiAmount} ${supportedTokens[pluginPolicy.policy.source_token_id as string].name}`,
     orders: pluginPolicy.policy.total_orders as string,
     toBuy:
       supportedTokens[pluginPolicy.policy.destination_token_id as string].name,

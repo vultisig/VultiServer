@@ -5,4 +5,3 @@
 - run `npm i`
 - add .evn file and inside add `VITE_BASE_URL={port-bor-the-backend}` example `VITE_BASE_URL=http://localhost:8080`
 - run `npm run dev` to run in dev mode OR `npm run build` & `npm run preview`
-- lastly navigate to /dca-plugin

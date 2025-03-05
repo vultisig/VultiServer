@@ -16,6 +16,8 @@ import {
 } from "../../schema/dcaFormSchema";
 import { TitleFieldTemplate } from "../policy-title/PolicyTitle";
 import TokenSelector from "@/modules/shared/token-selector/TokenSelector";
+import WeiConverter from "@/modules/shared/wei-converter/WeiConverter";
+import { RJSFValidationError } from "@rjsf/utils";
 
 type PolicyFormProps = {
   data?: PluginPolicy;
@@ -80,6 +82,15 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
     }
   };
 
+  const transformErrors = (errors: RJSFValidationError[]) => {
+    return errors.map((error) => {
+      if (error.name === "pattern") {
+        error.message = `${error.property} should be a positive number`;
+      }
+      return error;
+    });
+  };
+
   return (
     <div className="policy-form">
       <Form
@@ -93,7 +104,10 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
         onChange={onChange}
         showErrorList={false}
         templates={{ TitleFieldTemplate }}
-        widgets={{ TokenSelector: TokenSelector }}
+        widgets={{ TokenSelector: TokenSelector, WeiConverter: WeiConverter }}
+        transformErrors={transformErrors}
+        liveValidate={!!policyId}
+        formContext={{ sourceTokenId: formData.source_token_id as string }} // sourceTokenId is needed in WeiConverter to get the rigth decimal places based on token address
       />
       {summaryData && <Summary {...summaryData} />}
     </div>
