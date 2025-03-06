@@ -26,8 +26,8 @@ import (
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/signing"
 	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/pkg/uniswap"
 	"github.com/vultisig/vultisigner/storage"
-	"github.com/vultisig/vultisigner/uniswap"
 )
 
 const (
@@ -109,8 +109,11 @@ func (p *DCAPlugin) SigningComplete(
 	if err != nil {
 		return fmt.Errorf("fail to wait for transaction to be mined: %w", err)
 	}
+	if receipt.Status != 1 {
+		return fmt.Errorf("transaction reverted: %d", receipt.Status)
+	}
 
-	p.logger.Info("transaction receipt status: ", receipt.Status)
+	p.logger.Info("transaction receipt: ", "status: ", receipt.Status)
 	return nil
 }
 
