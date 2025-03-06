@@ -85,7 +85,10 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
   const transformErrors = (errors: RJSFValidationError[]) => {
     return errors.map((error) => {
       if (error.name === "pattern") {
-        error.message = `${error.property} should be a positive number`;
+        error.message = "should be a positive number";
+      }
+      if (error.name === "required") {
+        error.message = "required";
       }
       return error;
     });

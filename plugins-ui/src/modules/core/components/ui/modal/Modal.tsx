@@ -16,7 +16,6 @@ function Modal({ isOpen, children, onClose, variant = "modal" }: ModalProps) {
   return (
     <div
       className={`modal-overlay ${variant === "panel" ? "panel-overlay" : ""}`}
-      onClick={onClose}
     >
       <div
         className={`modal-content ${variant === "panel" ? "panel-content" : ""}`}
