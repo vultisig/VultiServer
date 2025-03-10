@@ -21,7 +21,7 @@ export const schema: RJSFSchema = {
       type: "string",
     },
     total_amount: {
-      title: "I want to Allocate",
+      title: "I want to allocate",
       type: "string",
       pattern: "^(?!0$)(?!0+\\.0*$)[0-9]+(\\.[0-9]+)?$", // Only digits 0-9, . and the total amount should not be 0
     },

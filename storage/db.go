@@ -19,9 +19,9 @@ type DatabaseStorage interface {
 	UpdatePluginPolicyTx(ctx context.Context, dbTx pgx.Tx, policy types.PluginPolicy) (*types.PluginPolicy, error)
 
 	CreateTimeTriggerTx(ctx context.Context, dbTx pgx.Tx, trigger types.TimeTrigger) error
-	GetPendingTriggers() ([]types.TimeTrigger, error)
-	UpdateTriggerExecution(policyID string) error
-	UpdateTriggerTx(ctx context.Context, policyID string, trigger types.TimeTrigger, dbTx pgx.Tx) error
+	GetPendingTimeTriggers(ctx context.Context) ([]types.TimeTrigger, error)
+	UpdateTimeTriggerLastExecution(ctx context.Context, policyID string) error
+	UpdateTimeTriggerTx(ctx context.Context, policyID string, trigger types.TimeTrigger, dbTx pgx.Tx) error
 
 	CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error

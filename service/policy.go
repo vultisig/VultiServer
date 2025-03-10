@@ -95,7 +95,7 @@ func (s *PolicyService) UpdatePolicyWithSync(ctx context.Context, policy types.P
 			return nil, fmt.Errorf("failed to get trigger from policy: %w", err)
 		}
 
-		if err := s.db.UpdateTriggerTx(ctx, policy.ID, *trigger, tx); err != nil {
+		if err := s.db.UpdateTimeTriggerTx(ctx, policy.ID, *trigger, tx); err != nil {
 			return nil, fmt.Errorf("failed to update trigger execution tx: %w", err)
 		}
 	}

@@ -1,12 +1,12 @@
-# pluginserver
+# plugin
 
 server:
   host: localhost
   port: 8081
   database:
-    dsn: postgres://myuser:mypassword@localhost:5432/vs-plugins-plugin?sslmode=disable
-  vaults_file_path: /tmp/vultisigner/plugin/vaults
-  mode: pluginserver
+    dsn: postgres://myuser:mypassword@localhost:5432/vultisig-plugin?sslmode=disable
+  vaults_file_path: /tmp/plugin/vaults
+  mode: plugin
   plugin:
     type: dca
     eth:
@@ -27,7 +27,7 @@ redis:
 block_storage:
   type: s3
   endpoint: http://localhost:9000
-  bucket: vultiplugin
+  bucket: vultisig-plugin
   access_key: minioadmin
   secret: minioadmin
   region: us-east-1
