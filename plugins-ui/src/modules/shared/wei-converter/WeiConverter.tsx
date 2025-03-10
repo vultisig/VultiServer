@@ -1,69 +1,68 @@
+import React, { useEffect, useState } from "react";
+import { WidgetProps } from "@rjsf/utils";
 import { ethers } from "ethers";
 import { supportedTokens } from "../data/tokens";
-import { ChangeEvent, useEffect, useState } from "react";
 import "./WeiConverter.css";
-import { RJSFSchema, Widget } from "@rjsf/utils";
 
-interface CustomFormContext {
-  sourceTokenId: string;
-}
+const DEBOUNCE_DELAY = 500;
 
-const WeiConverter: Widget<RJSFSchema, any, CustomFormContext> = (props) => {
-  let fromWei = "";
-
-  const regex = new RegExp(props.schema.pattern);
-
-  if (
-    props.value &&
-    props.registry.formContext.sourceTokenId &&
-    regex.test(props.value)
-  ) {
-    fromWei = ethers.formatUnits(
-      props.value,
-      supportedTokens[props.registry.formContext.sourceTokenId].decimals
-    );
-  }
-  const [inputValue, setInputValue] = useState(fromWei);
-  const [_, setDebouncedInputValue] = useState("");
+const WeiConverter: React.FC<WidgetProps> = ({
+  value,
+  onChange,
+  formContext,
+  schema,
+}) => {
+  const selectedToken = formContext?.sourceTokenId;
+  const [inputValue, setInputValue] = useState("");
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setDebouncedInputValue(inputValue);
-      const regex = new RegExp(props.schema.pattern);
+    if (!value || !schema.pattern) {
+      setInputValue("");
+      return;
+    }
 
-      if (!regex.test(inputValue)) {
-        props.onChange(inputValue);
+    let decimals = supportedTokens[selectedToken]?.decimals;
+    try {
+      const formattedValue = ethers.formatUnits(value, decimals);
+      setInputValue(formattedValue);
+    } catch (error) {
+      console.error(error);
+    }
+  }, [value, selectedToken]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!schema.pattern) {
+        onChange("");
+        return;
       }
 
-      if (
-        regex.test(inputValue) &&
-        inputValue &&
-        props.registry.formContext.sourceTokenId
-      ) {
-        const amountToWei = ethers
-          .parseUnits(
-            inputValue,
-            supportedTokens[props.registry.formContext.sourceTokenId].decimals
-          )
+      let decimals = supportedTokens[selectedToken]?.decimals;
+      try {
+        const convertedValue = ethers
+          .parseUnits(inputValue, decimals)
           .toString();
-
-        props.onChange(amountToWei);
+        onChange(convertedValue);
+      } catch (error) {
+        console.error(error);
       }
-    }, 200);
-    return () => clearTimeout(timeoutId);
-  }, [inputValue, 200]);
+    }, DEBOUNCE_DELAY);
 
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setInputValue(event.target.value);
+    return () => clearTimeout(timeout);
+  }, [inputValue, selectedToken]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
   };
 
   return (
     <>
       <input
         id="wei"
-        type="text"
+        type="number"
         value={inputValue}
-        onChange={handleInputChange}
+        onChange={handleChange}
+        data-testid="wei-converter"
       />
     </>
   );
