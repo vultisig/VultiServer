@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,14 +64,15 @@ func (d *PostgresBackend) Migrate() error {
 func (p *PostgresBackend) CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error) {
 	query := `
         INSERT INTO transaction_history (
-            policy_id, tx_body, status, metadata
-        ) VALUES ($1, $2, $3, $4)
+            policy_id, tx_body, tx_hash, status, metadata
+        ) VALUES ($1, $2, $3, $4, $5)
 				RETURNING id
     `
 	var txID uuid.UUID
 	err := p.pool.QueryRow(context.Background(), query,
 		tx.PolicyID,
 		tx.TxBody,
+		tx.TxHash,
 		tx.Status,
 		tx.Metadata,
 	).Scan(&txID)
@@ -94,7 +97,7 @@ func (p *PostgresBackend) UpdateTransactionStatus(txID uuid.UUID, status types.T
 
 func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error) {
 	query := `
-        SELECT id, policy_id, tx_body, status, created_at, updated_at, metadata, error_message
+        SELECT id, policy_id, tx_body, tx_hash, status, created_at, updated_at, metadata, error_message
         FROM transaction_history
         WHERE policy_id = $1
         ORDER BY created_at DESC
@@ -114,6 +117,7 @@ func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID, take int, sk
 			&tx.ID,
 			&tx.PolicyID,
 			&tx.TxBody,
+			&tx.TxHash,
 			&tx.Status,
 			&tx.CreatedAt,
 			&tx.UpdatedAt,
@@ -127,6 +131,45 @@ func (p *PostgresBackend) GetTransactionHistory(policyID uuid.UUID, take int, sk
 	}
 
 	return history, nil
+}
+
+func (p *PostgresBackend) GetTransactionByHash(txHash string) (*types.TransactionHistory, error) {
+	query := `
+        SELECT 
+            id, 
+            policy_id, 
+            tx_body, 
+            tx_hash,
+            status, 
+            created_at, 
+            updated_at, 
+            metadata, 
+            error_message
+        FROM transaction_history
+        WHERE tx_hash = $1
+    `
+
+	var tx types.TransactionHistory
+	err := p.pool.QueryRow(context.Background(), query, txHash).Scan(
+		&tx.ID,
+		&tx.PolicyID,
+		&tx.TxBody,
+		&tx.TxHash,
+		&tx.Status,
+		&tx.CreatedAt,
+		&tx.UpdatedAt,
+		&tx.Metadata,
+		&tx.ErrorMessage,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("transaction with Tx Hash %s not found", txHash)
+		}
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	return &tx, nil
 }
 
 func (p *PostgresBackend) Pool() *pgxpool.Pool {

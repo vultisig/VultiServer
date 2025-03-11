@@ -22,6 +22,7 @@ type TransactionHistory struct {
 	ID           uuid.UUID              `json:"id"`
 	PolicyID     uuid.UUID              `json:"policy_id"`
 	TxBody       string                 `json:"tx_body"`
+	TxHash       string                 `json:"tx_hash"`
 	Status       TransactionStatus      `json:"status"`
 	CreatedAt    time.Time              `json:"created_at"`
 	UpdatedAt    time.Time              `json:"updated_at"`

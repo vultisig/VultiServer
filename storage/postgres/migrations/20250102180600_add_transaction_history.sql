@@ -13,6 +13,7 @@ CREATE TABLE transaction_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     policy_id UUID NOT NULL REFERENCES plugin_policies(id),
     tx_body TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
     status transaction_status NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
