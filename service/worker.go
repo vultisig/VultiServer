@@ -66,7 +66,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 	}
 
 	var plugin plugin.Plugin
-	if cfg.Server.Mode == "pluginserver" {
+	if cfg.Server.Mode == "plugin" {
 		switch cfg.Server.Plugin.Type {
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
@@ -500,7 +500,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to update transaction status: %v", err)
 		}
 
-		if err := s.db.UpdateTriggerExecution(policy.ID); err != nil {
+		if err := s.db.UpdateTimeTriggerLastExecution(ctx, policy.ID); err != nil {
 			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 

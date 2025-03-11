@@ -45,7 +45,7 @@ const PolicyService = {
         headers: {
           plugin_type: "dca", // todo remove hardcoding once we have the marketplace
           public_key:
-            "0278507737147e65e34e78e565041f651b646a379c6e4cbb144fdda9ac4b84ee80", // TODO: get Vault's pub key
+            "03f81429f8a999a616b3dee64f30eddee5dfb8e4d6881b79f5a86c8b69b4d7d1d7", // TODO: get Vault's pub key
         },
       });
       return newPolicy;
@@ -67,7 +67,7 @@ const PolicyService = {
       const history = await get(endpoint, {
         headers: {
           public_key:
-            "0316f0222eebc5d9ab3bd3c4a1059e7f3528526df974a4a0bd7fe7ffc5ae383578", // TODO: get Vault's pub key
+            "03f81429f8a999a616b3dee64f30eddee5dfb8e4d6881b79f5a86c8b69b4d7d1d7", // TODO: get Vault's pub key
         },
       });
       return history;

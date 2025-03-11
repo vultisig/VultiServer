@@ -34,7 +34,7 @@ func main() {
 			panic(err)
 		}
 
-		stateDir = filepath.Join(homeDir, ".vultiserver", "vaults")
+		stateDir = filepath.Join(homeDir, ".verifier", "vaults")
 	}
 
 	keyPath := filepath.Join(stateDir, vaultName, "public_key")
@@ -42,7 +42,7 @@ func main() {
 		panic("vault already exists")
 	}
 
-	serverConfig, err := config.ReadConfig("config-server")
+	serverConfig, err := config.ReadConfig("config-verifier")
 	if err != nil {
 		panic(err)
 	}

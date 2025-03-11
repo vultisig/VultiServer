@@ -46,7 +46,7 @@ func main() {
 			panic(err)
 		}
 
-		stateDir = filepath.Join(homeDir, ".vultiserver", "vaults")
+		stateDir = filepath.Join(homeDir, ".verifier", "vaults")
 	}
 
 	keyPath := filepath.Join("vaults", vaultName, "public_key")

@@ -25,13 +25,13 @@ Start the services in the following order, each one in a different terminal:
 
 Servers:
 ```sh
-make signer-server
+make verifier-server
 make plugin-server
 ```
 
 Workers:
 ```sh
-make signer-worker
+make verifier-worker
 make plugin-worker
 ```
 

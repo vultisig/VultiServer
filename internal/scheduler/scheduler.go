@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5"
 	"strconv"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/hibiken/asynq"
 	"github.com/robfig/cron/v3"
@@ -61,7 +62,6 @@ func (s *SchedulerService) run() {
 	for {
 		select {
 		case <-ticker.C:
-			s.logger.Info("Checking and enqueuing tasks")
 			if err := s.checkAndEnqueueTasks(); err != nil {
 				s.logger.Errorf("Failed to check and enqueue tasks: %v", err)
 			}
@@ -72,7 +72,8 @@ func (s *SchedulerService) run() {
 }
 
 func (s *SchedulerService) checkAndEnqueueTasks() error {
-	triggers, err := s.db.GetPendingTriggers()
+	now := time.Now().UTC()
+	triggers, err := s.db.GetPendingTimeTriggers(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get pending triggers: %w", err)
 	}
@@ -101,7 +102,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 		nextTime = nextTime.UTC()
 
 		s.logger.WithFields(logrus.Fields{
-			"current_time":    time.Now().UTC(),
+			"current_time":    now,
 			"next_time":       nextTime,
 			"start_time":      trigger.StartTime.UTC(),
 			"policy_id":       trigger.PolicyID,
@@ -109,7 +110,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 			"last_exec":       trigger.LastExecution,
 		}).Info("Checking execution time")
 
-		if time.Now().UTC().After(nextTime) {
+		if now.After(nextTime) {
 			triggerEvent := types.PluginTriggerEvent{
 				PolicyID: trigger.PolicyID,
 			}

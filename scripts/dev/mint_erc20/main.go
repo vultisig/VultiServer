@@ -6,13 +6,14 @@ import (
 	"crypto/ecdsa"
 	"flag"
 	"fmt"
-	"github.com/vultisig/vultisigner/common"
 	"log"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/vultisig/vultisigner/common"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -128,7 +129,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		stateDir = filepath.Join(homeDir, ".vultiserver", "vaults")
+		stateDir = filepath.Join(homeDir, ".verifier", "vaults")
 	}
 	if tokenAddress == "" {
 		fmt.Println("Token Address is defaulting to WETH")

@@ -79,7 +79,7 @@ func NewServer(port int64,
 	var plugin plugin.Plugin
 	var schedulerService *scheduler.SchedulerService
 	var syncerService syncer.PolicySyncer
-	if mode == "pluginserver" {
+	if mode == "plugin" {
 		switch pluginType {
 		case "payroll":
 			plugin = payroll.NewPayrollPlugin(db)
@@ -117,9 +117,9 @@ func NewServer(port int64,
 		logger.Info("Scheduler service started")
 
 		logger.Info("Creating Syncer")
-		cfg, err := config.ReadConfig("config-server")
+		cfg, err := config.ReadConfig("config-verifier")
 		if err != nil {
-			logger.Fatalf("Failed to initialize DCA plugin: %w", err)
+			logger.Fatal("Failed to initialize DCA plugin: ", err)
 		}
 
 		syncerService = syncer.NewSyncService(db, logger.WithField("service", "syncer").Logger, cfg)
@@ -179,7 +179,7 @@ func (s *Server) StartServer() error {
 
 	pluginGroup := e.Group("/plugin")
 	// Only enable plugin signing routes if the server is running in plugin mode
-	if s.mode == "pluginserver" {
+	if s.mode == "plugin" {
 		// pluginGroup.POST("/sign", s.SignPluginMessages)
 
 		configGroup := pluginGroup.Group("/configure")
@@ -192,7 +192,7 @@ func (s *Server) StartServer() error {
 			Filesystem: http.FS(s.plugin.Frontend()),
 		}))
 	}
-	// policy mode is always available since it is used by both vultiserver and pluginserver
+	// policy mode is always available since it is used by both verifier server and plugin server
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 	pluginGroup.GET("/policy", s.GetAllPluginPolicies)
 	pluginGroup.PUT("/policy", s.UpdatePluginPolicyById)
