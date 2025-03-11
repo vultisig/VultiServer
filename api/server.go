@@ -664,6 +664,7 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
+//TODO: Make those handlers require auth
 func (s *Server) CreateTransaction(c echo.Context) error {
 	var tx types.TransactionHistory
 	if err := c.Bind(&tx); err != nil {
