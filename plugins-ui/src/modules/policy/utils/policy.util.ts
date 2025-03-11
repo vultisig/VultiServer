@@ -1,4 +1,5 @@
 import { PluginPolicy, Policy } from "../models/policy";
+const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
 
 export const generatePolicy = (
   plugin_type: string,
@@ -7,8 +8,7 @@ export const generatePolicy = (
 ): PluginPolicy => {
   return {
     id: policyId,
-    public_key:
-      "03506115cd0ce1791f583a9c906c2af336bc5decf0e580fb34bffb57aebdfa7610", // TODO: get Vault's pub key
+    public_key: PUBLIC_KEY,
     plugin_type,
     active: true,
     policy: convertToStrings(policy),

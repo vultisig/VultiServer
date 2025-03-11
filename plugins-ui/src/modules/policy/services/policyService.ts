@@ -1,6 +1,8 @@
 import { post, get, put, remove } from "@/modules/core/services/httpService";
 import { PluginPolicy, PolicyTransactionHistory } from "../models/policy";
 
+const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
+
 const PolicyService = {
   /**
    * Posts a new policy to the API.
@@ -44,8 +46,7 @@ const PolicyService = {
       const newPolicy = await get(endpoint, {
         headers: {
           plugin_type: "dca", // todo remove hardcoding once we have the marketplace
-          public_key:
-            "03506115cd0ce1791f583a9c906c2af336bc5decf0e580fb34bffb57aebdfa7610", // TODO: get Vault's pub key
+          public_key: PUBLIC_KEY,
         },
       });
       return newPolicy;
@@ -66,13 +67,13 @@ const PolicyService = {
       const endpoint = `/plugin/policy/history/${policyId}`;
       const history = await get(endpoint, {
         headers: {
-          public_key:
-            "03506115cd0ce1791f583a9c906c2af336bc5decf0e580fb34bffb57aebdfa7610", // TODO: get Vault's pub key
+          public_key: PUBLIC_KEY,
         },
       });
       return history;
     } catch (error) {
-      console.error("Error getting policies:", error);
+      console.error("Error getting policy history:", error);
+
       throw error;
     }
   },
@@ -84,9 +85,9 @@ const PolicyService = {
   deletePolicy: async (id: string) => {
     try {
       const endpoint = `/plugin/policy/${id}`;
-      return remove(endpoint);
+      return await remove(endpoint);
     } catch (error) {
-      console.error("Error getting policies:", error);
+      console.error("Error deleting policy:", error);
       throw error;
     }
   },
