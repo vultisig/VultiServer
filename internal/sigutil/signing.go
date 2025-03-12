@@ -4,11 +4,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
-	"github.com/eager7/dogd/btcec"
-	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"strconv"
 	"strings"
+
+	"github.com/eager7/dogd/btcec"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -97,6 +98,7 @@ func VerifySignature(vaultPublicKey string, chainCodeHex string, derivePath stri
 
 	return ecdsa.Verify(&ecdsaPubKey, msgHash, R, S), nil
 }
+
 func rawSignature(r *big.Int, s *big.Int, recoveryID uint8) []byte {
 	var signature [65]byte
 	copy(signature[0:32], r.Bytes())

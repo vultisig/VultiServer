@@ -238,7 +238,6 @@ export const usePolicies = (): PolicyContextType => {
   return context;
 };
 
-
 const toHex = (str: string): string => {
   return (
     "0x" +

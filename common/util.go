@@ -22,8 +22,8 @@ import (
 
 const (
 	// TODO: once the new resharding is done
-	PluginPartyID   = "MihailGenchev’s MacBook Pro-F87" // change this to "plugin-service"
-	VerifierPartyID = "iPhone-E7E"                      // change this to "verifier-service"
+	PluginPartyID   = "Rado’s MacBook Pro-FD0" // change this to "plugin-service"
+	VerifierPartyID = "Server-58253"           // change this to "verifier-service"
 
 	vaultBackupSuffix = ".bak.vult"
 )
