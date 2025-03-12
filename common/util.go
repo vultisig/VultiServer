@@ -21,8 +21,11 @@ import (
 )
 
 const (
-	PluginPartyID   = "plugin-service"
-	VerifierPartyID = "verifier-service"
+	// TODO: once the new resharding is done
+	PluginPartyID   = "Rado’s MacBook Pro-FD0" // change this to "plugin-service"
+	VerifierPartyID = "Server-58253"           // change this to "verifier-service"
+
+	vaultBackupSuffix = ".bak.vult"
 )
 
 func CompressData(data []byte) ([]byte, error) {
@@ -207,4 +210,8 @@ func DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath string) (*commo
 	address := common.BytesToAddress(hash[12:])
 
 	return &address, nil
+}
+
+func GetVaultBackupFilename(publicKey string) string {
+	return fmt.Sprintf("%s%s", publicKey, vaultBackupSuffix)
 }

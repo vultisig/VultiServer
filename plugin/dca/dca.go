@@ -27,6 +27,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/signing"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
+	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
 )
 
@@ -34,6 +35,14 @@ const (
 	pluginType    = "dca"
 	pluginVersion = "0.0.1"
 	policyVersion = "0.0.1"
+)
+
+const (
+	vaultPassword    = ""                                                                 // TODO: get from somewhere
+	hexEncryptionKey = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO: get it from the policy
+	hexChainCode     = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO: get it from the policy
+	// ethereum
+	derivePath = "m/44'/60'/0'/0/0" // TODO: get it from the policy
 )
 
 type DCAPlugin struct {
@@ -102,16 +111,19 @@ func (p *DCAPlugin) SigningComplete(
 
 	signedTx, _, err := signing.SignLegacyTx(signature, txHash, signRequest.Transaction, chainID)
 	if err != nil {
+		p.logger.Error("fail to sign transaction: ", err)
 		return fmt.Errorf("fail to sign transaction: %w", err)
 	}
 
 	err = p.rpcClient.SendTransaction(context.Background(), signedTx)
 	if err != nil {
+		p.logger.Error("fail to send transaction: ", err)
 		return fmt.Errorf("failed to send transaction: %w", err)
 	}
 
 	receipt, err := bind.WaitMined(context.Background(), p.rpcClient, signedTx)
 	if err != nil {
+		p.logger.Error("fail to wait for transaction receipt: ", err)
 		return fmt.Errorf("fail to wait for transaction to be mined: %w", err)
 	}
 	if receipt.Status != 1 {
@@ -122,34 +134,12 @@ func (p *DCAPlugin) SigningComplete(
 	return nil
 }
 
-func (p *DCAPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error {
-	if policyDoc == nil {
-		return fmt.Errorf("no policy to set up")
-	}
-
-	if policyDoc.ID == "" {
-		policyDoc.ID = uuid.NewString()
-	}
-
-	if policyDoc.PolicyVersion == "" {
-		policyDoc.PolicyVersion = policyVersion
-	}
-
-	if policyDoc.PluginVersion == "" {
-		policyDoc.PluginVersion = pluginVersion
-	}
-
-	if policyDoc.PluginID == "" {
-		policyDoc.PluginID = uuid.NewString()
-	}
-
-	return nil
-}
-
 func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 	if policyDoc.PluginType != pluginType {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", pluginType, policyDoc.PluginType)
 	}
+
+	// TODO: check the plugin and policy versions with the ones in the policy document
 
 	var dcaPolicy types.DCAPolicy
 	if err := json.Unmarshal(policyDoc.Policy, &dcaPolicy); err != nil {
@@ -288,16 +278,15 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 	}
 
 	// build transactions
-	// TODO: get theses values from the vault
-	derivePath := "m/44'/60'/0'/0/0"                                                       // ethereum
-	hexChainCode := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"     // vault's chain code
-	hexEncryptionKey := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" // vault's encryption key
-	vaultPassword := "your-secure-password"                                                // vault's password
-
-	signerAddress, err := common.DeriveAddress(policy.PublicKey, hexChainCode, derivePath)
+	localStateAccessor, err := initLocalStateAccessor(policy.PublicKey)
+	if err != nil {
+		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to initialize local state accessor: %w", err)
+	}
+	signerAddress, err := common.DeriveAddress(policy.PublicKey, localStateAccessor.Vault.HexChainCode, derivePath)
 	if err != nil {
 		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to derive address: %w", err)
 	}
+	fmt.Println("Signer address: ", signerAddress.String())
 
 	chainID, ok := new(big.Int).SetString(dcaPolicy.ChainID, 10)
 	if !ok {
@@ -316,7 +305,7 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 				SessionID:        uuid.New().String(),
 				HexEncryptionKey: hexEncryptionKey,
 				DerivePath:       derivePath,
-				IsECDSA:          true, // TODO:
+				IsECDSA:          true,
 				VaultPassword:    vaultPassword,
 				StartSession:     false,
 				Parties:          []string{common.PluginPartyID, common.VerifierPartyID},
@@ -337,9 +326,6 @@ func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs [
 	if len(txs) == 0 {
 		return fmt.Errorf("no transactions provided for validation")
 	}
-	// TODO: get these values from the vault.
-	hexChainCode := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" // vault's chain code
-	derivePath := "m/44'/60'/0'/0/0"                                                   // ethereum
 
 	if err := p.ValidatePluginPolicy(policy); err != nil {
 		return fmt.Errorf("failed to validate plugin policy: %w", err)
@@ -364,10 +350,17 @@ func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs [
 		return fmt.Errorf("invalid total amount")
 	}
 
-	signerAddress, err := common.DeriveAddress(policy.PublicKey, hexChainCode, derivePath)
+	localStateAccessor, err := initLocalStateAccessor(policy.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to initialize local state accessor: %w", err)
+	}
+
+	signerAddress, err := common.DeriveAddress(policy.PublicKey, localStateAccessor.Vault.HexChainCode, derivePath)
 	if err != nil {
 		return fmt.Errorf("failed to derive address: %w", err)
 	}
+	p.logger.Warn("Signer address used for swaps: ", signerAddress.String())
+
 	// Validate each transaction
 	for _, tx := range txs {
 		if err := p.validateTransaction(tx, totalAmount, policyChainID, &sourceAddrPolicy, &destAddrPolicy, signerAddress); err != nil {
@@ -382,43 +375,51 @@ func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignReques
 	var tx *gtypes.Transaction
 	txBytes, err := hex.DecodeString(keysignRequest.Transaction)
 	if err != nil {
+		p.logger.Error("failed to decode transaction bytes: ", err)
 		return fmt.Errorf("failed to decode transaction bytes: %w", err)
 	}
 	err = rlp.DecodeBytes(txBytes, &tx)
 	if err != nil {
+		p.logger.Error("failed to parse RLP transaction: ", err)
 		return fmt.Errorf("fail to parse RLP transaction: %w", err)
 	}
 
 	// Validate chain ID
 	if tx.ChainId().Cmp(policyChainID) != 0 {
+		p.logger.Error("chain ID mismatch: ", tx.ChainId().String())
 		return fmt.Errorf("chain ID mismatch: expected %s, got %s", policyChainID.String(), tx.ChainId().String())
 	}
 
 	// Validate destination address
 	txDestination := tx.To()
 	if txDestination == nil {
+		p.logger.Error("transaction missing destination address")
 		return fmt.Errorf("transaction missing destination address")
 	}
 	if p.uniswapClient.GetRouterAddress() != txDestination {
 		// TODO: change when mint and approve transactions are removed.
-		p.logger.Warn("invalid router address", "address", txDestination)
+		p.logger.Warn("invalid router: ", txDestination)
 	}
 
 	// Validate gas parameters
 	if tx.Gas() == 0 {
+		p.logger.Error("invalid gas limit: must be greater than zero")
 		return fmt.Errorf("invalid gas limit: must be greater than zero")
 	}
 	if tx.GasPrice().Cmp(big.NewInt(0)) <= 0 {
+		p.logger.Error("invalid gas price: must be greater than zero")
 		return fmt.Errorf("invalid gas price: must be greater than zero")
 	}
 
 	// Validate transaction data
 	if len(tx.Data()) == 0 {
+		p.logger.Error("transaction contains empty payload")
 		return fmt.Errorf("transaction contains empty payload")
 	}
 
 	parsedRouterABI, err := p.getRouterABI()
 	if err != nil {
+		p.logger.Error("failed to parse router ABI: ", err)
 		return fmt.Errorf("failed to parse router ABI: %w", err)
 	}
 	method, err := parsedRouterABI.MethodById(tx.Data())
@@ -438,6 +439,7 @@ func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignReques
 	}
 	return nil
 }
+
 func (p *DCAPlugin) validateSwapParameters(tx *gtypes.Transaction, method *abi.Method, totalAmountPolicy *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
 	inputData := tx.Data()[4:]
 	decodedParams, err := method.Inputs.Unpack(inputData)
@@ -470,6 +472,7 @@ func (p *DCAPlugin) validateSwapParameters(tx *gtypes.Transaction, method *abi.M
 
 	return nil
 }
+
 func (p *DCAPlugin) getRouterABI() (abi.ABI, error) {
 	routerABI := `[
         {
@@ -538,14 +541,14 @@ func (p *DCAPlugin) generateSwapTransactions(chainID *big.Int, signerAddress *gc
 
 	// from a UX perspective, it is better to do the "approve" tx as part of the DCA execution rather than having it be part of the policy creation/update
 	// approve Router to spend input token
-	txHash, rawTx, err := p.uniswapClient.ApproveERC20Token(chainID, signerAddress, srcTokenAddress, *p.uniswapClient.GetRouterAddress(), swapAmountIn)
+	txHash, rawTx, err := p.uniswapClient.ApproveERC20Token(chainID, signerAddress, srcTokenAddress, *p.uniswapClient.GetRouterAddress(), swapAmountIn, 0)
 	if err != nil {
 		return []RawTxData{}, fmt.Errorf("fail to make approve token transaction: %w", err)
 	}
 	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
 
 	// swap tokens
-	txHash, rawTx, err = p.uniswapClient.SwapTokens(chainID, signerAddress, swapAmountIn, amountOutMin, tokensPair)
+	txHash, rawTx, err = p.uniswapClient.SwapTokens(chainID, signerAddress, swapAmountIn, amountOutMin, tokensPair, 1)
 	if err != nil {
 		return []RawTxData{}, fmt.Errorf("fail to make swap tokens transaction: %w", err)
 	}
@@ -569,4 +572,16 @@ func (p *DCAPlugin) logTokenBalances(client *uniswap.Client, signerAddress *gcom
 		return
 	}
 	p.logger.Info("Output token balance: ", tokenOutBalance.String())
+}
+
+func initLocalStateAccessor(publicKey string) (*relay.LocalStateAccessorImp, error) {
+	cfg, err := config.ReadConfig("config-plugin")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read plugin config: %w", err)
+	}
+	blockStorage, err := storage.NewBlockStorage(*cfg)
+	if err != nil {
+		panic(err)
+	}
+	return relay.NewLocalStateAccessorImp("", cfg.Server.VaultsFilePath, publicKey, vaultPassword, blockStorage)
 }

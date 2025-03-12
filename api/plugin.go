@@ -1,13 +1,18 @@
 package api
 
 import (
+	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/eager7/dogd/btcec"
+	"github.com/google/uuid"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -19,6 +24,7 @@ import (
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
@@ -78,7 +84,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 
-	filePathName := req.PublicKey + ".bak"
+	filePathName := common.GetVaultBackupFilename(req.PublicKey)
 	content, err := s.blockStorage.GetFile(filePathName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("fail to read file, err: %w", err)
@@ -199,7 +205,6 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	return c.JSON(http.StatusOK, policies)
 }
 
-// TODO: verify the signature to authorize the operation
 func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {
@@ -217,15 +222,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 			"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
 		}
 		return c.JSON(http.StatusBadRequest, message)
-	}
-
-	if err := plg.SetupPluginPolicy(&policy); err != nil {
-		err = fmt.Errorf("failed to setup policy: %w", err)
-		message := map[string]interface{}{
-			"message": "failed to setup policy",
-		}
-		s.logger.Error(err)
-		return c.JSON(http.StatusInternalServerError, message)
 	}
 
 	if err := plg.ValidatePluginPolicy(policy); err != nil {
@@ -248,6 +244,15 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
+	if policy.ID == "" {
+		policy.ID = uuid.NewString()
+	}
+
+	if !s.verifyPolicySignature(policy, false) {
+		s.logger.Error("invalid policy signature")
+		return fmt.Errorf("invalid policy signature")
+	}
+
 	newPolicy, err := s.policyService.CreatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
 		err = fmt.Errorf("failed to create plugin policy: %w", err)
@@ -261,7 +266,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	return c.JSON(http.StatusOK, newPolicy)
 }
 
-// TODO: verify the signature to authorize the operation
 func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {
@@ -313,7 +317,10 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
-	s.logger.Debug("Policy Signature", policy.Signature)
+	if !s.verifyPolicySignature(policy, true) {
+		s.logger.Error("invalid policy signature")
+		return fmt.Errorf("invalid policy signature")
+	}
 
 	updatedPolicy, err := s.policyService.UpdatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
@@ -328,7 +335,6 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	return c.JSON(http.StatusOK, updatedPolicy)
 }
 
-// TODO: verify the signature to authorize the operation
 func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	policyID := c.Param("policyId")
 	if policyID == "" {
@@ -340,6 +346,21 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 		s.logger.Error(err)
 
 		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
+	if err != nil {
+		err = fmt.Errorf("failed to get policy: %w", err)
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("failed to get policy: %s", policyID),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	if !s.verifyPolicySignature(policy, true) {
+		s.logger.Error("invalid policy signature")
+		return fmt.Errorf("invalid policy signature")
 	}
 
 	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID); err != nil {
@@ -356,15 +377,14 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	policyID := c.Param("policyId")
+
 	if policyID == "" {
 		err := fmt.Errorf("policy id is required")
 		message := map[string]interface{}{
 			"message": "failed to get policy",
 			"error":   err.Error(),
 		}
-
 		return c.JSON(http.StatusBadRequest, message)
-
 	}
 
 	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(c.Request().Context(), policyID)
@@ -393,9 +413,7 @@ func calculateTransactionHash(txData string) (string, error) {
 	}
 
 	chainID := tx.ChainId()
-
 	signer := gtypes.NewEIP155Signer(chainID)
-
 	hash := signer.Hash(tx).String()[2:]
 	return hash, nil
 }
@@ -409,12 +427,10 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read plugin config: %w", err)
 		}
-
 		rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize rpc client: %w", err)
 		}
-
 		uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
 		uniswapCfg := uniswap.NewConfig(
 			rpcClient,
@@ -423,9 +439,69 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 			50000,   // TODO: config
 			time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
 		)
-
 		return dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
 	default:
 		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
 	}
+}
+
+func (s *Server) verifyPolicySignature(policy types.PluginPolicy, update bool) bool {
+	msgHex, err := policyToMessageHex(policy, update)
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to convert policy to message hex: %w", err))
+		return false
+	}
+
+	msgBytes, err := hex.DecodeString(strings.TrimPrefix(msgHex, "0x"))
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to decode message bytes: %w", err))
+		return false
+	}
+
+	publicKeyBytes, err := hex.DecodeString(strings.TrimPrefix(policy.PublicKey, "0x"))
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to decode public key bytes: %w", err))
+		return false
+	}
+
+	publicKey, err := btcec.ParsePubKey(publicKeyBytes, btcec.S256())
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to parse public key: %w", err))
+		return false
+	}
+
+	ecdsaPubKey := ecdsa.PublicKey{
+		Curve: btcec.S256(),
+		X:     publicKey.X,
+		Y:     publicKey.Y,
+	}
+
+	signatureBytes, err := hex.DecodeString(strings.TrimPrefix(policy.Signature, "0x"))
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to decode signature bytes: %w", err))
+		return false
+	}
+
+	msgHash := crypto.Keccak256([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(msgBytes), msgBytes)))
+
+	R := new(big.Int).SetBytes(signatureBytes[:32])
+	S := new(big.Int).SetBytes(signatureBytes[32:64])
+
+	return ecdsa.Verify(&ecdsaPubKey, msgHash, R, S)
+}
+
+func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error) {
+	if !isUpdate {
+		policy.ID = ""
+	}
+
+	// public key and signature are not part of the message that is signed
+	policy.PublicKey = ""
+	policy.Signature = ""
+
+	serializedPolicy, err := json.Marshal(policy)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize policy")
+	}
+	return hex.EncodeToString(serializedPolicy), nil
 }

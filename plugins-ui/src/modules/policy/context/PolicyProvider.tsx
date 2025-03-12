@@ -4,6 +4,7 @@ import PolicyService from "../services/policyService";
 import { isSupportedChainType } from "@/modules/shared/wallet/wallet.utils";
 import Toast from "@/modules/core/components/ui/toast/Toast";
 import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalletService";
+import { ethers } from 'ethers';
 
 export interface PolicyContextType {
   policyMap: Map<string, PluginPolicy>;
@@ -140,6 +141,8 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
     const chain = localStorage.getItem("chain") as string;
 
     if (isSupportedChainType(chain)) {
+      policy.public_key = "";
+      policy.signature = "";
       const serializedPolicy = JSON.stringify(policy);
       const hexMessage = toHex(serializedPolicy);
 
@@ -152,10 +155,14 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("Need to connect to wallet");
       }
 
-      return await VulticonnectWalletService.signCustomMessage(
+      const signature = await VulticonnectWalletService.signCustomMessage(
         hexMessage,
         accounts[0]
       );
+
+      policy.public_key = recoverPublicKey(hexMessage, signature);
+
+      return signature
     }
     return "";
   };
@@ -207,6 +214,21 @@ export const usePolicies = (): PolicyContextType => {
   }
   return context;
 };
+
+const recoverPublicKey = (message: string, signature: string): string => {
+  const messageBytes = ethers.getBytes(message);
+  const messageHash = ethers.hashMessage(messageBytes);
+  const publicKey = ethers.SigningKey.recoverPublicKey(messageHash, signature);
+  const recoveredAddress = ethers.computeAddress(publicKey);
+
+  console.log("message: ", message);
+  console.log('signature: ', signature);
+  console.log('public key: ', publicKey);
+  console.log('recovered address: ', recoveredAddress);
+
+  // uncompressed public key without 0x prefix
+  return publicKey.slice(2);
+}
 
 const toHex = (str: string): string => {
   return (

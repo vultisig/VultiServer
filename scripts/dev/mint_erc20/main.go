@@ -9,11 +9,8 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/vultisig/vultisigner/common"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -101,54 +98,27 @@ const (
 
 var (
 	uniswapV2RouterAddress = gcommon.HexToAddress("0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
-
-	WETHAddr = gcommon.HexToAddress("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
-
-	swapAmountIn = big.NewInt(9e18)
-
-	tokenAddress string
-
-	vaultName string
-
-	stateDir string
+	WETHAddr               = gcommon.HexToAddress("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2")
+	swapAmountIn           = big.NewInt(9e18)
+	tokenAddress           string
+	vaultAddressHex        string
 )
 
 func main() {
 
 	flag.StringVar(&tokenAddress, "token", "", "token address")
-	flag.StringVar(&vaultName, "vault", "", "vault name")
-	flag.StringVar(&stateDir, "state-dir", "", "state directory")
+	flag.StringVar(&vaultAddressHex, "vault-address", "", "vault address")
 	flag.Parse()
 
-	if vaultName == "" {
-		panic("vault name is required")
+	if vaultAddressHex == "" {
+		panic("vault address is required")
 	}
 
-	if stateDir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			panic(err)
-		}
-		stateDir = filepath.Join(homeDir, ".verifier", "vaults")
-	}
 	if tokenAddress == "" {
 		fmt.Println("Token Address is defaulting to WETH")
 		tokenAddress = WETHAddr.Hex()
 	}
-
-	keyPath := filepath.Join("vaults", vaultName, "public_key")
-	rawKeyBytes, err := os.ReadFile(keyPath)
-	if err != nil {
-		panic(err)
-	}
-	compressedPubKeyHex := string(rawKeyBytes)
-	fmt.Println("compressedPubKeyHex:", compressedPubKeyHex)
-
-	vaultAddress, err := common.DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("To vault address:", vaultAddress.Hex())
+	fmt.Println("To vault address:", vaultAddressHex)
 
 	// Get private key from environment variable
 	privateKey := os.Getenv("PRIVATE_KEY")
@@ -176,7 +146,7 @@ func main() {
 
 	fmt.Println("Connected to Ethereum network")
 	fmt.Printf("From address: %s\n", signerAddress.Hex())
-	fmt.Printf("To receive WETH and then transfer to: %s\n", vaultAddress.Hex())
+	fmt.Printf("To receive WETH and then transfer to: %s\n", vaultAddressHex)
 	fmt.Printf("WETH contract: %s\n", WETHAddr)
 	fmt.Printf("Operation: Depositing %s ETH to get WETH\n", swapAmountIn.String())
 
@@ -206,7 +176,7 @@ func main() {
 			client,
 			signerPrivateKey,
 			signerAddress,
-			*vaultAddress,
+			gcommon.HexToAddress(vaultAddressHex),
 			WETHAddr.Hex(),
 			balance, // Transfer entire balance
 		)
@@ -228,7 +198,7 @@ func main() {
 			fmt.Printf("Sender WETH Balance: %s\n", senderBalance.String())
 		}
 
-		recipientBalance, err := GetTokenBalance(WETHAddr, *vaultAddress, client)
+		recipientBalance, err := GetTokenBalance(WETHAddr, gcommon.HexToAddress(vaultAddressHex), client)
 		if err != nil {
 			fmt.Printf("Warning: Failed to get recipient balance: %v\n", err)
 		} else {
@@ -272,7 +242,7 @@ func main() {
 		fatalError("Failed to get token balance", err)
 	}
 	fmt.Println("Signer Token Balance Before SWAP: ", tokenBalance.String())
-	vaultTokenBalance, err := GetTokenBalance(tokenAddr, *vaultAddress, client)
+	vaultTokenBalance, err := GetTokenBalance(tokenAddr, gcommon.HexToAddress(vaultAddressHex), client)
 	if err != nil {
 		fatalError("Failed to get Vault token balance", err)
 	}
@@ -281,12 +251,12 @@ func main() {
 		fatalError("Failed to approve USDC to vault", err)
 	}
 
-	err = TransferERC20Token(tokenAddr, tokenBalance, *vaultAddress, client, signerAddress, signerPrivateKey)
+	err = TransferERC20Token(tokenAddr, tokenBalance, gcommon.HexToAddress(vaultAddressHex), client, signerAddress, signerPrivateKey)
 	if err != nil {
 		fatalError("Failed to transfer ERC20 to vault", err)
 	}
 
-	vaultTokenBalance, err = GetTokenBalance(tokenAddr, *vaultAddress, client)
+	vaultTokenBalance, err = GetTokenBalance(tokenAddr, gcommon.HexToAddress(vaultAddressHex), client)
 	if err != nil {
 		fatalError("Failed to get Vault token balance", err)
 	}

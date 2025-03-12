@@ -1,8 +1,6 @@
 const networks = [
-  { id: "bitcoin", name: "Bitcoin" },
   { id: "ethereum", name: "Ethereum" },
   { id: "thorchain", name: "Thorchain" },
-  // TODO: add more networks as needed
 ];
 
 type ChainSelectorProps = {

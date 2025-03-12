@@ -172,7 +172,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 		Vault:       base64.StdEncoding.EncodeToString(vaultData),
 		IsEncrypted: true,
 	}
-	filePathName := vault.PublicKeyEcdsa + ".bak"
+	filePathName := common.GetVaultBackupFilename(vault.PublicKeyEcdsa)
 
 	vaultBackupData, err := proto.Marshal(vaultBackup)
 	if err != nil {
