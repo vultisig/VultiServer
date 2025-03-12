@@ -664,7 +664,7 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-//TODO: Make those handlers require auth
+// TODO: Make those handlers require auth
 func (s *Server) CreateTransaction(c echo.Context) error {
 	var tx types.TransactionHistory
 	if err := c.Bind(&tx); err != nil {
@@ -673,7 +673,7 @@ func (s *Server) CreateTransaction(c echo.Context) error {
 
 	exTx, _ := s.db.GetTransactionByHash(tx.TxHash)
 	if exTx != nil {
-		return c.NoContent(http.StatusOK)
+		return c.NoContent(http.StatusConflict)
 	}
 
 	if _, err := s.db.CreateTransactionHistory(tx); err != nil {
