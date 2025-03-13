@@ -24,6 +24,7 @@ CREATE TABLE transaction_history (
 
 CREATE INDEX idx_transaction_history_policy_id ON transaction_history(policy_id);
 CREATE INDEX idx_transaction_history_status ON transaction_history(status);
+CREATE INDEX idx_transaction_history_tx_hash ON transaction_history(tx_hash);
 -- +goose StatementEnd
 
 -- +goose Down

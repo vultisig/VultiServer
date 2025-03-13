@@ -38,7 +38,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	syncer := syncer.NewSyncService(logger, verifierConfig)
+	syncer := syncer.NewPolicySyncer(logger, verifierConfig)
 	client := asynq.NewClient(redisOptions)
 	inspector := asynq.NewInspector(redisOptions)
 	workerService, err := service.NewWorker(*cfg, client, sdClient, syncer, blockStorage, inspector)

@@ -37,7 +37,7 @@ type Syncer struct {
 	serverAddr string
 }
 
-func NewSyncService(logger *logrus.Logger, cfg *config.Config) PolicySyncer {
+func NewPolicySyncer(logger *logrus.Logger, cfg *config.Config) PolicySyncer {
 	return &Syncer{
 		logger: logger,
 		config: cfg,

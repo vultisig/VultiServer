@@ -122,7 +122,7 @@ func NewServer(port int64,
 			logger.Fatal("Failed to initialize DCA plugin: ", err)
 		}
 
-		syncerService = syncer.NewSyncService(logger.WithField("service", "syncer").Logger, cfg)
+		syncerService = syncer.NewPolicySyncer(logger.WithField("service", "syncer").Logger, cfg)
 	}
 
 	policyService, err := service.NewPolicyService(db, syncerService, schedulerService, logger.WithField("service", "policy").Logger)
@@ -664,19 +664,19 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-// TODO: Make those handlers require auth
+// TODO: Make those handlers require jwt auth
 func (s *Server) CreateTransaction(c echo.Context) error {
-	var tx types.TransactionHistory
-	if err := c.Bind(&tx); err != nil {
+	var reqTx types.TransactionHistory
+	if err := c.Bind(&reqTx); err != nil {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	exTx, _ := s.db.GetTransactionByHash(tx.TxHash)
-	if exTx != nil {
+	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	if existingTx != nil {
 		return c.NoContent(http.StatusConflict)
 	}
 
-	if _, err := s.db.CreateTransactionHistory(tx); err != nil {
+	if _, err := s.db.CreateTransactionHistory(reqTx); err != nil {
 		s.logger.Errorf("fail to create transaction, err: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
@@ -684,17 +684,17 @@ func (s *Server) CreateTransaction(c echo.Context) error {
 }
 
 func (s *Server) UpdateTransaction(c echo.Context) error {
-	var tx types.TransactionHistory
-	if err := c.Bind(&tx); err != nil {
+	var reqTx types.TransactionHistory
+	if err := c.Bind(&reqTx); err != nil {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	existing, _ := s.db.GetTransactionByHash(tx.TxHash)
-	if existing == nil {
+	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	if existingTx == nil {
 		return c.NoContent(http.StatusNotFound)
 	}
 
-	if err := s.db.UpdateTransactionStatus(existing.ID, tx.Status, tx.Metadata); err != nil {
+	if err := s.db.UpdateTransactionStatus(existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
 		s.logger.Errorf("fail to update transaction status, err: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
