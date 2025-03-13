@@ -5,6 +5,9 @@ export type Policy<T = string | number | boolean | null | undefined> = {
 export type PluginPolicy = {
   id: string;
   public_key: string;
+  is_ecdsa: boolean;
+  chain_code_hex: string;
+  derive_path: string;
   plugin_id: string;
   plugin_version: string;
   policy_version: string;

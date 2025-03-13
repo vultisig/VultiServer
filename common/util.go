@@ -188,6 +188,7 @@ func GetVaultName(vault *vaultType.Vault) string {
 	return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
 }
 
+// TODO: pass if the key is ecdsa or eddsa
 func DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath string) (*common.Address, error) {
 	derivedPubKeyHex, err := tss.GetDerivedPubKey(compressedPubKeyHex, hexChainCode, derivePath, false)
 	if err != nil {

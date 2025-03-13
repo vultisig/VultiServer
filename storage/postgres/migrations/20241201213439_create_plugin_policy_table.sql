@@ -2,7 +2,6 @@
 -- +goose StatementBegin
 -- Create enum type for plugin_type
 CREATE TYPE plugin_type AS ENUM ('payroll', 'dca');
-
 CREATE TABLE plugin_policies (
     id UUID PRIMARY KEY,
     public_key TEXT NOT NULL,
@@ -13,14 +12,11 @@ CREATE TABLE plugin_policies (
     signature TEXT NOT NULL,
     policy JSONB NOT NULL
 );
-
 -- Index for faster lookups on plugin_id
 CREATE INDEX idx_plugin_policies_plugin_id ON plugin_policies(plugin_id);
 -- +goose StatementEnd
-
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS plugin_policies;
-
 DROP TYPE IF EXISTS plugin_type;
 -- +goose StatementEnd

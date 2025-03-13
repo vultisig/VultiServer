@@ -13,6 +13,7 @@ import (
 
 	"github.com/eager7/dogd/btcec"
 	"github.com/google/uuid"
+	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/tasks"
@@ -458,13 +459,19 @@ func (s *Server) verifyPolicySignature(policy types.PluginPolicy, update bool) b
 		return false
 	}
 
-	publicKeyBytes, err := hex.DecodeString(strings.TrimPrefix(policy.PublicKey, "0x"))
+	derivedPubKeyHex, err := tss.GetDerivedPubKey(strings.TrimPrefix(policy.PublicKey, "0x"), policy.ChainCodeHex, policy.DerivePath, false)
 	if err != nil {
-		s.logger.Error(fmt.Errorf("failed to decode public key bytes: %w", err))
+		s.logger.Error(fmt.Errorf("failed to get derived public key: %w", err))
 		return false
 	}
 
-	publicKey, err := btcec.ParsePubKey(publicKeyBytes, btcec.S256())
+	derivedPubKeyBytes, err := hex.DecodeString(derivedPubKeyHex)
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to decode derived public key bytes: %w", err))
+		return false
+	}
+
+	publicKey, err := btcec.ParsePubKey(derivedPubKeyBytes, btcec.S256())
 	if err != nil {
 		s.logger.Error(fmt.Errorf("failed to parse public key: %w", err))
 		return false
@@ -498,6 +505,10 @@ func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error
 	// public key and signature are not part of the message that is signed
 	policy.PublicKey = ""
 	policy.Signature = ""
+
+	// TODO: include this also in FE signing
+	policy.ChainCodeHex = ""
+	policy.DerivePath = ""
 
 	serializedPolicy, err := json.Marshal(policy)
 	if err != nil {

@@ -168,20 +168,19 @@ if server return http status code 200, it means the code is valid , other status
 
 # 7. Test DCA Plugin Execution
 
-1. Create 2-of-2 Fast vault on some device (e.g. computer)
+1. Create 2-of-2 Fast vault on some device1 (e.g. computer)
 2. Backup the vault shares (device share, vultiserver share)
-3. Import the vault via QR code into Vulticonnect
-4. Import the vault into another device (e.g. phone)
-5. Import each backup into the relevant local S3 folder (vultiplugin, vultiserver) named as `publickey`.bak.vult (for local testing)
+3. Import the vault into another device2 (e.g. phone) so we can later sign with device1 + device2
+4. Import the vault via QR code into Vulticonnect
+5. Import each backup into the relevant local S3 folder (vultiplugin, vultiserver) named as `publickey.bak.vult` (for local testing)
 6. Change local participant ids (`PluginPartyID, VerifierPartyID`) to match those from the backups (for local testing, will be removed once the new reshare process is implemented) 
-7. Change the hardcoded public key (will be removed once it is properly derived)
-8. Change the hardcoded vault password (will be removed)
-9. Create a DCA policy through the UI
+7. Change the hardcoded vault password (need to be removed)
+8. Create a DCA policy through the UI
 
 ```sh
-export VAULT_ADDRESS=0x5582df2D22194AF8201997D750e80fd8140387c2
 export RPC_URL=http://127.0.0.1:8545
 export PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 
+export VAULT_ADDRESS=0x5582df2D22194AF8201997D750e80fd8140387c2
 export TOKEN_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 ```
 

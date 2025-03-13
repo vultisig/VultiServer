@@ -27,7 +27,6 @@ import (
 	"github.com/vultisig/vultisigner/internal/signing"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
-	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
 )
 
@@ -38,11 +37,9 @@ const (
 )
 
 const (
-	vaultPassword    = ""                                                                 // TODO: get from somewhere
-	hexEncryptionKey = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO: get it from the policy
-	hexChainCode     = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO: get it from the policy
-	// ethereum
-	derivePath = "m/44'/60'/0'/0/0" // TODO: get it from the policy
+	vaultPassword    = ""                                                                 // TODO:
+	hexEncryptionKey = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO:
+
 )
 
 type DCAPlugin struct {
@@ -278,11 +275,7 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 	}
 
 	// build transactions
-	localStateAccessor, err := initLocalStateAccessor(policy.PublicKey)
-	if err != nil {
-		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to initialize local state accessor: %w", err)
-	}
-	signerAddress, err := common.DeriveAddress(policy.PublicKey, localStateAccessor.Vault.HexChainCode, derivePath)
+	signerAddress, err := common.DeriveAddress(policy.PublicKey, policy.ChainCodeHex, policy.DerivePath)
 	if err != nil {
 		return []types.PluginKeysignRequest{}, fmt.Errorf("fail to derive address: %w", err)
 	}
@@ -304,8 +297,8 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 				Messages:         []string{hex.EncodeToString(data.TxHash)},
 				SessionID:        uuid.New().String(),
 				HexEncryptionKey: hexEncryptionKey,
-				DerivePath:       derivePath,
-				IsECDSA:          true,
+				DerivePath:       policy.DerivePath,
+				IsECDSA:          policy.IsEcdsa,
 				VaultPassword:    vaultPassword,
 				StartSession:     false,
 				Parties:          []string{common.PluginPartyID, common.VerifierPartyID},
@@ -350,12 +343,7 @@ func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs [
 		return fmt.Errorf("invalid total amount")
 	}
 
-	localStateAccessor, err := initLocalStateAccessor(policy.PublicKey)
-	if err != nil {
-		return fmt.Errorf("failed to initialize local state accessor: %w", err)
-	}
-
-	signerAddress, err := common.DeriveAddress(policy.PublicKey, localStateAccessor.Vault.HexChainCode, derivePath)
+	signerAddress, err := common.DeriveAddress(policy.PublicKey, policy.ChainCodeHex, policy.DerivePath)
 	if err != nil {
 		return fmt.Errorf("failed to derive address: %w", err)
 	}
@@ -572,16 +560,4 @@ func (p *DCAPlugin) logTokenBalances(client *uniswap.Client, signerAddress *gcom
 		return
 	}
 	p.logger.Info("Output token balance: ", tokenOutBalance.String())
-}
-
-func initLocalStateAccessor(publicKey string) (*relay.LocalStateAccessorImp, error) {
-	cfg, err := config.ReadConfig("config-plugin")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read plugin config: %w", err)
-	}
-	blockStorage, err := storage.NewBlockStorage(*cfg)
-	if err != nil {
-		panic(err)
-	}
-	return relay.NewLocalStateAccessorImp("", cfg.Server.VaultsFilePath, publicKey, vaultPassword, blockStorage)
 }

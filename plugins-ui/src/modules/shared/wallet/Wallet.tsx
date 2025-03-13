@@ -16,13 +16,14 @@ const Wallet = () => {
     switch (chain) {
       // add more switch cases as more chains are supported
       case "ethereum":
-        const accounts =
-          await VulticonnectWalletService.connectToVultiConnect();
-        if (accounts.length && accounts[0]) {
-          setConnectedWallet(true);
-        }
+        {
+          const accounts = await VulticonnectWalletService.connectToVultiConnect();
+          if (accounts.length && accounts[0]) {
+            setConnectedWallet(true);
+          }
 
-        break;
+          break;
+        }
 
       default:
         alert(`Chain ${chain} is currently not supported.`); // toast
