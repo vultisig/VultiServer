@@ -16,7 +16,6 @@ import (
 	"github.com/vultisig/vultisigner/internal/sigutil"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
-	"github.com/vultisig/vultisigner/relay"
 	"github.com/vultisig/vultisigner/storage"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -38,9 +37,8 @@ const (
 )
 
 const (
-	vaultPassword    = "Nontestato75"                                                     // TODO:
+	vaultPassword    = ""                                                                 // TODO:
 	hexEncryptionKey = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO:
-
 )
 
 type DCAPlugin struct {
@@ -561,16 +559,4 @@ func (p *DCAPlugin) logTokenBalances(client *uniswap.Client, signerAddress *gcom
 		return
 	}
 	p.logger.Info("Output token balance: ", tokenOutBalance.String())
-}
-
-func initLocalStateAccessor(publicKey string) (*relay.LocalStateAccessorImp, error) {
-	cfg, err := config.ReadConfig("config-plugin")
-	if err != nil {
-		return nil, fmt.Errorf("failed to read plugin config: %w", err)
-	}
-	blockStorage, err := storage.NewBlockStorage(*cfg)
-	if err != nil {
-		panic(err)
-	}
-	return relay.NewLocalStateAccessorImp("", cfg.Server.VaultsFilePath, publicKey, vaultPassword, blockStorage)
 }

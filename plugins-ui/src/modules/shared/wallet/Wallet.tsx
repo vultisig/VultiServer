@@ -27,8 +27,8 @@ const Wallet = () => {
             throw new Error("No vaults found");
           }
 
-          let publicKey = vaults[0].publicKeyEcdsa
-          let chainCodeHex = vaults[0].hexChainCode
+          const publicKey = vaults[0].publicKeyEcdsa
+          const chainCodeHex = vaults[0].hexChainCode
           const derivePath = "m/44'/60'/0'/0/0"; // Using standard Ethereum derivation path
 
           const messageToSign = (publicKey.startsWith('0x') ? publicKey.slice(2) : publicKey) + "1";

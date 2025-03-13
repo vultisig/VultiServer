@@ -487,6 +487,10 @@ func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error
 	policy.PublicKey = ""
 	policy.Signature = ""
 
+	// TODO: include this also in FE signing
+	policy.ChainCodeHex = ""
+	policy.DerivePath = ""
+
 	serializedPolicy, err := json.Marshal(policy)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize policy")

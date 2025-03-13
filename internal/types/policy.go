@@ -23,6 +23,10 @@ type PluginPolicy struct {
 	Active        bool            `json:"active" validate:"required"`
 }
 
+type PublicKey struct {
+	// TODO
+}
+
 type PayrollPolicy struct {
 	ChainID    []string           `json:"chain_id"`
 	TokenID    []string           `json:"token_id"`
