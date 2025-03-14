@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
-
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/plugin"
 	"github.com/vultisig/vultisigner/storage"
@@ -31,13 +30,12 @@ func NewPayrollPlugin(db storage.DatabaseStorage, logger logrus.FieldLogger, rpc
 	}
 }
 
-func (p *PayrollPlugin) SignPluginMessages(e echo.Context) error {
+// TODO: remove
+func (p *PayrollPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error {
 	return nil
 }
 
-func (p *PayrollPlugin) SetupPluginPolicy(policyDoc *types.PluginPolicy) error { return nil }
-
-func (p *PayrollPlugin) ConfigurePlugin(e echo.Context) error {
+func (p *PayrollPlugin) SignPluginMessages(e echo.Context) error {
 	return nil
 }
 

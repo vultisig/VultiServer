@@ -47,8 +47,8 @@ type Server struct {
 	sdClient      *statsd.Client
 	rpcClient     *ethclient.Client
 	scheduler     *scheduler.SchedulerService
-	syncer        syncer.PolicySyncer
 	policyService service.Policy
+	syncer        syncer.PolicySyncer
 	plugin        plugin.Plugin
 	logger        *logrus.Logger
 	vaultFilePath string
@@ -277,7 +277,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -309,7 +309,7 @@ func (s *Server) ReshareVault(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -497,7 +497,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 	}
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))

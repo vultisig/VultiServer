@@ -562,7 +562,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to complete signing: %v", err)
 			// if err.Error() == types.ErrRetriable {
 			// 	s.logger.Info("Retriable error detected, retrying...")
-			// 	s.db.UpdateTriggerStatus(trigger.PolicyID, "Not Running")
+			// 	s.db.UpdateTriggerStatus(triggerEvent.PolicyID, "Not Running")
 			// } else {
 			// 	if err := s.db.UpdateTransactionStatus(txID, types.StatusRejected, metadata); err != nil {
 			// 		s.logger.Errorf("Failed to update transaction status to rejected: %v", err)

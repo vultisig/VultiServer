@@ -271,11 +271,6 @@ func validateInterval(intervalStr string, frequency string) error {
 	return nil
 }
 
-// TODO: do we actually need this?
-func (p *DCAPlugin) ConfigurePlugin(e echo.Context) error {
-	return nil
-}
-
 func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error) {
 	p.logger.Debug("DCA: PROPOSE TRANSACTIONS")
 

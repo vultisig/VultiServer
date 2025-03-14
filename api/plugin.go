@@ -100,6 +100,10 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
 
+	// TODO: check if this is relevant
+	// check that tx is done only once per period
+	// should we also copy the db to the vultiserver, so that it can be used by the vultiserver (and use scheduler.go)? or query the blockchain?
+
 	txToSign, err := s.db.GetTransactionByHash(txHash)
 	if err != nil {
 		s.logger.Errorf("Failed to get transaction by hash from database: %v", err)
@@ -349,11 +353,6 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
-}
-
-// TODO: do we actually need this?
-func (s *Server) ConfigurePlugin(c echo.Context) error {
-	return nil
 }
 
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
