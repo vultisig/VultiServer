@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -18,10 +19,10 @@ import (
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
-	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/contexthelper"
+	"github.com/vultisig/vultisigner/internal/syncer"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
@@ -44,10 +45,11 @@ type WorkerService struct {
 	plugin       plugin.Plugin
 	db           storage.DatabaseStorage
 	rpcClient    *ethclient.Client
+	syncer       syncer.PolicySyncer
 }
 
 // NewWorker creates a new worker service
-func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, blockStorage *storage.BlockStorage, inspector *asynq.Inspector) (*WorkerService, error) {
+func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, syncer syncer.PolicySyncer, blockStorage *storage.BlockStorage, inspector *asynq.Inspector) (*WorkerService, error) {
 	logger := logrus.WithField("service", "worker").Logger
 
 	redis, err := storage.NewRedisStorage(cfg)
@@ -99,6 +101,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		inspector:    inspector,
 		plugin:       plugin,
 		logger:       logger,
+		syncer:       syncer,
 	}, nil
 }
 
@@ -414,6 +417,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		newTx := types.TransactionHistory{
 			PolicyID: policyUUID,
 			TxBody:   signRequest.Transaction,
+			TxHash:   signRequest.Messages[0],
 			Status:   types.StatusPending,
 			Metadata: metadata,
 		}
@@ -421,6 +425,11 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		txID, err := s.db.CreateTransactionHistory(newTx) //where to store txId? what is the best way to retrieve a tx?	Maybe just keep it in this context, and if status is failed at the end then we drop this instance and restart a new one later?
 		if err != nil {
 			s.logger.Errorf("Failed to create transaction history: %v", err)
+			continue
+		}
+		
+		if err := s.syncer.SyncTransaction("create", newTx); err != nil {
+			s.logger.Errorf("Failed to sync transaction: %v", err)
 			continue
 		}
 
@@ -440,6 +449,12 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			metadata["error"] = err.Error()
 			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to make sign request: %v", err)
+			newTx.Status = types.StatusSigningFailed
+			newTx.Metadata = metadata
+			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+				s.logger.Errorf("Failed to sync transaction: %v", err)
+			}
+
 			return err
 		}
 		defer signResp.Body.Close()
@@ -454,6 +469,11 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			metadata["error"] = string(respBody)
 			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to sign transaction: %s", string(respBody))
+			newTx.Status = types.StatusSigningFailed
+			newTx.Metadata = metadata
+			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+				s.logger.Errorf("Failed to sync transaction: %v", err)
+			}
 			return fmt.Errorf("failed to sign transaction: %s", string(respBody))
 		}
 
@@ -490,6 +510,12 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			metadata["task_id"] = ti.ID
 			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
 			s.logger.Errorf("Failed to get task result: %v", err)
+
+			newTx.Status = types.StatusSigningFailed
+			newTx.Metadata = metadata
+			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+				s.logger.Errorf("Failed to sync transaction: %v", err)
+			}
 			return err
 		}
 
@@ -498,6 +524,11 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		metadata["result"] = result
 		if err := s.db.UpdateTransactionStatus(txID, types.StatusSigned, metadata); err != nil {
 			s.logger.Errorf("Failed to update transaction status: %v", err)
+		}
+		newTx.Status = types.StatusSigned
+		newTx.Metadata = metadata
+		if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+			s.logger.Errorf("Failed to sync transaction: %v", err)
 		}
 
 		if err := s.db.UpdateTimeTriggerLastExecution(ctx, policy.ID); err != nil {
@@ -520,10 +551,19 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			if err := s.db.UpdateTransactionStatus(txID, types.StatusRejected, metadata); err != nil {
 				s.logger.Errorf("Failed to update transaction status to rejected: %v", err)
 			}
+			newTx.Status = types.StatusRejected
+			newTx.Metadata = metadata
+			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+			}
 			return fmt.Errorf("fail to complete signing: %w", err)
 		}
 		if err := s.db.UpdateTransactionStatus(txID, types.StatusMined, metadata); err != nil {
 			s.logger.Errorf("Failed to update transaction status to mined: %v", err)
+		}
+		newTx.Status = types.StatusMined
+		newTx.Metadata = metadata
+		if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+			s.logger.Errorf("Failed to sync transaction: %v", err)
 		}
 	}
 

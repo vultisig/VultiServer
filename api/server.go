@@ -122,7 +122,7 @@ func NewServer(port int64,
 			logger.Fatal("Failed to initialize DCA plugin: ", err)
 		}
 
-		syncerService = syncer.NewSyncService(db, logger.WithField("service", "syncer").Logger, cfg)
+		syncerService = syncer.NewPolicySyncer(logger.WithField("service", "syncer").Logger, cfg)
 	}
 
 	policyService, err := service.NewPolicyService(db, syncerService, schedulerService, logger.WithField("service", "policy").Logger)
@@ -199,6 +199,10 @@ func (s *Server) StartServer() error {
 	pluginGroup.GET("/policy/history/:policyId", s.GetPluginPolicyTransactionHistory)
 	pluginGroup.GET("/policy/:policyId", s.GetPluginPolicyById)
 	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
+
+	syncGroup := e.Group("/sync")
+	syncGroup.POST("/transaction", s.CreateTransaction)
+	syncGroup.PUT("/transaction", s.UpdateTransaction)
 
 	return e.Start(fmt.Sprintf(":%d", s.port))
 }
@@ -656,6 +660,43 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	}
 	if err := s.redis.Delete(c.Request().Context(), key); err != nil {
 		s.logger.Errorf("fail to delete code, err: %v", err)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+// TODO: Make those handlers require jwt auth
+func (s *Server) CreateTransaction(c echo.Context) error {
+	var reqTx types.TransactionHistory
+	if err := c.Bind(&reqTx); err != nil {
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	if existingTx != nil {
+		return c.NoContent(http.StatusConflict)
+	}
+
+	if _, err := s.db.CreateTransactionHistory(reqTx); err != nil {
+		s.logger.Errorf("fail to create transaction, err: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+func (s *Server) UpdateTransaction(c echo.Context) error {
+	var reqTx types.TransactionHistory
+	if err := c.Bind(&reqTx); err != nil {
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	if existingTx == nil {
+		return c.NoContent(http.StatusNotFound)
+	}
+
+	if err := s.db.UpdateTransactionStatus(existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
+		s.logger.Errorf("fail to update transaction status, err: %v", err)
+		return c.NoContent(http.StatusInternalServerError)
 	}
 	return c.NoContent(http.StatusOK)
 }

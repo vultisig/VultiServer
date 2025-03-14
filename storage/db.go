@@ -26,6 +26,7 @@ type DatabaseStorage interface {
 	CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
 	GetTransactionHistory(policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error)
+	GetTransactionByHash(txHash string) (*types.TransactionHistory, error)
 
 	Pool() *pgxpool.Pool
 }

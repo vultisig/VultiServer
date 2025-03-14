@@ -11,12 +11,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/vultisigner/config"
 	"github.com/vultisig/vultisigner/internal/types"
-	"github.com/vultisig/vultisigner/storage"
 )
 
 const (
-	defaultTimeout = 10 * time.Second
-	policyEndpoint = "/plugin/policy"
+	defaultTimeout      = 10 * time.Second
+	policyEndpoint      = "/plugin/policy"
+	transactionEndpoint = "/sync/transaction"
 
 	// Retry configuration
 	maxRetries     = 3
@@ -27,22 +27,18 @@ type PolicySyncer interface {
 	CreatePolicySync(policy types.PluginPolicy) error
 	UpdatePolicySync(policy types.PluginPolicy) error
 	DeletePolicySync(policyID string) error
+	SyncTransaction(action string, tx types.TransactionHistory) error
 }
 
 type Syncer struct {
-	db         storage.DatabaseStorage
 	logger     *logrus.Logger
 	client     *http.Client
 	config     *config.Config
 	serverAddr string
 }
 
-func NewSyncService(db storage.DatabaseStorage, logger *logrus.Logger, cfg *config.Config) PolicySyncer {
-	if db == nil {
-		logger.Fatal("database connection is nil")
-	}
+func NewPolicySyncer(logger *logrus.Logger, cfg *config.Config) PolicySyncer {
 	return &Syncer{
-		db:     db,
 		logger: logger,
 		config: cfg,
 		client: &http.Client{
@@ -178,6 +174,56 @@ func (s *Syncer) DeletePolicySync(policyID string) error {
 		s.logger.WithFields(logrus.Fields{
 			"policy_id": policyID,
 		}).Info("Successfully sync deleted policy")
+
+		return nil
+	})
+}
+
+func (s *Syncer) SyncTransaction(action string, tx types.TransactionHistory) error {
+	s.logger.WithFields(logrus.Fields{
+		"tx_id":   tx.ID,
+		"tx_hash": tx.TxHash,
+	}).Info("Starting tx sync")
+	return s.retryWithBackoff("SyncTransaction", func() error {
+		txBytes, err := json.Marshal(tx)
+		if err != nil {
+			return fmt.Errorf("fail to marshal transaction: %w", err)
+		}
+		url := s.serverAddr + transactionEndpoint
+		var method string
+		switch action {
+		case "create":
+			method = http.MethodPost
+		case "update":
+			method = http.MethodPut
+		}
+
+		req, err := http.NewRequest(method, url, bytes.NewBuffer(txBytes))
+		if err != nil {
+			return fmt.Errorf("fail to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("fail to sync transaction on verifier server: %w", err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			s.logger.WithFields(logrus.Fields{
+				"status_code": resp.StatusCode,
+				"body":        string(body),
+				"tx_id":       tx.ID,
+			}).Error("Failed to sync update policy")
+			return fmt.Errorf("fail to sync transaction with verifier server, status: %d", resp.StatusCode)
+		}
+
+		s.logger.WithFields(logrus.Fields{
+			"tx_id": tx.ID,
+		}).Info("Successfully sync transaction")
 
 		return nil
 	})

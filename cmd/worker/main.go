@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/syncer"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/service"
 	"github.com/vultisig/vultisigner/storage"
@@ -32,9 +33,15 @@ func main() {
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	}
+	logger := logrus.StandardLogger()
+	verifierConfig, err := config.ReadConfig("config-verifier")
+	if err != nil {
+		panic(err)
+	}
+	syncer := syncer.NewPolicySyncer(logger, verifierConfig)
 	client := asynq.NewClient(redisOptions)
 	inspector := asynq.NewInspector(redisOptions)
-	workerService, err := service.NewWorker(*cfg, client, sdClient, blockStorage, inspector)
+	workerService, err := service.NewWorker(*cfg, client, sdClient, syncer, blockStorage, inspector)
 	if err != nil {
 		panic(err)
 	}
@@ -42,7 +49,7 @@ func main() {
 	srv := asynq.NewServer(
 		redisOptions,
 		asynq.Config{
-			Logger:      logrus.StandardLogger(),
+			Logger:      logger,
 			Concurrency: 10,
 			Queues: map[string]int{
 				tasks.QUEUE_NAME:         10,
