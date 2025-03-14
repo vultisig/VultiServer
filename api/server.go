@@ -39,41 +39,43 @@ import (
 
 type Server struct {
 	port          int64
+	db            storage.DatabaseStorage
 	redis         *storage.RedisStorage
+	blockStorage  *storage.BlockStorage
 	client        *asynq.Client
 	inspector     *asynq.Inspector
-	vaultFilePath string
 	sdClient      *statsd.Client
-	logger        *logrus.Logger
-	blockStorage  *storage.BlockStorage
-	mode          string
-	plugin        plugin.Plugin
-	db            storage.DatabaseStorage
+	rpcClient     *ethclient.Client
 	scheduler     *scheduler.SchedulerService
 	syncer        syncer.PolicySyncer
 	policyService service.Policy
+	plugin        plugin.Plugin
+	logger        *logrus.Logger
+	vaultFilePath string
+	mode          string
 }
 
 // NewServer returns a new server.
-func NewServer(port int64,
+func NewServer(
+	port int64,
+	db *postgres.PostgresBackend,
 	redis *storage.RedisStorage,
+	blockStorage *storage.BlockStorage,
 	redisOpts asynq.RedisClientOpt,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
-	vaultFilePath string,
 	sdClient *statsd.Client,
-	blockStorage *storage.BlockStorage,
+	vaultFilePath string,
 	mode string,
 	pluginType string,
-	dsn string) *Server {
-	logger := logrus.WithField("service", "api").Logger
-
-	logger.Info("Initializing new server...")
+	rpcURL string,
+	logger *logrus.Logger,
+) *Server {
 	logger.Infof("Server mode: %s, plugin type: %s", mode, pluginType)
 
-	db, err := postgres.NewPostgresBackend(false, dsn)
+	rpcClient, err := ethclient.Dial(rpcURL)
 	if err != nil {
-		logger.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("failed to initialize rpc client", err)
 	}
 
 	var plugin plugin.Plugin
@@ -82,15 +84,11 @@ func NewServer(port int64,
 	if mode == "plugin" {
 		switch pluginType {
 		case "payroll":
-			plugin = payroll.NewPayrollPlugin(db)
+			plugin = payroll.NewPayrollPlugin(db, logrus.WithField("service", "plugin").Logger, rpcClient)
 		case "dca":
 			cfg, err := config.ReadConfig("config-plugin")
 			if err != nil {
 				logger.Fatal("failed to read plugin config", err)
-			}
-			rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
-			if err != nil {
-				logger.Fatal("failed to initialize rpc client", err)
 			}
 			uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
 			uniswapCfg := uniswap.NewConfig(

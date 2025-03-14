@@ -8,7 +8,7 @@ export const generatePolicy = (
   return {
     id: policyId,
     public_key:
-      "03506115cd0ce1791f583a9c906c2af336bc5decf0e580fb34bffb57aebdfa7610", // TODO: get Vault's pub key
+      "03f81429f8a999a616b3dee64f30eddee5dfb8e4d6881b79f5a86c8b69b4d7d1d7", // TODO: get Vault's pub key
     plugin_type,
     active: true,
     policy: convertToStrings(policy),

@@ -110,7 +110,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -405,8 +405,7 @@ func calculateTransactionHash(txData string) (string, error) {
 func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 	switch pluginType {
 	case "payroll":
-		return payroll.NewPayrollPlugin(s.db), nil
-
+		return payroll.NewPayrollPlugin(s.db, s.logger, s.rpcClient), nil
 	case "dca":
 		cfg, err := config.ReadConfig("config-plugin")
 		if err != nil {
@@ -428,7 +427,6 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 		)
 
 		return dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
-
 	default:
 		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
 	}

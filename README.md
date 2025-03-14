@@ -37,7 +37,6 @@ make plugin-worker
 
 For clean restart, do `make down`, and restart the servers/workers again.
 
-
 ### 3. Key Generation
 
 - name: Vault name
@@ -201,7 +200,20 @@ Check balance and nonce of Vault
 ```
 
 
-## 7.4 Create Payroll plugin policy
+## Create Payroll plugin policy
+
+```sh
+  go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+- Token contract (usdc) `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
+- Polygon token contract `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
+Enter recipients and amounts one by one - enter 'done' when finished
+- Enter a recipient address: `0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67`
+- chain id : `137`
+- Enter the amount for this recipient: `100`
+- `done`
+- schedule frequency : `5-minutely`
 
 ```sh
   go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME

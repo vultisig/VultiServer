@@ -23,6 +23,10 @@ type DatabaseStorage interface {
 	UpdateTimeTriggerLastExecution(ctx context.Context, policyID string) error
 	UpdateTimeTriggerTx(ctx context.Context, policyID string, trigger types.TimeTrigger, dbTx pgx.Tx) error
 
+	DeleteTimeTrigger(policyID string) error
+	UpdateTriggerStatus(policyID string, status string) error
+	GetTriggerStatus(policyID string) (string, error)
+
 	CreateTransactionHistory(tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatus(txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
 	GetTransactionHistory(policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error)

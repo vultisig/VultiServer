@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -64,6 +65,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 
 	rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
 	if err != nil {
+		logrus.Fatalf("Failed to connect to RPC: %v", err)
 		return nil, err
 	}
 
@@ -71,7 +73,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 	if cfg.Server.Mode == "plugin" {
 		switch cfg.Server.Plugin.Type {
 		case "payroll":
-			plugin = payroll.NewPayrollPlugin(db)
+			plugin = payroll.NewPayrollPlugin(db, logrus.WithField("service", "plugin").Logger, rpcClient)
 		case "dca":
 			uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
 			uniswapCfg := uniswap.NewConfig(
@@ -427,7 +429,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to create transaction history: %v", err)
 			continue
 		}
-		
+
 		if err := s.syncer.SyncTransaction("create", newTx); err != nil {
 			s.logger.Errorf("Failed to sync transaction: %v", err)
 			continue
@@ -491,7 +493,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		// Enqueue TypeKeySign directly
 		ti, err := s.queueClient.Enqueue(
 			asynq.NewTask(tasks.TypeKeySign, buf),
-			asynq.MaxRetry(-1),
+			asynq.MaxRetry(0),
 			asynq.Timeout(2*time.Minute),
 			asynq.Retention(5*time.Minute),
 			asynq.Queue(tasks.QUEUE_NAME),
@@ -531,12 +533,21 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to sync transaction: %v", err)
 		}
 
+		//todo : check why this seems to work even when tss fails
+
 		if err := s.db.UpdateTimeTriggerLastExecution(ctx, policy.ID); err != nil {
 			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 
+		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s", signResp.StatusCode, string(respBody))
+
+		//todo : retry
+
+		///////////////////////////////////////////////////////////////////////
+
 		var signatures map[string]tss.KeysignResponse
 		if err := json.Unmarshal(result, &signatures); err != nil {
+			s.logger.Errorf("Failed to unmarshal signatures: %v", err)
 			return fmt.Errorf("failed to unmarshal signatures: %w", err)
 		}
 
@@ -548,6 +559,19 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 		err = s.plugin.SigningComplete(ctx, signature, signRequest, policy)
 		if err != nil {
+			s.logger.Errorf("Failed to complete signing: %v", err)
+			// if err.Error() == types.ErrRetriable {
+			// 	s.logger.Info("Retriable error detected, retrying...")
+			// 	s.db.UpdateTriggerStatus(trigger.PolicyID, "Not Running")
+			// } else {
+			// 	if err := s.db.UpdateTransactionStatus(txID, types.StatusRejected, metadata); err != nil {
+			// 		s.logger.Errorf("Failed to update transaction status to rejected: %v", err)
+			// 	}
+			// 	return fmt.Errorf("fail to complete signing: %w", err)
+			// 	//not return err, but continue and skip the trigger
+			// 	//trigger.status = blocked/completed? we can just retry in the next shceduled time?
+			// }
+
 			if err := s.db.UpdateTransactionStatus(txID, types.StatusRejected, metadata); err != nil {
 				s.logger.Errorf("Failed to update transaction status to rejected: %v", err)
 			}
@@ -557,6 +581,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			}
 			return fmt.Errorf("fail to complete signing: %w", err)
 		}
+
 		if err := s.db.UpdateTransactionStatus(txID, types.StatusMined, metadata); err != nil {
 			s.logger.Errorf("Failed to update transaction status to mined: %v", err)
 		}

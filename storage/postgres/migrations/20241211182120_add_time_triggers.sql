@@ -9,14 +9,13 @@ CREATE TABLE time_triggers (
     frequency TEXT NOT NULL,
     interval INTEGER NOT NULL,
     last_execution TIMESTAMP,
+    status TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
 -- Add indexes for time_triggers
 CREATE INDEX idx_time_triggers_policy_id ON time_triggers(policy_id);
 CREATE INDEX idx_time_triggers_start_time ON time_triggers(start_time);
 -- +goose StatementEnd
-
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS time_triggers;

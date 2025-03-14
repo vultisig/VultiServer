@@ -8,7 +8,6 @@ CREATE TYPE transaction_status AS ENUM (
     'MINED',
     'REJECTED'
 );
-
 CREATE TABLE transaction_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     policy_id UUID NOT NULL REFERENCES plugin_policies(id),
@@ -21,12 +20,10 @@ CREATE TABLE transaction_history (
     error_message TEXT,
     CONSTRAINT fk_policy FOREIGN KEY (policy_id) REFERENCES plugin_policies(id)
 );
-
 CREATE INDEX idx_transaction_history_policy_id ON transaction_history(policy_id);
 CREATE INDEX idx_transaction_history_status ON transaction_history(status);
 CREATE INDEX idx_transaction_history_tx_hash ON transaction_history(tx_hash);
 -- +goose StatementEnd
-
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS transaction_history;

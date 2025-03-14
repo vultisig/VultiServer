@@ -29,6 +29,18 @@ func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, tr
 		trigger.Frequency,
 		trigger.Interval,
 	)
+
+	return err
+}
+
+func (p *PostgresBackend) DeleteTimeTrigger(policyID string) error {
+	if p.pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
+	query := `DELETE FROM time_triggers WHERE policy_id = $1`
+	_, err := p.pool.Exec(context.Background(), query, policyID)
+
 	return err
 }
 
@@ -68,7 +80,8 @@ func (p *PostgresBackend) GetPendingTimeTriggers(ctx context.Context) ([]types.T
 			&t.EndTime,
 			&t.Frequency,
 			&t.Interval,
-			&t.LastExecution)
+			&t.LastExecution,
+			&t.Status)
 		if err != nil {
 			return nil, err
 		}
@@ -99,14 +112,13 @@ func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID stri
 	}
 
 	query := `
-		UPDATE time_triggers 
+		UPDATE time_triggers
 		SET start_time = $2,
 				frequency = $3,
 				interval = $4,
 				cron_expression = $5
 		WHERE policy_id = $1
 	`
-
 	_, err := tx.Exec(ctx, query,
 		policyID,
 		trigger.StartTime,
@@ -114,5 +126,43 @@ func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID stri
 		trigger.Interval,
 		trigger.CronExpression,
 	)
+	return err
+}
+
+func (p *PostgresBackend) GetTriggerStatus(policyID string) (string, error) {
+	if p.pool == nil {
+		return "", fmt.Errorf("database pool is nil")
+	}
+
+	query := `
+		SELECT status 
+		FROM time_triggers 
+		WHERE policy_id = $1
+	`
+
+	var status string
+	err := p.pool.QueryRow(context.Background(), query, policyID).Scan(&status)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", fmt.Errorf("trigger not found for policy_id: %s", policyID)
+		}
+		return "", err
+	}
+
+	return status, nil
+}
+
+func (p *PostgresBackend) UpdateTriggerStatus(policyID string, status string) error {
+	if p.pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
+	query := `
+		UPDATE time_triggers 
+		SET status = $2
+		WHERE policy_id = $1
+	`
+
+	_, err := p.pool.Exec(context.Background(), query, policyID, status)
 	return err
 }

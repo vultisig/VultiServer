@@ -58,34 +58,42 @@ func main() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter token contract: ")
-	tokenContract, _ := reader.ReadString('\n')
-	tokenContract = tokenContract[:len(tokenContract)-1]
 
-	fmt.Println("Enter recipients and amounts one by one - enter 'done' when finished")
+	fmt.Println("Enter tokenAddress, recipientAddress, amount, and chain ID one by one - enter 'done' when finished")
 	var done bool
 	var recipientAddresses []string
 	var recipientAmounts []string
+	var chainIDs []string
+	var tokenContracts []string
 	for !done {
-		fmt.Print("Enter a recipient address: ")
-		recipientAddress, _ := reader.ReadString('\n')
-		recipientAddress = recipientAddress[:len(recipientAddress)-1]
 
-		if recipientAddress == "done" {
+		fmt.Print("Enter token contract: ")
+		tokenContract, _ := reader.ReadString('\n')
+		tokenContract = tokenContract[:len(tokenContract)-1]
+
+		if tokenContract == "done" {
 			done = true
 			break
 		}
+
+		fmt.Print("Enter a recipient address: ")
+		recipientAddress, _ := reader.ReadString('\n')
+		recipientAddress = recipientAddress[:len(recipientAddress)-1]
 
 		fmt.Print("Enter the amount for this recipient: ")
 		recipientAmount, _ := reader.ReadString('\n')
 		recipientAmount = recipientAmount[:len(recipientAmount)-1]
 
+		fmt.Print("Enter the chain ID for this recipient: ")
+		chainID, _ := reader.ReadString('\n')
+		chainID = chainID[:len(chainID)-1]
+
 		recipientAddresses = append(recipientAddresses, recipientAddress)
 		recipientAmounts = append(recipientAmounts, recipientAmount)
+		chainIDs = append(chainIDs, chainID)
+		tokenContracts = append(tokenContracts, tokenContract)
 	}
 
-	fmt.Printf("Token contract: %s\n", tokenContract)
-	fmt.Printf("Recipients: %d\n", len(recipientAddresses))
 	for i, recipient := range recipientAddresses {
 		fmt.Printf("Recipient %d: %s, Amount: %s\n", i+1, recipient, recipientAmounts[i])
 	}
@@ -107,8 +115,8 @@ func main() {
 	}
 
 	payrollPolicy := types.PayrollPolicy{
-		ChainID:    "1",
-		TokenID:    tokenContract,
+		ChainID:    chainIDs, // Todo : move this elsewhere, or the frontend deals with this?
+		TokenID:    tokenContracts,
 		Recipients: []types.PayrollRecipient{},
 		Schedule: types.Schedule{
 			Frequency: frequency,

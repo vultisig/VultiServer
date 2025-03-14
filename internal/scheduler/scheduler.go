@@ -72,7 +72,6 @@ func (s *SchedulerService) run() {
 }
 
 func (s *SchedulerService) checkAndEnqueueTasks() error {
-	now := time.Now().UTC()
 	triggers, err := s.db.GetPendingTimeTriggers(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get pending triggers: %w", err)
@@ -88,6 +87,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 		schedule, err := createSchedule(trigger.CronExpression, trigger.Frequency, trigger.StartTime, trigger.Interval)
 		if err != nil {
 			s.logger.Errorf("Failed to create schedule: %v", err)
+			s.db.DeleteTimeTrigger(trigger.PolicyID) // TODO: check this (trigger is deleted if cron expression is invalid)
 			continue
 		}
 
@@ -100,46 +100,51 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 		}
 
 		nextTime = nextTime.UTC()
+		endTime := trigger.EndTime
+
+		if endTime != nil && time.Now().UTC().After(*endTime) {
+			s.logger.WithFields(logrus.Fields{
+				"policy_id": trigger.PolicyID,
+				"end_time":  *endTime,
+			}).Info("Trigger end time reached")
+			s.db.DeleteTimeTrigger(trigger.PolicyID)
+			continue
+		}
+
+		triggerStatus, err := s.db.GetTriggerStatus(trigger.PolicyID)
+		if err != nil {
+			s.logger.Errorf("Failed to get trigger status: %v", err)
+			continue
+		}
+
+		if time.Now().UTC().Before(nextTime) || triggerStatus == "Running" {
+			continue
+		}
+
+		s.db.UpdateTriggerStatus(trigger.PolicyID, "Running")
+
+		buf, err := json.Marshal(trigger)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal trigger event: %v", err)
+			continue
+		}
+		ti, err := s.client.Enqueue(
+			asynq.NewTask(tasks.TypePluginTransaction, buf),
+			asynq.MaxRetry(0),
+			asynq.Timeout(5*time.Minute),
+			asynq.Retention(10*time.Minute),
+			asynq.Queue(tasks.QUEUE_NAME),
+		)
+		if err != nil {
+			s.logger.Errorf("Failed to enqueue trigger task: %v", err)
+			continue
+
+		}
 
 		s.logger.WithFields(logrus.Fields{
-			"current_time":    now,
-			"next_time":       nextTime,
-			"start_time":      trigger.StartTime.UTC(),
-			"policy_id":       trigger.PolicyID,
-			"cron_expression": trigger.CronExpression,
-			"last_exec":       trigger.LastExecution,
-		}).Info("Checking execution time")
-
-		if now.After(nextTime) {
-			triggerEvent := types.PluginTriggerEvent{
-				PolicyID: trigger.PolicyID,
-			}
-
-			buf, err := json.Marshal(triggerEvent)
-			if err != nil {
-				s.logger.Errorf("Failed to marshal trigger event: %v", err)
-				continue
-			}
-			ti, err := s.client.Enqueue(
-				asynq.NewTask(tasks.TypePluginTransaction, buf),
-				asynq.MaxRetry(-1),
-				asynq.Timeout(5*time.Minute),
-				asynq.Retention(10*time.Minute),
-				asynq.Queue(tasks.QUEUE_NAME),
-			)
-			if err != nil {
-				s.logger.Errorf("Failed to enqueue trigger task: %v", err)
-				continue
-			}
-
-			s.logger.WithFields(logrus.Fields{
-				"task_id":   ti.ID,
-				"policy_id": trigger.PolicyID,
-			}).Info("Enqueued trigger task")
-
-			// TODO: quick hack to prevent multiple executions
-			time.Sleep(1 * time.Minute)
-		}
+			"task_id":   ti.ID,
+			"policy_id": trigger.PolicyID,
+		}).Info("Enqueued trigger task")
 	}
 
 	return nil

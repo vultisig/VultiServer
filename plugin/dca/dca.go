@@ -67,6 +67,11 @@ func NewDCAPlugin(uniswapCfg *uniswap.Config, db storage.DatabaseStorage, logger
 	}, nil
 }
 
+// TODO: remove from interface
+func (p *DCAPlugin) GetNextNonce(address string) (uint64, error) {
+	return 0, nil
+}
+
 // TODO: do we actually need this?
 func (p *DCAPlugin) SignPluginMessages(e echo.Context) error {
 	p.logger.Debug("DCA: SIGN PLUGIN MESSAGES")

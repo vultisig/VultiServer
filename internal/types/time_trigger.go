@@ -10,4 +10,5 @@ type TimeTrigger struct {
 	Frequency      string
 	Interval       int
 	LastExecution  *time.Time
+	Status         string
 }
