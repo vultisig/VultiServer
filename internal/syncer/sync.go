@@ -27,7 +27,7 @@ type PolicySyncer interface {
 	CreatePolicySync(policy types.PluginPolicy) error
 	UpdatePolicySync(policy types.PluginPolicy) error
 	DeletePolicySync(policyID, signature string) error
-	SyncTransaction(action string, tx types.TransactionHistory) error
+	SyncTransaction(action, jwtToken string, tx types.TransactionHistory) error
 }
 
 type Syncer struct {
@@ -192,11 +192,12 @@ func (s *Syncer) DeletePolicySync(policyID, signature string) error {
 	})
 }
 
-func (s *Syncer) SyncTransaction(action string, tx types.TransactionHistory) error {
+func (s *Syncer) SyncTransaction(action, jwtToken string, tx types.TransactionHistory) error {
 	s.logger.WithFields(logrus.Fields{
 		"tx_id":   tx.ID,
 		"tx_hash": tx.TxHash,
 	}).Info("Starting tx sync")
+
 	return s.retryWithBackoff("SyncTransaction", func() error {
 		txBytes, err := json.Marshal(tx)
 		if err != nil {
@@ -216,6 +217,8 @@ func (s *Syncer) SyncTransaction(action string, tx types.TransactionHistory) err
 			return fmt.Errorf("fail to create request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", jwtToken))
+
 		resp, err := s.client.Do(req)
 		if err != nil {
 			return fmt.Errorf("fail to sync transaction on verifier server: %w", err)

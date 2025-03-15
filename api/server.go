@@ -210,6 +210,7 @@ func (s *Server) StartServer() error {
 	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
 
 	syncGroup := e.Group("/sync")
+	syncGroup.Use(s.AuthMiddleware)
 	syncGroup.POST("/transaction", s.CreateTransaction)
 	syncGroup.PUT("/transaction", s.UpdateTransaction)
 

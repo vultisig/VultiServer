@@ -10,7 +10,6 @@ import (
 )
 
 type Plugin interface {
-	SetupPluginPolicy(policyDoc *types.PluginPolicy) error
 	ValidatePluginPolicy(policyDoc types.PluginPolicy) error
 
 	ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error)

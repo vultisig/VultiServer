@@ -38,10 +38,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	syncer := syncer.NewPolicySyncer(logger, verifierConfig)
+	syncerService := syncer.NewPolicySyncer(logger, verifierConfig)
+	authService := service.NewAuthService(cfg.Server.JWTSecret)
+
 	client := asynq.NewClient(redisOptions)
 	inspector := asynq.NewInspector(redisOptions)
-	workerService, err := service.NewWorker(*cfg, client, sdClient, syncer, blockStorage, inspector)
+
+	workerService, err := service.NewWorker(*cfg, client, sdClient, syncerService, authService, blockStorage, inspector)
 	if err != nil {
 		panic(err)
 	}

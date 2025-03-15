@@ -12,7 +12,7 @@ type Claims struct {
 }
 
 const (
-	expirtDuration = 7 * 24 * time.Hour
+	expireDuration = 7 * 24 * time.Hour
 )
 
 type AuthService struct {
@@ -26,7 +26,7 @@ func NewAuthService(secret string) *AuthService {
 }
 
 func (a *AuthService) GenerateToken() (string, error) {
-	expirationTime := time.Now().Add(expirtDuration).Unix()
+	expirationTime := time.Now().Add(expireDuration).Unix()
 	claims := &Claims{
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime,

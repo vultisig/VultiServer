@@ -47,10 +47,11 @@ type WorkerService struct {
 	db           storage.DatabaseStorage
 	rpcClient    *ethclient.Client
 	syncer       syncer.PolicySyncer
+	authService  *AuthService
 }
 
 // NewWorker creates a new worker service
-func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, syncer syncer.PolicySyncer, blockStorage *storage.BlockStorage, inspector *asynq.Inspector) (*WorkerService, error) {
+func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Client, syncer syncer.PolicySyncer, authService *AuthService, blockStorage *storage.BlockStorage, inspector *asynq.Inspector) (*WorkerService, error) {
 	logger := logrus.WithField("service", "worker").Logger
 
 	redis, err := storage.NewRedisStorage(cfg)
@@ -104,6 +105,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 		plugin:       plugin,
 		logger:       logger,
 		syncer:       syncer,
+		authService:  authService,
 	}, nil
 }
 
@@ -410,6 +412,11 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	if err != nil {
 		s.logger.Errorf("Failed to create signing request: %v", err)
 		return fmt.Errorf("failed to create signing request: %v: %w", err, asynq.SkipRetry)
+	}
+
+	jwtToken, err := s.authService.GenerateToken()
+	if err != nil {
+		s.logger.Errorf("Failed to generate jwt token: %v", err)
 	}
 
 	for _, signRequest := range signRequests {
