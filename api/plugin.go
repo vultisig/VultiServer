@@ -1,21 +1,18 @@
 package api
 
 import (
-	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/eager7/dogd/btcec"
 	"github.com/google/uuid"
-	"github.com/vultisig/mobile-tss-lib/tss"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/sigutil"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
@@ -25,7 +22,6 @@ import (
 
 	gcommon "github.com/ethereum/go-ethereum/common"
 	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
@@ -337,6 +333,14 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 }
 
 func (s *Server) DeletePluginPolicyById(c echo.Context) error {
+	var reqBody struct {
+		Signature string `json:"signature"`
+	}
+
+	if err := c.Bind(&reqBody); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
 	policyID := c.Param("policyId")
 	if policyID == "" {
 		err := fmt.Errorf("policy id is required")
@@ -358,13 +362,15 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 		s.logger.Error(err)
 		return c.JSON(http.StatusInternalServerError, message)
 	}
+	// This is because we have different signature stored in the database.
+	policy.Signature = reqBody.Signature
 
 	if !s.verifyPolicySignature(policy, true) {
 		s.logger.Error("invalid policy signature")
 		return fmt.Errorf("invalid policy signature")
 	}
 
-	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID); err != nil {
+	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID, reqBody.Signature); err != nil {
 		err = fmt.Errorf("failed to delte policy: %w", err)
 		message := map[string]interface{}{
 			"message": fmt.Sprintf("failed to delete policy: %s", policyID),
@@ -458,43 +464,18 @@ func (s *Server) verifyPolicySignature(policy types.PluginPolicy, update bool) b
 		s.logger.Error(fmt.Errorf("failed to decode message bytes: %w", err))
 		return false
 	}
-
-	derivedPubKeyHex, err := tss.GetDerivedPubKey(strings.TrimPrefix(policy.PublicKey, "0x"), policy.ChainCodeHex, policy.DerivePath, false)
-	if err != nil {
-		s.logger.Error(fmt.Errorf("failed to get derived public key: %w", err))
-		return false
-	}
-
-	derivedPubKeyBytes, err := hex.DecodeString(derivedPubKeyHex)
-	if err != nil {
-		s.logger.Error(fmt.Errorf("failed to decode derived public key bytes: %w", err))
-		return false
-	}
-
-	publicKey, err := btcec.ParsePubKey(derivedPubKeyBytes, btcec.S256())
-	if err != nil {
-		s.logger.Error(fmt.Errorf("failed to parse public key: %w", err))
-		return false
-	}
-
-	ecdsaPubKey := ecdsa.PublicKey{
-		Curve: btcec.S256(),
-		X:     publicKey.X,
-		Y:     publicKey.Y,
-	}
-
 	signatureBytes, err := hex.DecodeString(strings.TrimPrefix(policy.Signature, "0x"))
 	if err != nil {
 		s.logger.Error(fmt.Errorf("failed to decode signature bytes: %w", err))
 		return false
 	}
 
-	msgHash := crypto.Keccak256([]byte(fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(msgBytes), msgBytes)))
-
-	R := new(big.Int).SetBytes(signatureBytes[:32])
-	S := new(big.Int).SetBytes(signatureBytes[32:64])
-
-	return ecdsa.Verify(&ecdsaPubKey, msgHash, R, S)
+	isVerified, err := sigutil.VerifySignature(policy.PublicKey, policy.ChainCodeHex, policy.DerivePath, msgBytes, signatureBytes)
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to verify signature: %w", err))
+		return false
+	}
+	return isVerified
 }
 
 func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error) {
@@ -505,10 +486,6 @@ func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error
 	// public key and signature are not part of the message that is signed
 	policy.PublicKey = ""
 	policy.Signature = ""
-
-	// TODO: include this also in FE signing
-	policy.ChainCodeHex = ""
-	policy.DerivePath = ""
 
 	serializedPolicy, err := json.Marshal(policy)
 	if err != nil {

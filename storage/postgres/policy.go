@@ -20,7 +20,7 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id string) (types
 	var policyJSON []byte
 
 	query := `
-        SELECT id, public_key, is_ecdsa, chain_code_hex, derive_path, plugin_id, plugin_version, policy_version, plugin_type, signature, policy 
+        SELECT id, public_key, is_ecdsa, chain_code_hex, derive_path, plugin_id, plugin_version, policy_version, plugin_type, signature, active, policy 
         FROM plugin_policies 
         WHERE id = $1`
 
@@ -35,6 +35,7 @@ func (p *PostgresBackend) GetPluginPolicy(ctx context.Context, id string) (types
 		&policy.PolicyVersion,
 		&policy.PluginType,
 		&policy.Signature,
+		&policy.Active,
 		&policyJSON,
 	)
 

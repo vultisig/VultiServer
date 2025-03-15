@@ -98,12 +98,17 @@ export const put = async (endpoint: string, data: any, options?: any) => {
 /**
  * Performs a DELETE request.
  * @param {string} endpoint - The API endpoint.
+ * @param {Object} data - Signature for the policy deletion.
  * @param {Object} options - Additional fetch options (e.g., headers).
  */
-export const remove = async (endpoint: string, options?: any) => {
+export const remove = async (endpoint: string, data: any, options?: any) => {
   try {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
       ...options,
     });
     return handleResponse(response);

@@ -11,23 +11,23 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	gtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/vultisig/vultisigner/common"
+	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/sigutil"
+	"github.com/vultisig/vultisigner/internal/types"
+	"github.com/vultisig/vultisigner/pkg/uniswap"
+	"github.com/vultisig/vultisigner/storage"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	gcommon "github.com/ethereum/go-ethereum/common"
+	gtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
-	"github.com/vultisig/vultisigner/common"
-	"github.com/vultisig/vultisigner/config"
-	"github.com/vultisig/vultisigner/internal/signing"
-	"github.com/vultisig/vultisigner/internal/types"
-	"github.com/vultisig/vultisigner/pkg/uniswap"
-	"github.com/vultisig/vultisigner/storage"
 )
 
 const (
@@ -37,7 +37,7 @@ const (
 )
 
 const (
-	vaultPassword    = ""                                                                 // TODO:
+	vaultPassword    = "Nontestato75"                                                     // TODO:
 	hexEncryptionKey = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO:
 
 )
@@ -106,7 +106,7 @@ func (p *DCAPlugin) SigningComplete(
 		return errors.New("transaction hash is missing")
 	}
 
-	signedTx, _, err := signing.SignLegacyTx(signature, txHash, signRequest.Transaction, chainID)
+	signedTx, _, err := sigutil.SignLegacyTx(signature, txHash, signRequest.Transaction, chainID)
 	if err != nil {
 		p.logger.Error("fail to sign transaction: ", err)
 		return fmt.Errorf("fail to sign transaction: %w", err)

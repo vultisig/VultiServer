@@ -47,6 +47,7 @@ const PolicyService = {
         headers: {
           plugin_type: "dca", // todo remove hardcoding once we have the marketplace
           public_key: PUBLIC_KEY, // TODO: get Vault's pub key
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`
         },
       });
       return newPolicy;
@@ -68,6 +69,7 @@ const PolicyService = {
       const history = await get(endpoint, {
         headers: {
           public_key: PUBLIC_KEY, // TODO: get Vault's pub key
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`
         },
       });
       return history;
@@ -82,10 +84,12 @@ const PolicyService = {
    * Delete policy from the API.
    * @param {id} string - The policy to be deleted.
    */
-  deletePolicy: async (id: string) => {
+  deletePolicy: async (id: string, signature: string) => {
     try {
       const endpoint = `/plugin/policy/${id}`;
-      return await remove(endpoint);
+      return remove(endpoint, {
+        "signature": signature,
+      });
     } catch (error) {
       console.error("Error deleting policy:", error);
       throw error;

@@ -15,7 +15,7 @@ import (
 type Policy interface {
 	CreatePolicyWithSync(ctx context.Context, policy types.PluginPolicy) (*types.PluginPolicy, error)
 	UpdatePolicyWithSync(ctx context.Context, policy types.PluginPolicy) (*types.PluginPolicy, error)
-	DeletePolicyWithSync(ctx context.Context, policyID string) error
+	DeletePolicyWithSync(ctx context.Context, policyID, signature string) error
 	GetPluginPolicies(ctx context.Context, pluginType, publicKey string) ([]types.PluginPolicy, error)
 	GetPluginPolicy(ctx context.Context, policyID string) (types.PluginPolicy, error)
 	GetPluginPolicyTransactionHistory(ctx context.Context, policyID string) ([]types.TransactionHistory, error)
@@ -113,7 +113,7 @@ func (s *PolicyService) UpdatePolicyWithSync(ctx context.Context, policy types.P
 	return updatedPolicy, nil
 }
 
-func (s *PolicyService) DeletePolicyWithSync(ctx context.Context, policyID string) error {
+func (s *PolicyService) DeletePolicyWithSync(ctx context.Context, policyID, signature string) error {
 
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
@@ -127,7 +127,7 @@ func (s *PolicyService) DeletePolicyWithSync(ctx context.Context, policyID strin
 	}
 
 	if s.syncer != nil {
-		if err := s.syncer.DeletePolicySync(policyID); err != nil {
+		if err := s.syncer.DeletePolicySync(policyID, signature); err != nil {
 			return fmt.Errorf("failed to sync delete policy with verifier: %w", err)
 		}
 	}
