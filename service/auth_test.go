@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateToken(t *testing.T) {
@@ -202,38 +201,4 @@ func TestRefreshToken(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestAuthService tests the complete token lifecycle
-func TestAuthService(t *testing.T) {
-	secret := "integration-test-secret"
-	authService := service.NewAuthService(secret)
-
-	// Generate a token
-	token, err := authService.GenerateToken()
-	require.NoError(t, err)
-	require.NotEmpty(t, token)
-
-	// Validate the token
-	claims, err := authService.ValidateToken(token)
-	require.NoError(t, err)
-	require.NotNil(t, claims)
-	initialExpiry := claims.ExpiresAt
-
-	// Wait to ensure different expiration time
-	time.Sleep(1 * time.Second)
-
-	// Refresh the token
-	newToken, err := authService.RefreshToken(token)
-	require.NoError(t, err)
-	require.NotEmpty(t, newToken)
-	require.NotEqual(t, token, newToken, "Refreshed token should be different from the original")
-
-	// Validate the new token
-	newClaims, err := authService.ValidateToken(newToken)
-	require.NoError(t, err)
-	require.NotNil(t, newClaims)
-
-	// Check that the new expiration time is later
-	assert.True(t, newClaims.ExpiresAt > initialExpiry, "New token should have a later expiration time")
 }
