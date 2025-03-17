@@ -34,13 +34,15 @@ const SelectBox = ({
           <ChevronDown width="20px" height="20px" />
         </div>
       </div>
-      <ul className={`dropdown-menu ${isOpen ? "open" : ""}`}>
-        {options.map((option) => (
-          <li key={option} onClick={() => handleSelect(option)}>
-            {option}
-          </li>
-        ))}
-      </ul>
+      {isOpen && (
+        <ul className={`dropdown-menu open`}>
+          {options.map((option) => (
+            <li key={option} onClick={() => handleSelect(option)}>
+              {option}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };

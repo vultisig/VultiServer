@@ -5,7 +5,7 @@ import { isSupportedChainType } from "@/modules/shared/wallet/wallet.utils";
 import Toast from "@/modules/core/components/ui/toast/Toast";
 import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalletService";
 
-interface PolicyContextType {
+export interface PolicyContextType {
   policyMap: Map<string, PluginPolicy>;
   addPolicy: (policy: PluginPolicy) => Promise<boolean>;
   updatePolicy: (policy: PluginPolicy) => Promise<boolean>;
@@ -13,7 +13,9 @@ interface PolicyContextType {
   getPolicyHistory: (policyId: string) => Promise<PolicyTransactionHistory[]>;
 }
 
-const PolicyContext = createContext<PolicyContextType | undefined>(undefined);
+export const PolicyContext = createContext<PolicyContextType | undefined>(
+  undefined
+);
 
 export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -54,9 +56,7 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
       if (signature && typeof signature === "string") {
         policy.signature = signature;
         const newPolicy = await PolicyService.createPolicy(policy);
-        const updatedPolicyMap = new Map(policyMap);
-        updatedPolicyMap.set(newPolicy.id, newPolicy);
-        setPolicyMap(updatedPolicyMap);
+        setPolicyMap((prev) => new Map(prev).set(newPolicy.id, newPolicy));
         setToast({ message: "Policy created successfully!", type: "success" });
 
         return Promise.resolve(true);
@@ -81,9 +81,10 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
       if (signature && typeof signature === "string") {
         policy.signature = signature;
         const updatedPolicy = await PolicyService.updatePolicy(policy);
-        const updatedPolicyMap = new Map(policyMap);
-        updatedPolicyMap.set(updatedPolicy.id, updatedPolicy);
-        setPolicyMap(updatedPolicyMap);
+
+        setPolicyMap((prev) =>
+          new Map(prev).set(updatedPolicy.id, updatedPolicy)
+        );
         setToast({ message: "Policy updated successfully!", type: "success" });
 
         return Promise.resolve(true);
@@ -113,9 +114,13 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
       if (signature && typeof signature === "string") {
         policy.signature = signature;
         await PolicyService.deletePolicy(policyId);
-        const updatedPolicyMap = new Map(policyMap);
-        updatedPolicyMap.delete(policyId);
-        setPolicyMap(updatedPolicyMap);
+
+        setPolicyMap((prev) => {
+          const updatedPolicyMap = new Map(prev);
+          updatedPolicyMap.delete(policyId);
+
+          return updatedPolicyMap;
+        });
         setToast({
           message: "Policy deleted successfully!",
           type: "success",

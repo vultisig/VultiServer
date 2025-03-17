@@ -28,6 +28,7 @@ const Toast = ({
       <div className="message">{title}</div>
       <div>{message}</div>
       <Button
+        ariaLabel="Close message"
         style={{ paddingRight: 0 }}
         size="small"
         type="button"
