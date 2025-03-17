@@ -83,6 +83,7 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 			"policy_id": trigger.PolicyID,
 			"last_exec": trigger.LastExecution,
 		}).Info("Processing trigger")
+
 		// Parse cron expression
 		schedule, err := createSchedule(trigger.CronExpression, trigger.Frequency, trigger.StartTime, trigger.Interval)
 		if err != nil {
@@ -190,6 +191,7 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy types.PluginPolicy) (*typ
 		EndTime:        policySchedule.Schedule.EndTime,
 		Frequency:      policySchedule.Schedule.Frequency,
 		Interval:       interval,
+		Status:         "Pending", // TODO: add types for status
 	}
 
 	return &trigger, nil

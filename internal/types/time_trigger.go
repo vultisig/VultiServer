@@ -3,12 +3,12 @@ package types
 import "time"
 
 type TimeTrigger struct {
-	PolicyID       string
-	CronExpression string
-	StartTime      time.Time
-	EndTime        *time.Time
-	Frequency      string
-	Interval       int
-	LastExecution  *time.Time
-	Status         string
+	PolicyID       string     `json:"policy_id"`
+	CronExpression string     `json:"cron_expression"`
+	StartTime      time.Time  `json:"start_time"`
+	EndTime        *time.Time `json:"end_time"`
+	Frequency      string     `json:"frequency"`
+	Interval       int        `json:"interval"`
+	LastExecution  *time.Time `json:"last_execution"`
+	Status         string     `json:"status"`
 }
