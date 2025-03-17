@@ -5,14 +5,6 @@ import { isSupportedChainType } from "@/modules/shared/wallet/wallet.utils";
 import Toast from "@/modules/core/components/ui/toast/Toast";
 import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalletService";
 
-// interface Vault {
-//   uid: string;
-//   name: string;
-//   public_key_ecdsa: string;
-//   public_key_eddsa: string;
-//   hex_chain_code: string;
-// }
-
 export interface PolicyContextType {
   policyMap: Map<string, PluginPolicy>;
   addPolicy: (policy: PluginPolicy) => Promise<boolean>;
@@ -118,9 +110,7 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       const signature = await signPolicy(policy);
-
       if (signature && typeof signature === "string") {
-        policy.signature = signature;
         await PolicyService.deletePolicy(policyId, signature);
 
         setPolicyMap((prev) => {
@@ -175,16 +165,16 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         hexMessage,
         accounts[0]
       );
-      
+
       policy.public_key = vaults[0].publicKeyEcdsa
-      
+
       console.log("Public key ecdsa: ", policy.public_key);
       console.log("Chain code hex: ", policy.chain_code_hex);
       console.log("Derive path: ", policy.derive_path);
       console.log("Hex message: ", hexMessage);
       console.log("Account[0]: ", accounts[0]);
       console.log("Signature: ", signature);
-      
+
       return signature
     }
     return "";

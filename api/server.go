@@ -187,10 +187,9 @@ func (s *Server) StartServer() error {
 	grp.GET("/sign/response/:taskId", s.GetKeysignResult) // Get keysign result
 
 	pluginGroup := e.Group("/plugin")
+
 	// Only enable plugin signing routes if the server is running in plugin mode
 	if s.mode == "plugin" {
-		// pluginGroup.POST("/sign", s.SignPluginMessages)
-
 		configGroup := pluginGroup.Group("/configure")
 
 		configGroup.Use(middleware.StaticWithConfig(middleware.StaticConfig{
@@ -201,6 +200,7 @@ func (s *Server) StartServer() error {
 			Filesystem: http.FS(s.plugin.Frontend()),
 		}))
 	}
+
 	// policy mode is always available since it is used by both verifier server and plugin server
 	pluginGroup.POST("/policy", s.CreatePluginPolicy)
 	pluginGroup.PUT("/policy", s.UpdatePluginPolicyById)
@@ -748,7 +748,7 @@ func (s *Server) Auth(c echo.Context) error {
 
 	success, err := sigutil.VerifySignature(req.PublicKey, req.ChainCodeHex, req.DerivePath, msgBytes, sigBytes)
 	if err != nil {
-		s.logger.Errorf("fignature verification failed: %v", err)
+		s.logger.Errorf("signature verification failed: %v", err)
 		return c.NoContent(http.StatusUnauthorized)
 	}
 	if !success {

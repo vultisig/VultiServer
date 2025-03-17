@@ -73,14 +73,14 @@ const VulticonnectWalletService = {
     try {
       const response = await post('/auth', {
         "message": message,
-        "signature" : signature,
+        "signature": signature,
         "public_key": publicKey,
         "chain_code_hex": chainCodeHex,
         "derive_path": derivePath
       });
       return response.token
     } catch (error) {
-      console.log("Failed to get auth token", error);
+      console.error("Failed to get auth token", error);
       throw new Error("Failed to get auth token");
     }
 
@@ -88,13 +88,13 @@ const VulticonnectWalletService = {
   },
 
   refreshAuthToken: async (token: string) => {
-    try{
+    try {
       const response = await post('/auth/refresh', {
         "token": token,
       });
       return response.token;
-    }catch (error) {
-      console.log("Failed to refresh auth token", error);
+    } catch (error) {
+      console.error("Failed to refresh auth token", error);
       throw new Error("Failed to refresh auth token");
     }
 

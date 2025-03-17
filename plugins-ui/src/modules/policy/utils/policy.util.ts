@@ -1,5 +1,4 @@
 import { PluginPolicy, Policy } from "../models/policy";
-// const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
 
 export const generatePolicy = (
   plugin_type: string,
@@ -8,7 +7,7 @@ export const generatePolicy = (
 ): PluginPolicy => {
   return {
     id: policyId,
-    public_key: "", // PUBLIC_KEY
+    public_key: "",
     is_ecdsa: true,
     chain_code_hex: "",
     derive_path: "",

@@ -31,6 +31,12 @@ describe("PolicyService", () => {
         active: true,
         signature: "signature",
         policy: {},
+        is_ecdsa: true,
+        chain_code_hex: "chain_code_hex",
+        derive_path: "derive_path",
+        plugin_id: "plugin_id",
+        plugin_version: "1",
+        policy_version: "1",
       };
 
       (post as Mock).mockResolvedValue(mockResponse);
@@ -48,7 +54,7 @@ describe("PolicyService", () => {
       (post as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
 
       await expect(PolicyService.createPolicy(mockPolicy)).rejects.toThrow(
         "API Error"
@@ -71,6 +77,12 @@ describe("PolicyService", () => {
         active: true,
         signature: "signature",
         policy: {},
+        is_ecdsa: true,
+        chain_code_hex: "chain_code_hex",
+        derive_path: "derive_path",
+        plugin_id: "plugin_id",
+        plugin_version: "1",
+        policy_version: "1",
       };
 
       (put as Mock).mockResolvedValue(mockResponse);
@@ -88,7 +100,7 @@ describe("PolicyService", () => {
       (put as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
 
       await expect(PolicyService.updatePolicy(mockPolicy)).rejects.toThrow(
         "API Error"
@@ -117,6 +129,12 @@ describe("PolicyService", () => {
           active: true,
           signature: "signature",
           policy: {},
+          is_ecdsa: true,
+          chain_code_hex: "chain_code_hex",
+          derive_path: "derive_path",
+          plugin_id: "plugin_id",
+          plugin_version: "1",
+          policy_version: "1",
         },
       ];
 
@@ -134,7 +152,7 @@ describe("PolicyService", () => {
       (get as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
 
       await expect(PolicyService.getPolicies()).rejects.toThrow("API Error");
 
@@ -178,7 +196,7 @@ describe("PolicyService", () => {
       (get as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
 
       await expect(
         PolicyService.getPolicyTransactionHistory("policyId")
@@ -195,7 +213,7 @@ describe("PolicyService", () => {
     it("should call /plugin/policy/{policyId} endpoint and return nothing", async () => {
       (remove as Mock).mockResolvedValue(undefined);
 
-      const result = await PolicyService.deletePolicy("policyId");
+      const result = await PolicyService.deletePolicy("policyId", "signature");
 
       expect(remove).toHaveBeenCalledWith("/plugin/policy/policyId");
       expect(result).toEqual(undefined);
@@ -207,9 +225,9 @@ describe("PolicyService", () => {
       (remove as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
 
-      await expect(PolicyService.deletePolicy("policyId")).rejects.toThrow(
+      await expect(PolicyService.deletePolicy("policyId", "signature")).rejects.toThrow(
         "API Error"
       );
 

@@ -15,6 +15,10 @@ const mockPolicies = [
     active: true,
     signature: "signature",
     policy: {},
+    is_ecdsa: true,
+    chain_code_hex: "chain_code_hex",
+    derive_path: "derive_path",
+    plugin_id: "plugin_id",
   },
   {
     id: "2",
@@ -23,6 +27,10 @@ const mockPolicies = [
     active: false,
     signature: "signature",
     policy: {},
+    is_ecdsa: true,
+    chain_code_hex: "chain_code_hex",
+    derive_path: "derive_path",
+    plugin_id: "plugin_id",
   },
 ];
 
@@ -36,6 +44,10 @@ vi.mock("@/modules/policy/services/policyService", () => ({
         active: true,
         signature: "signature",
         policy: {},
+        is_ecdsa: true,
+        chain_code_hex: "chain_code_hex",
+        derive_path: "derive_path",
+        plugin_id: "plugin_id",
       },
       {
         id: "2",
@@ -44,6 +56,10 @@ vi.mock("@/modules/policy/services/policyService", () => ({
         active: false,
         signature: "signature",
         policy: {},
+        is_ecdsa: true,
+        chain_code_hex: "chain_code_hex",
+        derive_path: "derive_path",
+        plugin_id: "plugin_id",
       },
     ]),
     createPolicy: vi.fn(),
@@ -73,6 +89,12 @@ const TestComponent = () => {
             active: true,
             signature: "signature",
             policy: {},
+            is_ecdsa: true,
+            chain_code_hex: "chain_code_hex",
+            derive_path: "derive_path",
+            plugin_id: "plugin_id",
+            plugin_version: "1",
+            policy_version: "1",
           })
         }
       >
@@ -88,6 +110,12 @@ const TestComponent = () => {
             active: false,
             signature: "signature",
             policy: {},
+            is_ecdsa: true,
+            chain_code_hex: "chain_code_hex",
+            derive_path: "derive_path",
+            plugin_id: "plugin_id",
+            plugin_version: "1",
+            policy_version: "1",
           })
         }
       >
@@ -131,7 +159,7 @@ describe("PolicyProvider", () => {
 
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => {});
+        .mockImplementation(() => { });
 
       renderWithProvider();
 
@@ -175,6 +203,10 @@ describe("PolicyProvider", () => {
         active: true,
         signature: "signature",
         policy: {},
+        is_ecdsa: true,
+        chain_code_hex: "chain_code_hex",
+        derive_path: "derive_path",
+        plugin_id: "plugin_id",
       });
 
       renderWithProvider();
@@ -250,6 +282,10 @@ describe("PolicyProvider", () => {
         active: false,
         signature: "signature",
         policy: {},
+        is_ecdsa: true,
+        chain_code_hex: "chain_code_hex",
+        derive_path: "derive_path",
+        plugin_id: "plugin_id",
       });
 
       renderWithProvider();
