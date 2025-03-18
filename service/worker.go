@@ -361,3 +361,45 @@ func (s *WorkerService) HandleReshareDKLS(ctx context.Context, t *asynq.Task) er
 
 	return nil
 }
+
+func (s *WorkerService) HandleMigrateDKLS(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	var req types.MigrationRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	defer s.measureTime("worker.vault.migrate.latency", time.Now(), []string{})
+	s.incCounter("worker.vault.migrate.dkls", []string{})
+	s.logger.WithFields(logrus.Fields{
+		"session":        req.SessionID,
+		"local_party_id": req.LocalPartyId,
+		"email":          req.Email,
+	}).Info("migrate request")
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid migrate request: %s: %w", err, asynq.SkipRetry)
+	}
+	localState, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
+	if err != nil {
+		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)
+	}
+	if localState.Vault == nil {
+		return fmt.Errorf("vault doesn't exist , fail to migrate: %w", asynq.SkipRetry)
+	}
+
+	service, err := NewDKLSTssService(s.cfg, s.blockStorage, localState, s)
+	if err != nil {
+		s.logger.Errorf("NewDKLSTssService failed: %v", err)
+		return fmt.Errorf("NewDKLSTssService failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := service.ProcessReshare(localState.Vault, req.SessionID, req.HexEncryptionKey, req.EncryptionPassword, req.Email); err != nil {
+		s.logger.Errorf("migrate failed: %v", err)
+		return fmt.Errorf("migrate failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	return nil
+}
