@@ -374,9 +374,8 @@ func (s *WorkerService) HandleMigrateDKLS(ctx context.Context, t *asynq.Task) er
 	defer s.measureTime("worker.vault.migrate.latency", time.Now(), []string{})
 	s.incCounter("worker.vault.migrate.dkls", []string{})
 	s.logger.WithFields(logrus.Fields{
-		"session":        req.SessionID,
-		"local_party_id": req.LocalPartyId,
-		"email":          req.Email,
+		"session": req.SessionID,
+		"email":   req.Email,
 	}).Info("migrate request")
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid migrate request: %s: %w", err, asynq.SkipRetry)
@@ -396,7 +395,7 @@ func (s *WorkerService) HandleMigrateDKLS(ctx context.Context, t *asynq.Task) er
 		return fmt.Errorf("NewDKLSTssService failed: %v: %w", err, asynq.SkipRetry)
 	}
 
-	if err := service.ProcessReshare(localState.Vault, req.SessionID, req.HexEncryptionKey, req.EncryptionPassword, req.Email); err != nil {
+	if err := service.ProceeMigration(localState.Vault, req.SessionID, req.HexEncryptionKey, req.EncryptionPassword, req.Email); err != nil {
 		s.logger.Errorf("migrate failed: %v", err)
 		return fmt.Errorf("migrate failed: %v: %w", err, asynq.SkipRetry)
 	}

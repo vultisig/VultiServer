@@ -11,7 +11,6 @@ type MigrationRequest struct {
 	PublicKey          string `json:"public_key"`          // public key ecdsa
 	SessionID          string `json:"session_id"`          // session id
 	HexEncryptionKey   string `json:"hex_encryption_key"`  // hex encryption key
-	LocalPartyId       string `json:"local_party_id"`      // local party id
 	EncryptionPassword string `json:"encryption_password"` // password used to encrypt the vault file
 	Email              string `json:"email"`
 }

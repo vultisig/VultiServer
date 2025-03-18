@@ -102,7 +102,9 @@ func (t *DKLSTssService) ProceeMigration(vault *vaultType.Vault,
 		vault.PublicKeyEddsa,
 		vault.HexChainCode,
 		localUIEddsa,
-		sessionID, hexEncryptionKey, localPartyId, true, partiesJoined)
+		sessionID,
+		hexEncryptionKey,
+		localPartyId, true, partiesJoined)
 	if err != nil {
 		return fmt.Errorf("failed to keygen EdDSA: %w", err)
 	}
@@ -150,7 +152,14 @@ func (t *DKLSTssService) migrateWithRetry(publicKey string,
 	isEdDSA bool,
 	keygenCommittee []string) (string, string, error) {
 	for i := 0; i < 3; i++ {
-		publicKey, chainCode, err := t.migrate(publicKey, hexChainCode, localUI, sessionID, hexEncryptionKey, localPartyID, isEdDSA, keygenCommittee, i)
+		publicKey, chainCode, err := t.migrate(publicKey,
+			hexChainCode,
+			localUI,
+			sessionID,
+			hexEncryptionKey,
+			localPartyID,
+			isEdDSA,
+			keygenCommittee, i)
 		if err != nil {
 			t.logger.WithFields(logrus.Fields{
 				"session_id":       sessionID,
@@ -181,8 +190,11 @@ func (t *DKLSTssService) migrate(
 		"session_id":       sessionID,
 		"local_party_id":   localPartyID,
 		"keygen_committee": keygenCommittee,
+		"publicKey":        publicKey,
+		"hexChainCode":     hexChainCode,
+		"localUI":          localUI,
 		"attempt":          attempt,
-	}).Info("Keygen")
+	}).Info("migrate")
 	t.isKeygenFinished.Store(false)
 	relayClient := relay.NewRelayClient(t.cfg.Relay.Server)
 	mpcKeygenWrapper := t.GetMPCKeygenWrapper(isEdDSA)
