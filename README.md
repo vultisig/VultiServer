@@ -130,6 +130,21 @@ Note: user can only request a resend every three minutes
 `GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
 if server return http status code 200, it means the code is valid , other status code means the code is invalid
 
+### Migrate Request
+```json
+{
+  "public_key": "ECDSA public key of the vault",
+  "session_id": "session id for key generation",
+  "hex_encryption_key": "hex encoded encryption key",
+  "encryption_password": "password to encryption the generated vault share",
+  "email": "email of the user"
+}
+```
+- public_key: ECDSA public key
+- session_id: Reshare session ID (random UUID)
+- hex_encryption_key: 32-byte hex encoded string for encryption/decryption
+- encryption_password: Password to encrypt the vault share
+- email: Email to send the encrypted vault share
 ## How to setup vultisigner to run locally?
 
 ### Prerequisites
