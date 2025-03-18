@@ -31,23 +31,14 @@ const Wallet = () => {
   };
 
   return (
-    <>
-      {!connectedWallet && (
-        <Button
-          size="medium"
-          styleType="primary"
-          type="button"
-          onClick={() => connectWallet(chain)}
-        >
-          Connect Wallet
-        </Button>
-      )}
-      {connectedWallet && (
-        <Button size="medium" styleType="primary" type="button">
-          Connected
-        </Button>
-      )}
-    </>
+    <Button
+      size="medium"
+      styleType="primary"
+      type="button"
+      onClick={() => connectWallet(chain)}
+    >
+      {connectedWallet ? "Connected" : "Connect Wallet"}
+    </Button>
   );
 };
 

@@ -32,7 +32,7 @@ const WeiConverter: React.FC<WidgetProps> = ({
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (!schema.pattern) {
+      if (!inputValue || !schema.pattern) {
         onChange("");
         return;
       }
