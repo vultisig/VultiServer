@@ -4,10 +4,11 @@ import "./Button.css";
 type ButtonProps = {
   type: "button" | "submit";
   styleType: "primary" | "secondary" | "tertiary";
-  size: "small" | "medium";
+  size: "mini" | "small" | "medium";
   children: ReactNode;
   className?: string;
   style?: {};
+  ariaLabel?: string;
   onClick?: () => any;
 };
 
@@ -17,8 +18,9 @@ const Button = ({
   size,
   children,
   className,
-  onClick,
   style,
+  ariaLabel,
+  onClick,
 }: ButtonProps) => {
   return (
     <button
@@ -26,6 +28,7 @@ const Button = ({
       onClick={onClick}
       className={`button ${styleType} ${size} ${className}`}
       style={style}
+      aria-label={ariaLabel}
     >
       {children}
     </button>

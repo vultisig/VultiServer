@@ -1,0 +1,12 @@
+.view-filter {
+    background-color: var(--button-secondary-color);
+    padding: 14px;
+
+    &:hover {
+        background-color: var(--button-secondary-hover-color);
+    }
+
+    &.active {
+        background-color: var(--button-secondary-hover-color);
+    }
+}

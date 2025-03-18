@@ -1,5 +1,5 @@
-export type Policy = {
-  [key: string]: string | number | null | undefined | Policy;
+export type Policy<T = string | number | boolean | null | undefined> = {
+  [key: string]: T | Policy<T>;
 };
 
 export type PluginPolicy = {

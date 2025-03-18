@@ -1,14 +1,19 @@
 /// <reference types="vite-plugin-svgr/client" />
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import Home from "./Home";
+import Policy from "./modules/policy/components/policy-main/Policy";
+import Marketplace from "./modules/marketplace/components/marketplace-main/Marketplace";
+import Layout from "./Layout";
+import PluginDetail from "./modules/plugin/components/plugin-detail/PluginDetail";
 
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/">
-          <Route index element={<Home />} />
+        <Route element={<Layout />}>
+          <Route path="/" element={<Marketplace />} />
+          <Route path="/plugin-detail/:id" element={<PluginDetail />} />
+          <Route path="/plugin-policy/:id" element={<Policy />} />
         </Route>
       </Routes>
     </BrowserRouter>

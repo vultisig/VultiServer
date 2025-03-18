@@ -8,6 +8,7 @@ const VulticonnectWalletService = {
   connectToVultiConnect: async () => {
     if (!window.vultisig?.ethereum) {
       alert(`No ethereum provider found. Please install VultiConnect.`);
+      return;
     }
 
     try {
@@ -26,6 +27,7 @@ const VulticonnectWalletService = {
   getConnectedEthAccounts: async () => {
     if (!window.vultisig?.ethereum) {
       alert(`No ethereum provider found. Please install VultiConnect.`);
+      return;
     }
 
     try {
@@ -46,6 +48,7 @@ const VulticonnectWalletService = {
   signCustomMessage: async (hexMessage: string, walletAddress: string) => {
     if (!window.vultisig?.ethereum) {
       alert(`No ethereum provider found. Please install VultiConnect.`);
+      return;
     }
 
     try {

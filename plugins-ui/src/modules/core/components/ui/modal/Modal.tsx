@@ -16,12 +16,14 @@ function Modal({ isOpen, children, onClose, variant = "modal" }: ModalProps) {
   return (
     <div
       className={`modal-overlay ${variant === "panel" ? "panel-overlay" : ""}`}
+      role="dialog"
     >
       <div
         className={`modal-content ${variant === "panel" ? "panel-content" : ""}`}
         onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
       >
         <Button
+          ariaLabel="Close modal"
           type="button"
           styleType="tertiary"
           size="medium"

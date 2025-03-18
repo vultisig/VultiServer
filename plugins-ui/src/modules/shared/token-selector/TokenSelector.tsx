@@ -28,6 +28,7 @@ const TokenSelector = ({ value, onChange }: TokenSelectorProps) => {
   return (
     <>
       <Button
+        ariaLabel="Open modal"
         type="button"
         styleType="tertiary"
         size="small"
@@ -40,8 +41,8 @@ const TokenSelector = ({ value, onChange }: TokenSelectorProps) => {
         }}
         onClick={() => setModalOpen(true)}
       >
-        {cloneElement(token.image, { width: 24, height: 24 })}&nbsp;
-        {token.name}
+        {token && cloneElement(token.image, { width: 24, height: 24 })}&nbsp;
+        {token?.name || "Unknown token"}
         <ChevronDown width="20px" height="20px" />
       </Button>
       <Modal
