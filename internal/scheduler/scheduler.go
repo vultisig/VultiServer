@@ -168,7 +168,6 @@ func (s *SchedulerService) CreateTimeTrigger(ctx context.Context, policy types.P
 	}
 
 	trigger, err := s.GetTriggerFromPolicy(policy)
-	trigger.StartTime = time.Now().UTC()
 	if err != nil {
 		return fmt.Errorf("failed to get trigger from policy: %w", err)
 	}
@@ -199,7 +198,7 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy types.PluginPolicy) (*typ
 	trigger := types.TimeTrigger{
 		PolicyID:       policy.ID,
 		CronExpression: cronExpr,
-		StartTime:      policySchedule.Schedule.StartTime,
+		StartTime:      time.Now().UTC(),
 		EndTime:        policySchedule.Schedule.EndTime,
 		Frequency:      policySchedule.Schedule.Frequency,
 		Interval:       interval,
