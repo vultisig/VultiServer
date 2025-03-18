@@ -1,5 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
+CREATE TYPE trigger_status AS ENUM (
+    'PENDING',
+    'RUNNING'
+);
+
 CREATE TABLE time_triggers (
     id SERIAL PRIMARY KEY,
     policy_id UUID NOT NULL REFERENCES plugin_policies(id),
@@ -9,7 +14,7 @@ CREATE TABLE time_triggers (
     frequency TEXT NOT NULL,
     interval INTEGER NOT NULL,
     last_execution TIMESTAMP,
-    status TEXT NOT NULL,
+    status trigger_status NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 -- Add indexes for time_triggers

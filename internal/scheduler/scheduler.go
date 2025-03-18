@@ -72,11 +72,12 @@ func (s *SchedulerService) run() {
 }
 
 func (s *SchedulerService) checkAndEnqueueTasks() error {
-	triggers, err := s.db.GetPendingTimeTriggers(context.Background())
+	ctx := context.Background()
+	triggers, err := s.db.GetPendingTimeTriggers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get pending triggers: %w", err)
 	}
-	s.logger.Info("Triggers: ", triggers)
+	s.logger.Infof("Found %d active triggers: %+v: ", len(triggers), triggers)
 
 	for _, trigger := range triggers {
 		s.logger.WithFields(logrus.Fields{
@@ -88,7 +89,10 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 		schedule, err := createSchedule(trigger.CronExpression, trigger.Frequency, trigger.StartTime, trigger.Interval)
 		if err != nil {
 			s.logger.Errorf("Failed to create schedule: %v", err)
-			s.db.DeleteTimeTrigger(trigger.PolicyID) // TODO: check this (trigger is deleted if cron expression is invalid)
+			err := s.db.DeleteTimeTrigger(ctx, trigger.PolicyID)
+			if err != nil {
+				return fmt.Errorf("failed to delete time trigger: %w", err)
+			}
 			continue
 		}
 
@@ -104,25 +108,32 @@ func (s *SchedulerService) checkAndEnqueueTasks() error {
 		endTime := trigger.EndTime
 
 		if endTime != nil && time.Now().UTC().After(*endTime) {
+			// TODO: Check if this end time was ever set anywhere.
 			s.logger.WithFields(logrus.Fields{
 				"policy_id": trigger.PolicyID,
 				"end_time":  *endTime,
 			}).Info("Trigger end time reached")
-			s.db.DeleteTimeTrigger(trigger.PolicyID)
+			err := s.db.DeleteTimeTrigger(ctx, trigger.PolicyID)
+			if err != nil {
+				return fmt.Errorf("failed to delete time trigger: %w", err)
+			}
 			continue
 		}
 
-		triggerStatus, err := s.db.GetTriggerStatus(trigger.PolicyID)
+		triggerStatus, err := s.db.GetTriggerStatus(ctx, trigger.PolicyID)
 		if err != nil {
 			s.logger.Errorf("Failed to get trigger status: %v", err)
 			continue
 		}
 
-		if time.Now().UTC().Before(nextTime) || triggerStatus == "Running" {
+		if time.Now().UTC().Before(nextTime) || triggerStatus == types.StatusTimeTriggerRunning {
 			continue
 		}
 
-		s.db.UpdateTriggerStatus(trigger.PolicyID, "Running")
+		if err := s.db.UpdateTriggerStatus(ctx, trigger.PolicyID, types.StatusTimeTriggerRunning); err != nil {
+			s.logger.Errorf("Failed to update trigger status: %v", err)
+			continue
+		}
 
 		buf, err := json.Marshal(trigger)
 		if err != nil {
@@ -191,7 +202,7 @@ func (s *SchedulerService) GetTriggerFromPolicy(policy types.PluginPolicy) (*typ
 		EndTime:        policySchedule.Schedule.EndTime,
 		Frequency:      policySchedule.Schedule.Frequency,
 		Interval:       interval,
-		Status:         "Pending", // TODO: add types for status
+		Status:         types.StatusTimeTriggerPending,
 	}
 
 	return &trigger, nil

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/vultisig/vultisigner/common"
 	"math/big"
 	"strconv"
 	"strings"
@@ -127,7 +128,7 @@ func (p *PayrollPlugin) generatePayrollTransaction(amountString string, recipien
 	chainIDInt.SetString(chainID, 10)
 	fmt.Printf("Chain ID TEST 3: %s\n", chainIDInt.String())
 
-	derivedAddress, err := DeriveAddress(publicKey, "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "m/44/60/0/0/0")
+	derivedAddress, err := common.DeriveAddress(publicKey, "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "m/44/60/0/0/0")
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to derive address: %v", err)
 	}

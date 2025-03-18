@@ -669,12 +669,12 @@ func (s *Server) CreateTransaction(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
 	if existingTx != nil {
 		return c.NoContent(http.StatusConflict)
 	}
 
-	if _, err := s.db.CreateTransactionHistory(reqTx); err != nil {
+	if _, err := s.db.CreateTransactionHistory(c.Request().Context(), reqTx); err != nil {
 		s.logger.Errorf("fail to create transaction, err: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
@@ -687,12 +687,12 @@ func (s *Server) UpdateTransaction(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
 	if existingTx == nil {
 		return c.NoContent(http.StatusNotFound)
 	}
 
-	if err := s.db.UpdateTransactionStatus(existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
+	if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
 		s.logger.Errorf("fail to update transaction status, err: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}

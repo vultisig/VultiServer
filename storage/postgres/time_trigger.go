@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,13 +35,13 @@ func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, tr
 	return err
 }
 
-func (p *PostgresBackend) DeleteTimeTrigger(policyID string) error {
+func (p *PostgresBackend) DeleteTimeTrigger(ctx context.Context, policyID string) error {
 	if p.pool == nil {
 		return fmt.Errorf("database pool is nil")
 	}
 
 	query := `DELETE FROM time_triggers WHERE policy_id = $1`
-	_, err := p.pool.Exec(context.Background(), query, policyID)
+	_, err := p.pool.Exec(ctx, query, policyID)
 
 	return err
 }
@@ -59,6 +60,7 @@ func (p *PostgresBackend) GetPendingTimeTriggers(ctx context.Context) ([]types.T
 				WHERE t.start_time <= $1
 				AND (t.end_time IS NULL OR t.end_time > $1)
 				AND p.active = true
+				AND t.status = 'PENDING'
 				AND (t.last_execution IS NULL OR t.last_execution < $1)
     )
     SELECT * FROM active_triggers
@@ -130,7 +132,7 @@ func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID stri
 	return err
 }
 
-func (p *PostgresBackend) GetTriggerStatus(policyID string) (string, error) {
+func (p *PostgresBackend) GetTriggerStatus(ctx context.Context, policyID string) (types.TimeTriggerStatus, error) {
 	if p.pool == nil {
 		return "", fmt.Errorf("database pool is nil")
 	}
@@ -141,10 +143,10 @@ func (p *PostgresBackend) GetTriggerStatus(policyID string) (string, error) {
 		WHERE policy_id = $1
 	`
 
-	var status string
-	err := p.pool.QueryRow(context.Background(), query, policyID).Scan(&status)
+	var status types.TimeTriggerStatus
+	err := p.pool.QueryRow(ctx, query, policyID).Scan(&status)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return "", fmt.Errorf("trigger not found for policy_id: %s", policyID)
 		}
 		return "", err
@@ -153,7 +155,7 @@ func (p *PostgresBackend) GetTriggerStatus(policyID string) (string, error) {
 	return status, nil
 }
 
-func (p *PostgresBackend) UpdateTriggerStatus(policyID string, status string) error {
+func (p *PostgresBackend) UpdateTriggerStatus(ctx context.Context, policyID string, status types.TimeTriggerStatus) error {
 	if p.pool == nil {
 		return fmt.Errorf("database pool is nil")
 	}
@@ -164,6 +166,6 @@ func (p *PostgresBackend) UpdateTriggerStatus(policyID string, status string) er
 		WHERE policy_id = $1
 	`
 
-	_, err := p.pool.Exec(context.Background(), query, policyID, status)
+	_, err := p.pool.Exec(ctx, query, policyID, status)
 	return err
 }

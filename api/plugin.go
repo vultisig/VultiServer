@@ -104,7 +104,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 	// check that tx is done only once per period
 	// should we also copy the db to the vultiserver, so that it can be used by the vultiserver (and use scheduler.go)? or query the blockchain?
 
-	txToSign, err := s.db.GetTransactionByHash(txHash)
+	txToSign, err := s.db.GetTransactionByHash(c.Request().Context(), txHash)
 	if err != nil {
 		s.logger.Errorf("Failed to get transaction by hash from database: %v", err)
 		return fmt.Errorf("fail to get transaction by hash: %w", err)
@@ -121,14 +121,14 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	if err != nil {
 		txToSign.Metadata["error"] = err.Error()
-		if updateErr := s.db.UpdateTransactionStatus(txToSign.ID, types.StatusSigningFailed, txToSign.Metadata); updateErr != nil {
+		if updateErr := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigningFailed, txToSign.Metadata); updateErr != nil {
 			s.logger.Errorf("Failed to update transaction status: %v", updateErr)
 		}
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
 
 	txToSign.Metadata["task_id"] = ti.ID
-	if err := s.db.UpdateTransactionStatus(txToSign.ID, types.StatusSigned, txToSign.Metadata); err != nil {
+	if err := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigned, txToSign.Metadata); err != nil {
 		s.logger.Errorf("Failed to update transaction with task ID: %v", err)
 	}
 
@@ -207,16 +207,15 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	}
 
 	// We re-init plugin as verification server doesn't have plugin defined
+
 	var plg plugin.Plugin
 	plg, err := s.initializePlugin(policy.PluginType)
 	if err != nil {
 		err = fmt.Errorf("failed to initialize plugin: %w", err)
 		s.logger.Error(err)
-
 		message := map[string]interface{}{
 			"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
 		}
-
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
@@ -368,7 +367,7 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 
 	}
 
-	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(policyID)
+	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(c.Request().Context(), policyID)
 	if err != nil {
 		err = fmt.Errorf("failed to get policy history: %w", err)
 		message := map[string]interface{}{
