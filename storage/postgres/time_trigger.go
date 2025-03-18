@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,8 +18,8 @@ func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, tr
 
 	query := `
 		INSERT INTO time_triggers 
-    (policy_id, cron_expression, start_time, end_time, frequency, interval) 
-    VALUES ($1, $2, $3, $4, $5, $6)
+    (policy_id, cron_expression, start_time, end_time, frequency, interval, status) 
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	_, err := tx.Exec(ctx, query,
@@ -28,7 +29,20 @@ func (p *PostgresBackend) CreateTimeTriggerTx(ctx context.Context, tx pgx.Tx, tr
 		trigger.EndTime,
 		trigger.Frequency,
 		trigger.Interval,
+		trigger.Status,
 	)
+
+	return err
+}
+
+func (p *PostgresBackend) DeleteTimeTrigger(ctx context.Context, policyID string) error {
+	if p.pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
+	query := `DELETE FROM time_triggers WHERE policy_id = $1`
+	_, err := p.pool.Exec(ctx, query, policyID)
+
 	return err
 }
 
@@ -40,12 +54,13 @@ func (p *PostgresBackend) GetPendingTimeTriggers(ctx context.Context) ([]types.T
 	// TODO: add limit and proper index
 	query := `
   	WITH active_triggers AS (
-    		SELECT t.policy_id, t.cron_expression, t.start_time, t.end_time, t.frequency, t.interval, t.last_execution 
+    		SELECT t.policy_id, t.cron_expression, t.start_time, t.end_time, t.frequency, t.interval, t.last_execution, t.status
 				FROM time_triggers t
 				INNER JOIN plugin_policies p ON t.policy_id = p.id
 				WHERE t.start_time <= $1
 				AND (t.end_time IS NULL OR t.end_time > $1)
 				AND p.active = true
+				AND t.status = 'PENDING'
 				AND (t.last_execution IS NULL OR t.last_execution < $1)
     )
     SELECT * FROM active_triggers
@@ -68,7 +83,8 @@ func (p *PostgresBackend) GetPendingTimeTriggers(ctx context.Context) ([]types.T
 			&t.EndTime,
 			&t.Frequency,
 			&t.Interval,
-			&t.LastExecution)
+			&t.LastExecution,
+			&t.Status)
 		if err != nil {
 			return nil, err
 		}
@@ -99,14 +115,13 @@ func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID stri
 	}
 
 	query := `
-		UPDATE time_triggers 
+		UPDATE time_triggers
 		SET start_time = $2,
 				frequency = $3,
 				interval = $4,
 				cron_expression = $5
 		WHERE policy_id = $1
 	`
-
 	_, err := tx.Exec(ctx, query,
 		policyID,
 		trigger.StartTime,
@@ -114,5 +129,43 @@ func (p *PostgresBackend) UpdateTimeTriggerTx(ctx context.Context, policyID stri
 		trigger.Interval,
 		trigger.CronExpression,
 	)
+	return err
+}
+
+func (p *PostgresBackend) GetTriggerStatus(ctx context.Context, policyID string) (types.TimeTriggerStatus, error) {
+	if p.pool == nil {
+		return "", fmt.Errorf("database pool is nil")
+	}
+
+	query := `
+		SELECT status 
+		FROM time_triggers 
+		WHERE policy_id = $1
+	`
+
+	var status types.TimeTriggerStatus
+	err := p.pool.QueryRow(ctx, query, policyID).Scan(&status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", fmt.Errorf("trigger not found for policy_id: %s", policyID)
+		}
+		return "", err
+	}
+
+	return status, nil
+}
+
+func (p *PostgresBackend) UpdateTriggerStatus(ctx context.Context, policyID string, status types.TimeTriggerStatus) error {
+	if p.pool == nil {
+		return fmt.Errorf("database pool is nil")
+	}
+
+	query := `
+		UPDATE time_triggers 
+		SET status = $2
+		WHERE policy_id = $1
+	`
+
+	_, err := p.pool.Exec(ctx, query, policyID, status)
 	return err
 }

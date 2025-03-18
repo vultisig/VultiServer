@@ -100,7 +100,11 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
 
-	txToSign, err := s.db.GetTransactionByHash(txHash)
+	// TODO: check if this is relevant
+	// check that tx is done only once per period
+	// should we also copy the db to the vultiserver, so that it can be used by the vultiserver (and use scheduler.go)? or query the blockchain?
+
+	txToSign, err := s.db.GetTransactionByHash(c.Request().Context(), txHash)
 	if err != nil {
 		s.logger.Errorf("Failed to get transaction by hash from database: %v", err)
 		return fmt.Errorf("fail to get transaction by hash: %w", err)
@@ -110,21 +114,21 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
 
 	if err != nil {
 		txToSign.Metadata["error"] = err.Error()
-		if updateErr := s.db.UpdateTransactionStatus(txToSign.ID, types.StatusSigningFailed, txToSign.Metadata); updateErr != nil {
+		if updateErr := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigningFailed, txToSign.Metadata); updateErr != nil {
 			s.logger.Errorf("Failed to update transaction status: %v", updateErr)
 		}
 		return fmt.Errorf("fail to enqueue task, err: %w", err)
 	}
 
 	txToSign.Metadata["task_id"] = ti.ID
-	if err := s.db.UpdateTransactionStatus(txToSign.ID, types.StatusSigned, txToSign.Metadata); err != nil {
+	if err := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigned, txToSign.Metadata); err != nil {
 		s.logger.Errorf("Failed to update transaction with task ID: %v", err)
 	}
 
@@ -203,16 +207,15 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	}
 
 	// We re-init plugin as verification server doesn't have plugin defined
+
 	var plg plugin.Plugin
 	plg, err := s.initializePlugin(policy.PluginType)
 	if err != nil {
 		err = fmt.Errorf("failed to initialize plugin: %w", err)
 		s.logger.Error(err)
-
 		message := map[string]interface{}{
 			"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
 		}
-
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
@@ -351,11 +354,6 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-// TODO: do we actually need this?
-func (s *Server) ConfigurePlugin(c echo.Context) error {
-	return nil
-}
-
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	policyID := c.Param("policyId")
 	if policyID == "" {
@@ -369,7 +367,7 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 
 	}
 
-	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(policyID)
+	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(c.Request().Context(), policyID)
 	if err != nil {
 		err = fmt.Errorf("failed to get policy history: %w", err)
 		message := map[string]interface{}{
@@ -405,8 +403,7 @@ func calculateTransactionHash(txData string) (string, error) {
 func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 	switch pluginType {
 	case "payroll":
-		return payroll.NewPayrollPlugin(s.db), nil
-
+		return payroll.NewPayrollPlugin(s.db, s.logger, s.rpcClient), nil
 	case "dca":
 		cfg, err := config.ReadConfig("config-plugin")
 		if err != nil {
@@ -428,7 +425,6 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 		)
 
 		return dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
-
 	default:
 		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
 	}

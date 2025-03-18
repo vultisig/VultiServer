@@ -39,41 +39,43 @@ import (
 
 type Server struct {
 	port          int64
+	db            storage.DatabaseStorage
 	redis         *storage.RedisStorage
+	blockStorage  *storage.BlockStorage
 	client        *asynq.Client
 	inspector     *asynq.Inspector
-	vaultFilePath string
 	sdClient      *statsd.Client
-	logger        *logrus.Logger
-	blockStorage  *storage.BlockStorage
-	mode          string
-	plugin        plugin.Plugin
-	db            storage.DatabaseStorage
+	rpcClient     *ethclient.Client
 	scheduler     *scheduler.SchedulerService
-	syncer        syncer.PolicySyncer
 	policyService service.Policy
+	syncer        syncer.PolicySyncer
+	plugin        plugin.Plugin
+	logger        *logrus.Logger
+	vaultFilePath string
+	mode          string
 }
 
 // NewServer returns a new server.
-func NewServer(port int64,
+func NewServer(
+	port int64,
+	db *postgres.PostgresBackend,
 	redis *storage.RedisStorage,
+	blockStorage *storage.BlockStorage,
 	redisOpts asynq.RedisClientOpt,
 	client *asynq.Client,
 	inspector *asynq.Inspector,
-	vaultFilePath string,
 	sdClient *statsd.Client,
-	blockStorage *storage.BlockStorage,
+	vaultFilePath string,
 	mode string,
 	pluginType string,
-	dsn string) *Server {
-	logger := logrus.WithField("service", "api").Logger
-
-	logger.Info("Initializing new server...")
+	rpcURL string,
+	logger *logrus.Logger,
+) *Server {
 	logger.Infof("Server mode: %s, plugin type: %s", mode, pluginType)
 
-	db, err := postgres.NewPostgresBackend(false, dsn)
+	rpcClient, err := ethclient.Dial(rpcURL)
 	if err != nil {
-		logger.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("failed to initialize rpc client", err)
 	}
 
 	var plugin plugin.Plugin
@@ -82,15 +84,11 @@ func NewServer(port int64,
 	if mode == "plugin" {
 		switch pluginType {
 		case "payroll":
-			plugin = payroll.NewPayrollPlugin(db)
+			plugin = payroll.NewPayrollPlugin(db, logrus.WithField("service", "plugin").Logger, rpcClient)
 		case "dca":
 			cfg, err := config.ReadConfig("config-plugin")
 			if err != nil {
 				logger.Fatal("failed to read plugin config", err)
-			}
-			rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
-			if err != nil {
-				logger.Fatal("failed to initialize rpc client", err)
 			}
 			uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
 			uniswapCfg := uniswap.NewConfig(
@@ -279,7 +277,7 @@ func (s *Server) CreateVault(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -311,7 +309,7 @@ func (s *Server) ReshareVault(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -499,7 +497,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 	}
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
 		asynq.NewTask(tasks.TypeKeySign, buf),
-		asynq.MaxRetry(-1),
+		asynq.MaxRetry(0),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -671,12 +669,12 @@ func (s *Server) CreateTransaction(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
 	if existingTx != nil {
 		return c.NoContent(http.StatusConflict)
 	}
 
-	if _, err := s.db.CreateTransactionHistory(reqTx); err != nil {
+	if _, err := s.db.CreateTransactionHistory(c.Request().Context(), reqTx); err != nil {
 		s.logger.Errorf("fail to create transaction, err: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
@@ -689,12 +687,12 @@ func (s *Server) UpdateTransaction(c echo.Context) error {
 		return c.NoContent(http.StatusBadRequest)
 	}
 
-	existingTx, _ := s.db.GetTransactionByHash(reqTx.TxHash)
+	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
 	if existingTx == nil {
 		return c.NoContent(http.StatusNotFound)
 	}
 
-	if err := s.db.UpdateTransactionStatus(existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
+	if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, reqTx.Status, reqTx.Metadata); err != nil {
 		s.logger.Errorf("fail to update transaction status, err: %v", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}

@@ -10,17 +10,17 @@ import (
 )
 
 type Plugin interface {
-	SignPluginMessages(c echo.Context) error
 	SetupPluginPolicy(policyDoc *types.PluginPolicy) error
 	ValidatePluginPolicy(policyDoc types.PluginPolicy) error
-
-	// TODO: do we actually need this?
-	ConfigurePlugin(c echo.Context) error
-
-	Frontend() embed.FS
 
 	ProposeTransactions(policy types.PluginPolicy) ([]types.PluginKeysignRequest, error)
 	ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error
 
+	SignPluginMessages(c echo.Context) error
 	SigningComplete(ctx context.Context, signature tss.KeysignResponse, signRequest types.PluginKeysignRequest, policy types.PluginPolicy) error
+
+	Frontend() embed.FS
+
+	// TODO: remove
+	GetNextNonce(address string) (uint64, error)
 }

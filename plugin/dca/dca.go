@@ -67,6 +67,11 @@ func NewDCAPlugin(uniswapCfg *uniswap.Config, db storage.DatabaseStorage, logger
 	}, nil
 }
 
+// TODO: remove from interface
+func (p *DCAPlugin) GetNextNonce(address string) (uint64, error) {
+	return 0, nil
+}
+
 // TODO: do we actually need this?
 func (p *DCAPlugin) SignPluginMessages(e echo.Context) error {
 	p.logger.Debug("DCA: SIGN PLUGIN MESSAGES")
@@ -263,11 +268,6 @@ func validateInterval(intervalStr string, frequency string) error {
 		return fmt.Errorf("invalid frequency: %s", frequency)
 	}
 
-	return nil
-}
-
-// TODO: do we actually need this?
-func (p *DCAPlugin) ConfigurePlugin(e echo.Context) error {
 	return nil
 }
 
@@ -537,18 +537,17 @@ func (p *DCAPlugin) generateSwapTransactions(chainID *big.Int, signerAddress *gc
 	var rawTxsData []RawTxData
 
 	// from a UX perspective, it is better to do the "approve" tx as part of the DCA execution rather than having it be part of the policy creation/update
-	p.logger.Info("Approving Uniswap Router to spend: ", srcTokenAddress.Hex())
 	// approve Router to spend input token
 	txHash, rawTx, err := p.uniswapClient.ApproveERC20Token(chainID, signerAddress, srcTokenAddress, *p.uniswapClient.GetRouterAddress(), swapAmountIn)
 	if err != nil {
-		return []RawTxData{}, fmt.Errorf("fail to approve token: %w", err)
+		return []RawTxData{}, fmt.Errorf("fail to make approve token transaction: %w", err)
 	}
 	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
 
 	// swap tokens
 	txHash, rawTx, err = p.uniswapClient.SwapTokens(chainID, signerAddress, swapAmountIn, amountOutMin, tokensPair)
 	if err != nil {
-		return []RawTxData{}, fmt.Errorf("fail to swap tokens: %w", err)
+		return []RawTxData{}, fmt.Errorf("fail to make swap tokens transaction: %w", err)
 	}
 	rawTxsData = append(rawTxsData, RawTxData{txHash, rawTx})
 	p.logTokenBalances(p.uniswapClient, signerAddress, srcTokenAddress, destTokenAddress)

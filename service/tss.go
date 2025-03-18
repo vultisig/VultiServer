@@ -390,6 +390,18 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
 
+	s.logger.WithFields(logrus.Fields{
+		"vault_public_key":   localStateAccessor.Vault.PublicKeyEcdsa, // Should match policy
+		"request_public_key": req.PublicKey,
+		"local_party_id":     localStateAccessor.Vault.LocalPartyId,
+	}).Info("Loaded vault for signing")
+
+	keyShare, err := localStateAccessor.GetLocalState(req.PublicKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get key share: %w", err)
+	}
+	s.logger.WithField("key_share_length", len(keyShare)).Info("Loaded key share")
+
 	localPartyId := localStateAccessor.Vault.LocalPartyId
 	server := relay.NewRelayClient(serverURL)
 
@@ -461,6 +473,12 @@ func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 	tssService tss.Service,
 	msg string,
 	publicKeyEdDSA string) (*tss.KeysignResponse, error) {
+
+	s.logger.WithFields(logrus.Fields{
+		"message_to_sign": msg,
+		"pub_key":         req.PublicKey,
+		"parties":         strings.Join(partiesJoined, ","),
+	}).Info("Starting keysign")
 	messageID := hex.EncodeToString(md5.New().Sum([]byte(msg)))
 	msgBuf, err := hex.DecodeString(msg)
 	if err != nil {

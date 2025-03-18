@@ -19,8 +19,8 @@ type PluginPolicy struct {
 }
 
 type PayrollPolicy struct {
-	ChainID    string             `json:"chain_id"`
-	TokenID    string             `json:"token_id"`
+	ChainID    []string           `json:"chain_id"`
+	TokenID    []string           `json:"token_id"`
 	Recipients []PayrollRecipient `json:"recipients"`
 	Schedule   Schedule           `json:"schedule"`
 }

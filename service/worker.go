@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
+
 	"github.com/sirupsen/logrus"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
@@ -64,6 +65,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 
 	rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
 	if err != nil {
+		logrus.Fatalf("Failed to connect to RPC: %v", err)
 		return nil, err
 	}
 
@@ -71,7 +73,7 @@ func NewWorker(cfg config.Config, queueClient *asynq.Client, sdClient *statsd.Cl
 	if cfg.Server.Mode == "plugin" {
 		switch cfg.Server.Plugin.Type {
 		case "payroll":
-			plugin = payroll.NewPayrollPlugin(db)
+			plugin = payroll.NewPayrollPlugin(db, logrus.WithField("service", "plugin").Logger, rpcClient)
 		case "dca":
 			uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
 			uniswapCfg := uniswap.NewConfig(
@@ -376,6 +378,16 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	}
 
 	defer s.measureTime("worker.plugin.transaction.latency", time.Now(), []string{})
+
+	// Always update back to PENDING status so the scheduler can enqueue task.
+	defer func() {
+		if err := s.db.UpdateTriggerStatus(ctx, triggerEvent.PolicyID, types.StatusTimeTriggerPending); err != nil {
+			s.logger.Errorf("db.UpdateTriggerStatus failed: %v", err)
+		} else {
+			s.logger.Infof("Time trigger status reset to PENDING for policy_id: %s", triggerEvent.PolicyID)
+		}
+	}()
+
 	s.incCounter("worker.plugin.transaction", []string{})
 	s.logger.WithFields(logrus.Fields{
 		"policy_id": triggerEvent.PolicyID,
@@ -421,16 +433,8 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			Status:   types.StatusPending,
 			Metadata: metadata,
 		}
-
-		txID, err := s.db.CreateTransactionHistory(newTx) //where to store txId? what is the best way to retrieve a tx?	Maybe just keep it in this context, and if status is failed at the end then we drop this instance and restart a new one later?
-		if err != nil {
-			s.logger.Errorf("Failed to create transaction history: %v", err)
-			continue
-		}
-		
-		if err := s.syncer.SyncTransaction("create", newTx); err != nil {
-			s.logger.Errorf("Failed to sync transaction: %v", err)
-			continue
+		if err := s.upsertAndSyncTransaction(ctx, "create", &newTx); err != nil {
+			return fmt.Errorf("upsertAndSyncTransaction failed: %w", err)
 		}
 
 		// start TSS signing process
@@ -439,7 +443,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			s.logger.Errorf("Failed to marshal sign request: %v", err)
 			continue
 		}
-
+		// TODO: Remove hardcoded verifier port.
 		signResp, err := http.Post(
 			fmt.Sprintf("http://localhost:%d/signFromPlugin", 8080),
 			"application/json",
@@ -447,14 +451,11 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		)
 		if err != nil {
 			metadata["error"] = err.Error()
-			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
-			s.logger.Errorf("Failed to make sign request: %v", err)
 			newTx.Status = types.StatusSigningFailed
 			newTx.Metadata = metadata
-			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
-				s.logger.Errorf("Failed to sync transaction: %v", err)
+			if err = s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
-
 			return err
 		}
 		defer signResp.Body.Close()
@@ -467,12 +468,10 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 		if signResp.StatusCode != http.StatusOK {
 			metadata["error"] = string(respBody)
-			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
-			s.logger.Errorf("Failed to sign transaction: %s", string(respBody))
 			newTx.Status = types.StatusSigningFailed
 			newTx.Metadata = metadata
-			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
-				s.logger.Errorf("Failed to sync transaction: %v", err)
+			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return fmt.Errorf("failed to sign transaction: %s", string(respBody))
 		}
@@ -486,12 +485,10 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			return err
 		}
 
-		s.logger.Debug("PLUGIN WORKER: KEYSIGN TASK")
-
 		// Enqueue TypeKeySign directly
 		ti, err := s.queueClient.Enqueue(
 			asynq.NewTask(tasks.TypeKeySign, buf),
-			asynq.MaxRetry(-1),
+			asynq.MaxRetry(0),
 			asynq.Timeout(2*time.Minute),
 			asynq.Retention(5*time.Minute),
 			asynq.Queue(tasks.QUEUE_NAME),
@@ -508,13 +505,10 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		if err != nil {                                            //do we consider that the signature is always valid if err = nil?
 			metadata["error"] = err.Error()
 			metadata["task_id"] = ti.ID
-			s.db.UpdateTransactionStatus(txID, types.StatusSigningFailed, metadata)
-			s.logger.Errorf("Failed to get task result: %v", err)
-
 			newTx.Status = types.StatusSigningFailed
 			newTx.Metadata = metadata
-			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
-				s.logger.Errorf("Failed to sync transaction: %v", err)
+			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return err
 		}
@@ -522,24 +516,23 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		// Update to SIGNED status with result
 		metadata["task_id"] = ti.ID
 		metadata["result"] = result
-		if err := s.db.UpdateTransactionStatus(txID, types.StatusSigned, metadata); err != nil {
-			s.logger.Errorf("Failed to update transaction status: %v", err)
-		}
 		newTx.Status = types.StatusSigned
 		newTx.Metadata = metadata
-		if err := s.syncer.SyncTransaction("update", newTx); err != nil {
-			s.logger.Errorf("Failed to sync transaction: %v", err)
+		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+			return fmt.Errorf("upsertAndSyncTransaction failed: %v", err)
 		}
 
 		if err := s.db.UpdateTimeTriggerLastExecution(ctx, policy.ID); err != nil {
 			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 
+		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s", signResp.StatusCode, string(respBody))
+
 		var signatures map[string]tss.KeysignResponse
 		if err := json.Unmarshal(result, &signatures); err != nil {
+			s.logger.Errorf("Failed to unmarshal signatures: %v", err)
 			return fmt.Errorf("failed to unmarshal signatures: %w", err)
 		}
-
 		var signature tss.KeysignResponse
 		for _, sig := range signatures {
 			signature = sig
@@ -548,25 +541,52 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 		err = s.plugin.SigningComplete(ctx, signature, signRequest, policy)
 		if err != nil {
-			if err := s.db.UpdateTransactionStatus(txID, types.StatusRejected, metadata); err != nil {
-				s.logger.Errorf("Failed to update transaction status to rejected: %v", err)
-			}
+			s.logger.Errorf("Failed to complete signing: %v", err)
+
 			newTx.Status = types.StatusRejected
 			newTx.Metadata = metadata
-			if err := s.syncer.SyncTransaction("update", newTx); err != nil {
+			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return fmt.Errorf("fail to complete signing: %w", err)
 		}
-		if err := s.db.UpdateTransactionStatus(txID, types.StatusMined, metadata); err != nil {
-			s.logger.Errorf("Failed to update transaction status to mined: %v", err)
-		}
+
 		newTx.Status = types.StatusMined
 		newTx.Metadata = metadata
-		if err := s.syncer.SyncTransaction("update", newTx); err != nil {
-			s.logger.Errorf("Failed to sync transaction: %v", err)
+		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+			s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 		}
 	}
 
+	return nil
+}
+
+func (s *WorkerService) upsertAndSyncTransaction(ctx context.Context, action string, tx *types.TransactionHistory) error {
+	dbTx, err := s.db.Pool().Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer dbTx.Rollback(ctx)
+
+	if action == "create" {
+		txID, err := s.db.CreateTransactionHistoryTx(ctx, dbTx, *tx)
+		if err != nil {
+			return fmt.Errorf("failed to create transaction history: %w", err)
+		}
+		tx.ID = txID
+	} else {
+		if err = s.db.UpdateTransactionStatusTx(ctx, dbTx, tx.ID, tx.Status, tx.Metadata); err != nil {
+			return fmt.Errorf("failed to update transaction status: %w", err)
+		}
+	}
+
+	if err = s.syncer.SyncTransaction(action, *tx); err != nil {
+		return fmt.Errorf("failed to sync transaction: %w", err)
+	}
+
+	if err = dbTx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 	return nil
 }
 
