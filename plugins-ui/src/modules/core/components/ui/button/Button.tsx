@@ -4,7 +4,7 @@ import "./Button.css";
 type ButtonProps = {
   type: "button" | "submit";
   styleType: "primary" | "secondary" | "tertiary";
-  size: "small" | "medium";
+  size: "mini" | "small" | "medium";
   children: ReactNode;
   className?: string;
   style?: {};
