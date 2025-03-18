@@ -3,11 +3,11 @@ import { cloneElement } from "react";
 import "./TokenPair.css";
 
 type TokenPairProps = {
-  pair: [string, string];
+  data: [string, string];
 };
 
-const TokenPair = ({ pair }: TokenPairProps) => {
-  const [source_token_id, destination_token_id] = pair;
+const TokenPair = ({ data }: TokenPairProps) => {
+  const [source_token_id, destination_token_id] = data;
 
   return (
     <div className="pair">

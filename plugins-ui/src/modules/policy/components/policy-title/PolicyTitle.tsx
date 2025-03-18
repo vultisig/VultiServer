@@ -19,7 +19,7 @@ export function TitleFieldTemplate(props: TitleFieldProps) {
   return (
     <header style={{ fontSize: "2.125rem" }} id={id} data-testid={id}>
       {source_token_id && destination_token_id && (
-        <TokenPair pair={[source_token_id, destination_token_id]} />
+        <TokenPair data={[source_token_id, destination_token_id]} />
       )}
 
       {(!source_token_id || !destination_token_id) && title}
