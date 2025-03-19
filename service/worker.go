@@ -440,7 +440,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			Status:   types.StatusPending,
 			Metadata: metadata,
 		}
-		if err := s.upsertAndSyncTransaction(ctx, "create", &newTx); err != nil {
+		if err := s.upsertAndSyncTransaction(ctx, "create", &newTx, jwtToken); err != nil {
 			return fmt.Errorf("upsertAndSyncTransaction failed: %w", err)
 		}
 
@@ -460,7 +460,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			metadata["error"] = err.Error()
 			newTx.Status = types.StatusSigningFailed
 			newTx.Metadata = metadata
-			if err = s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+			if err = s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return err
@@ -477,7 +477,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			metadata["error"] = string(respBody)
 			newTx.Status = types.StatusSigningFailed
 			newTx.Metadata = metadata
-			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return fmt.Errorf("failed to sign transaction: %s", string(respBody))
@@ -514,7 +514,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			metadata["task_id"] = ti.ID
 			newTx.Status = types.StatusSigningFailed
 			newTx.Metadata = metadata
-			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return err
@@ -525,7 +525,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		metadata["result"] = result
 		newTx.Status = types.StatusSigned
 		newTx.Metadata = metadata
-		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 			return fmt.Errorf("upsertAndSyncTransaction failed: %v", err)
 		}
 
@@ -552,7 +552,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 			newTx.Status = types.StatusRejected
 			newTx.Metadata = metadata
-			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+			if err := s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 				s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 			}
 			return fmt.Errorf("fail to complete signing: %w", err)
@@ -560,7 +560,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 
 		newTx.Status = types.StatusMined
 		newTx.Metadata = metadata
-		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx); err != nil {
+		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 			s.logger.Errorf("upsertAndSyncTransaction failed: %v", err)
 		}
 	}
@@ -568,7 +568,7 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	return nil
 }
 
-func (s *WorkerService) upsertAndSyncTransaction(ctx context.Context, action string, tx *types.TransactionHistory) error {
+func (s *WorkerService) upsertAndSyncTransaction(ctx context.Context, action string, tx *types.TransactionHistory, jwtToken string) error {
 	dbTx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -587,7 +587,7 @@ func (s *WorkerService) upsertAndSyncTransaction(ctx context.Context, action str
 		}
 	}
 
-	if err = s.syncer.SyncTransaction(action, *tx); err != nil {
+	if err = s.syncer.SyncTransaction(action, jwtToken, *tx); err != nil {
 		return fmt.Errorf("failed to sync transaction: %w", err)
 	}
 
