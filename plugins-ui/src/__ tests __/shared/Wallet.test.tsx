@@ -7,6 +7,7 @@ import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalle
 describe("Wallet", () => {
   afterEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("should render button with text Connect Wallet when no wallet is connected", () => {
@@ -35,6 +36,23 @@ describe("Wallet", () => {
       "connectToVultiConnect"
     ).mockImplementation(() => Promise.resolve(["account address"]));
 
+    vi.spyOn(VulticonnectWalletService, "signCustomMessage").mockImplementation(
+      () => Promise.resolve("some hex signature")
+    );
+
+    vi.spyOn(VulticonnectWalletService, "getAuthToken").mockImplementation(() =>
+      Promise.resolve("auth token")
+    );
+
+    (window as any).vultisig = {
+      getVaults: vi.fn().mockResolvedValue([
+        {
+          publicKeyEcdsa: "8932749912039810",
+          hexChainCode: "7832648723684",
+        },
+      ]),
+    };
+
     render(<Wallet />);
 
     const button = screen.getByRole("button", { name: /Connect Wallet/i });
@@ -52,6 +70,23 @@ describe("Wallet", () => {
       VulticonnectWalletService,
       "connectToVultiConnect"
     ).mockImplementation(() => Promise.resolve([]));
+
+    vi.spyOn(VulticonnectWalletService, "signCustomMessage").mockImplementation(
+      () => Promise.resolve("some hex signature")
+    );
+
+    vi.spyOn(VulticonnectWalletService, "getAuthToken").mockImplementation(() =>
+      Promise.resolve("auth token")
+    );
+
+    (window as any).vultisig = {
+      getVaults: vi.fn().mockResolvedValue([
+        {
+          publicKeyEcdsa: "8932749912039810",
+          hexChainCode: "7832648723684",
+        },
+      ]),
+    };
 
     render(<Wallet />);
 

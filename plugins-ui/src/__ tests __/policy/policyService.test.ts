@@ -28,6 +28,12 @@ describe("PolicyService", () => {
         id: "1",
         public_key: "public_key",
         plugin_type: "dca",
+        is_ecdsa: true,
+        chain_code_hex: "",
+        derive_path: "",
+        plugin_id: "",
+        plugin_version: "0.0.1",
+        policy_version: "0.0.1",
         active: true,
         signature: "signature",
         policy: {},
@@ -74,6 +80,12 @@ describe("PolicyService", () => {
         id: "1",
         public_key: "public_key",
         plugin_type: "dca",
+        is_ecdsa: true,
+        chain_code_hex: "",
+        derive_path: "",
+        plugin_id: "",
+        plugin_version: "0.0.1",
+        policy_version: "0.0.1",
         active: true,
         signature: "signature",
         policy: {},
@@ -117,6 +129,7 @@ describe("PolicyService", () => {
     it("should call /plugin/policy endpoint and return json object", async () => {
       const mockRequest = {
         headers: {
+          Authorization: "Bearer null",
           plugin_type: "dca",
           public_key: PUBLIC_KEY,
         },
@@ -127,6 +140,12 @@ describe("PolicyService", () => {
           public_key: "public_key",
           plugin_type: "dca",
           active: true,
+          is_ecdsa: true,
+          chain_code_hex: "",
+          derive_path: "",
+          plugin_id: "",
+          plugin_version: "0.0.1",
+          policy_version: "0.0.1",
           signature: "signature",
           policy: {},
           is_ecdsa: true,
@@ -167,6 +186,7 @@ describe("PolicyService", () => {
     it("should call /plugin/policy/history/{policyId} endpoint and return json object", async () => {
       const mockRequest = {
         headers: {
+          Authorization: "Bearer null",
           public_key: PUBLIC_KEY,
         },
       };
@@ -215,7 +235,9 @@ describe("PolicyService", () => {
 
       const result = await PolicyService.deletePolicy("policyId", "signature");
 
-      expect(remove).toHaveBeenCalledWith("/plugin/policy/policyId");
+      expect(remove).toHaveBeenCalledWith("/plugin/policy/policyId", {
+        signature: "signature",
+      });
       expect(result).toEqual(undefined);
     });
 
@@ -227,9 +249,7 @@ describe("PolicyService", () => {
         .spyOn(console, "error")
         .mockImplementation(() => { });
 
-      await expect(PolicyService.deletePolicy("policyId", "signature")).rejects.toThrow(
-        "API Error"
-      );
+      await expect(PolicyService.deletePolicy("policyId", "signature")).rejects.toThrow("API Error");
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error deleting policy:",

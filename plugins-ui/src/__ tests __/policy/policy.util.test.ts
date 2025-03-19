@@ -2,8 +2,6 @@ import { Policy } from "@/modules/policy/models/policy";
 import { generatePolicy } from "@/modules/policy/utils/policy.util";
 import { describe, expect, it } from "vitest";
 
-const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
-
 describe("generatePolicy", () => {
   it("should render Pause/Pause button for each policy depending on its state", () => {
     const policyData: Policy = {
@@ -23,8 +21,13 @@ describe("generatePolicy", () => {
 
     expect(result).toStrictEqual({
       active: true,
+      chain_code_hex: "",
+      derive_path: "",
       id: "",
+      is_ecdsa: true,
+      plugin_id: "TODO",
       plugin_type: "pluginType",
+      plugin_version: "0.0.1",
       policy: {
         someNumberInput: "5",
         someBooleanInput: "false",
@@ -37,7 +40,8 @@ describe("generatePolicy", () => {
         someNullInput: "null",
         someUndefinedInput: "undefined",
       },
-      public_key: PUBLIC_KEY,
+      policy_version: "0.0.1",
+      public_key: "",
       signature: "",
     });
   });

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach, Mock, afterEach } from "vitest";
 import PolicyService from "@/modules/policy/services/policyService";
 import {
   PolicyProvider,
@@ -85,6 +85,12 @@ const TestComponent = () => {
           addPolicy({
             id: "3",
             public_key: "public_key_1",
+            is_ecdsa: true,
+            chain_code_hex: "",
+            derive_path: "",
+            plugin_id: "",
+            plugin_version: "0.0.1",
+            policy_version: "0.0.1",
             plugin_type: "plugin_type",
             active: true,
             signature: "signature",
@@ -106,8 +112,14 @@ const TestComponent = () => {
           updatePolicy({
             id: "2",
             public_key: "public_key_1",
+            is_ecdsa: true,
+            chain_code_hex: "",
+            derive_path: "",
+            plugin_id: "",
+            plugin_version: "0.0.1",
+            policy_version: "0.0.1",
             plugin_type: "plugin_type",
-            active: false,
+            active: true,
             signature: "signature",
             policy: {},
             is_ecdsa: true,
@@ -137,6 +149,22 @@ const renderWithProvider = () => {
 
 describe("PolicyProvider", () => {
   beforeEach(() => {
+    localStorage.setItem("chain", "ethereum");
+    vi.spyOn(
+      VulticonnectWalletService,
+      "getConnectedEthAccounts"
+    ).mockImplementation(() => Promise.resolve(["account address"]));
+
+    vi.spyOn(VulticonnectWalletService, "signCustomMessage").mockImplementation(
+      () => Promise.resolve("some hex signature")
+    );
+
+    (window as any).vultisig = {
+      getVaults: vi.fn().mockResolvedValue(["vault 1", "vault 2"]),
+    };
+  });
+
+  afterEach(() => {
     vi.resetAllMocks();
     localStorage.clear();
   });
@@ -183,17 +211,6 @@ describe("PolicyProvider", () => {
 
   describe("addPolicy", () => {
     it("should add policy in context", async () => {
-      localStorage.setItem("chain", "ethereum");
-      vi.spyOn(
-        VulticonnectWalletService,
-        "getConnectedEthAccounts"
-      ).mockImplementation(() => Promise.resolve(["account address"]));
-
-      vi.spyOn(
-        VulticonnectWalletService,
-        "signCustomMessage"
-      ).mockImplementation(() => Promise.resolve("some hex signature"));
-
       (PolicyService.getPolicies as Mock).mockResolvedValue(mockPolicies);
 
       (PolicyService.createPolicy as Mock).mockResolvedValue({
@@ -228,17 +245,6 @@ describe("PolicyProvider", () => {
     });
 
     it("should set error message if request fails", async () => {
-      localStorage.setItem("chain", "ethereum");
-      vi.spyOn(
-        VulticonnectWalletService,
-        "getConnectedEthAccounts"
-      ).mockImplementation(() => Promise.resolve(["account address"]));
-
-      vi.spyOn(
-        VulticonnectWalletService,
-        "signCustomMessage"
-      ).mockImplementation(() => Promise.resolve("some hex signature"));
-
       (PolicyService.getPolicies as Mock).mockResolvedValue(mockPolicies);
 
       (PolicyService.createPolicy as Mock).mockRejectedValue("API Error");
@@ -262,17 +268,6 @@ describe("PolicyProvider", () => {
 
   describe("updatePolicy", () => {
     it("should update policy in context", async () => {
-      localStorage.setItem("chain", "ethereum");
-      vi.spyOn(
-        VulticonnectWalletService,
-        "getConnectedEthAccounts"
-      ).mockImplementation(() => Promise.resolve(["account address"]));
-
-      vi.spyOn(
-        VulticonnectWalletService,
-        "signCustomMessage"
-      ).mockImplementation(() => Promise.resolve("some hex signature"));
-
       (PolicyService.getPolicies as Mock).mockResolvedValue(mockPolicies);
 
       (PolicyService.updatePolicy as Mock).mockResolvedValue({
@@ -306,17 +301,6 @@ describe("PolicyProvider", () => {
     });
 
     it("should set error message if request fails", async () => {
-      localStorage.setItem("chain", "ethereum");
-      vi.spyOn(
-        VulticonnectWalletService,
-        "getConnectedEthAccounts"
-      ).mockImplementation(() => Promise.resolve(["account address"]));
-
-      vi.spyOn(
-        VulticonnectWalletService,
-        "signCustomMessage"
-      ).mockImplementation(() => Promise.resolve("some hex signature"));
-
       (PolicyService.getPolicies as Mock).mockResolvedValue(mockPolicies);
 
       (PolicyService.updatePolicy as Mock).mockRejectedValue("API Error");

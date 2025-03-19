@@ -148,16 +148,16 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("Need to connect to wallet");
       }
 
-      const vaults = await window.vultisig.getVaults();
+      const vaults = await window.vultisig?.getVaults();
       if (!vaults || vaults.length === 0) {
         throw new Error("No vaults found");
       }
 
       policy.public_key = "";
       policy.signature = "";
-      policy.is_ecdsa = true
-      policy.chain_code_hex = vaults[0].hexChainCode
-      policy.derive_path = "m/44'/60'/0'/0/0"  // TODO: add mapping { ethereum => "m/44'/60'/0'/0/0", thor => ... })
+      policy.is_ecdsa = true;
+      policy.chain_code_hex = vaults[0].hexChainCode;
+      policy.derive_path = "m/44'/60'/0'/0/0"; // TODO: add mapping { ethereum => "m/44'/60'/0'/0/0", thor => ... })
       const serializedPolicy = JSON.stringify(policy);
       const hexMessage = toHex(serializedPolicy);
 

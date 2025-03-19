@@ -47,7 +47,7 @@ const PolicyService = {
         headers: {
           plugin_type: "dca", // todo remove hardcoding once we have the marketplace
           public_key: PUBLIC_KEY, // TODO: get Vault's pub key
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
       });
       return newPolicy;
@@ -69,7 +69,7 @@ const PolicyService = {
       const history = await get(endpoint, {
         headers: {
           public_key: PUBLIC_KEY, // TODO: get Vault's pub key
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`
+          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
       });
       return history;
@@ -87,8 +87,8 @@ const PolicyService = {
   deletePolicy: async (id: string, signature: string) => {
     try {
       const endpoint = `/plugin/policy/${id}`;
-      return remove(endpoint, {
-        "signature": signature,
+      return await remove(endpoint, {
+        signature: signature,
       });
     } catch (error) {
       console.error("Error deleting policy:", error);
