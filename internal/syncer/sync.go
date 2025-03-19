@@ -26,8 +26,8 @@ const (
 type PolicySyncer interface {
 	CreatePolicySync(policy types.PluginPolicy) error
 	UpdatePolicySync(policy types.PluginPolicy) error
-	DeletePolicySync(policyID string) error
-	SyncTransaction(action string, tx types.TransactionHistory) error
+	DeletePolicySync(policyID, signature string) error
+	SyncTransaction(action, jwtToken string, tx types.TransactionHistory) error
 }
 
 type Syncer struct {
@@ -138,18 +138,31 @@ func (s *Syncer) UpdatePolicySync(policy types.PluginPolicy) error {
 	})
 }
 
-func (s *Syncer) DeletePolicySync(policyID string) error {
+type DeleteRequestBody struct {
+	Signature string `json:"signature"`
+}
+
+func (s *Syncer) DeletePolicySync(policyID, signature string) error {
 	s.logger.WithFields(logrus.Fields{
 		"policy_id": policyID,
 	}).Info("Starting policy delete sync")
 
 	return s.retryWithBackoff("DeletePolicySync", func() error {
+		reqBody := DeleteRequestBody{
+			Signature: signature,
+		}
+		reqBodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return fmt.Errorf("fail to marshal request body: %w", err)
+		}
+
 		url := s.serverAddr + policyEndpoint + "/" + policyID
 
-		req, err := http.NewRequest(http.MethodDelete, url, nil)
+		req, err := http.NewRequest(http.MethodDelete, url, bytes.NewBuffer(reqBodyBytes))
 		if err != nil {
 			return fmt.Errorf("fail to create request, err: %w", err)
 		}
+		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := s.client.Do(req)
 		if err != nil {
@@ -179,11 +192,12 @@ func (s *Syncer) DeletePolicySync(policyID string) error {
 	})
 }
 
-func (s *Syncer) SyncTransaction(action string, tx types.TransactionHistory) error {
+func (s *Syncer) SyncTransaction(action, jwtToken string, tx types.TransactionHistory) error {
 	s.logger.WithFields(logrus.Fields{
 		"tx_id":   tx.ID,
 		"tx_hash": tx.TxHash,
 	}).Info("Starting tx sync")
+
 	return s.retryWithBackoff("SyncTransaction", func() error {
 		txBytes, err := json.Marshal(tx)
 		if err != nil {
@@ -203,6 +217,8 @@ func (s *Syncer) SyncTransaction(action string, tx types.TransactionHistory) err
 			return fmt.Errorf("fail to create request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %v", jwtToken))
+
 		resp, err := s.client.Do(req)
 		if err != nil {
 			return fmt.Errorf("fail to sync transaction on verifier server: %w", err)

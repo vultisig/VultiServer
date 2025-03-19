@@ -110,10 +110,8 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       const signature = await signPolicy(policy);
-
       if (signature && typeof signature === "string") {
-        policy.signature = signature;
-        await PolicyService.deletePolicy(policyId);
+        await PolicyService.deletePolicy(policyId, signature);
 
         setPolicyMap((prev) => {
           const updatedPolicyMap = new Map(prev);
@@ -121,6 +119,7 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
 
           return updatedPolicyMap;
         });
+
         setToast({
           message: "Policy deleted successfully!",
           type: "success",
@@ -140,9 +139,6 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
     const chain = localStorage.getItem("chain") as string;
 
     if (isSupportedChainType(chain)) {
-      const serializedPolicy = JSON.stringify(policy);
-      const hexMessage = toHex(serializedPolicy);
-
       let accounts = [];
       if (chain === "ethereum") {
         accounts = await VulticonnectWalletService.getConnectedEthAccounts();
@@ -152,10 +148,34 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("Need to connect to wallet");
       }
 
-      return await VulticonnectWalletService.signCustomMessage(
+      const vaults = await window.vultisig?.getVaults();
+      if (!vaults || vaults.length === 0) {
+        throw new Error("No vaults found");
+      }
+
+      policy.public_key = "";
+      policy.signature = "";
+      policy.is_ecdsa = true;
+      policy.chain_code_hex = vaults[0].hexChainCode;
+      policy.derive_path = "m/44'/60'/0'/0/0"; // TODO: add mapping { ethereum => "m/44'/60'/0'/0/0", thor => ... })
+      const serializedPolicy = JSON.stringify(policy);
+      const hexMessage = toHex(serializedPolicy);
+
+      const signature = await VulticonnectWalletService.signCustomMessage(
         hexMessage,
         accounts[0]
       );
+
+      policy.public_key = vaults[0].publicKeyEcdsa
+
+      console.log("Public key ecdsa: ", policy.public_key);
+      console.log("Chain code hex: ", policy.chain_code_hex);
+      console.log("Derive path: ", policy.derive_path);
+      console.log("Hex message: ", hexMessage);
+      console.log("Account[0]: ", accounts[0]);
+      console.log("Signature: ", signature);
+
+      return signature
     }
     return "";
   };

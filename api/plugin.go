@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/sigutil"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
@@ -78,7 +81,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
 
-	filePathName := req.PublicKey + ".bak"
+	filePathName := common.GetVaultBackupFilename(req.PublicKey)
 	content, err := s.blockStorage.GetFile(filePathName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("fail to read file, err: %w", err)
@@ -124,7 +127,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		if updateErr := s.db.UpdateTransactionStatus(c.Request().Context(), txToSign.ID, types.StatusSigningFailed, txToSign.Metadata); updateErr != nil {
 			s.logger.Errorf("Failed to update transaction status: %v", updateErr)
 		}
-		return fmt.Errorf("fail to enqueue task, err: %w", err)
+		return fmt.Errorf("fail to enqueue keysign task: %w", err)
 	}
 
 	txToSign.Metadata["task_id"] = ti.ID
@@ -140,7 +143,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 func (s *Server) GetPluginPolicyById(c echo.Context) error {
 	policyID := c.Param("policyId")
 	if policyID == "" {
-		err := fmt.Errorf("policy id is required")
+		err := fmt.Errorf("policy ID is required")
 		message := map[string]interface{}{
 			"message": "failed to get policy",
 			"error":   err.Error(),
@@ -148,7 +151,6 @@ func (s *Server) GetPluginPolicyById(c echo.Context) error {
 		s.logger.Error(err)
 
 		return c.JSON(http.StatusBadRequest, message)
-
 	}
 
 	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
@@ -156,6 +158,7 @@ func (s *Server) GetPluginPolicyById(c echo.Context) error {
 		err = fmt.Errorf("failed to get policy: %w", err)
 		message := map[string]interface{}{
 			"message": fmt.Sprintf("failed to get policy: %s", policyID),
+			"error":   err.Error(),
 		}
 		s.logger.Error(err)
 		return c.JSON(http.StatusInternalServerError, message)
@@ -199,7 +202,6 @@ func (s *Server) GetAllPluginPolicies(c echo.Context) error {
 	return c.JSON(http.StatusOK, policies)
 }
 
-// TODO: verify the signature to authorize the operation
 func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {
@@ -217,15 +219,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 			"message": fmt.Sprintf("failed to initialize plugin: %s", policy.PluginType),
 		}
 		return c.JSON(http.StatusBadRequest, message)
-	}
-
-	if err := plg.SetupPluginPolicy(&policy); err != nil {
-		err = fmt.Errorf("failed to setup policy: %w", err)
-		message := map[string]interface{}{
-			"message": "failed to setup policy",
-		}
-		s.logger.Error(err)
-		return c.JSON(http.StatusInternalServerError, message)
 	}
 
 	if err := plg.ValidatePluginPolicy(policy); err != nil {
@@ -248,6 +241,19 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
+	if policy.ID == "" {
+		policy.ID = uuid.NewString()
+	}
+
+	if !s.verifyPolicySignature(policy, false) {
+		s.logger.Error("invalid policy signature")
+		message := map[string]interface{}{
+			"message": "Authorization failed",
+			"error":   "Invalid policy signature",
+		}
+		return c.JSON(http.StatusForbidden, message)
+	}
+
 	newPolicy, err := s.policyService.CreatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
 		err = fmt.Errorf("failed to create plugin policy: %w", err)
@@ -261,7 +267,6 @@ func (s *Server) CreatePluginPolicy(c echo.Context) error {
 	return c.JSON(http.StatusOK, newPolicy)
 }
 
-// TODO: verify the signature to authorize the operation
 func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	var policy types.PluginPolicy
 	if err := c.Bind(&policy); err != nil {
@@ -313,7 +318,14 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
-	s.logger.Debug("Policy Signature", policy.Signature)
+	if !s.verifyPolicySignature(policy, true) {
+		s.logger.Error("invalid policy signature")
+		message := map[string]interface{}{
+			"message": "Authorization failed",
+			"error":   "Invalid policy signature",
+		}
+		return c.JSON(http.StatusForbidden, message)
+	}
 
 	updatedPolicy, err := s.policyService.UpdatePolicyWithSync(c.Request().Context(), policy)
 	if err != nil {
@@ -328,11 +340,18 @@ func (s *Server) UpdatePluginPolicyById(c echo.Context) error {
 	return c.JSON(http.StatusOK, updatedPolicy)
 }
 
-// TODO: verify the signature to authorize the operation
 func (s *Server) DeletePluginPolicyById(c echo.Context) error {
+	var reqBody struct {
+		Signature string `json:"signature"`
+	}
+
+	if err := c.Bind(&reqBody); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
 	policyID := c.Param("policyId")
 	if policyID == "" {
-		err := fmt.Errorf("policy id is required")
+		err := fmt.Errorf("policy ID is required")
 		message := map[string]interface{}{
 			"message": "failed to delete policy",
 			"error":   err.Error(),
@@ -342,8 +361,31 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, message)
 	}
 
-	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID); err != nil {
-		err = fmt.Errorf("failed to delte policy: %w", err)
+	policy, err := s.policyService.GetPluginPolicy(c.Request().Context(), policyID)
+	if err != nil {
+		err = fmt.Errorf("failed to get policy: %w", err)
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("failed to get policy: %s", policyID),
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	// This is because we have different signature stored in the database.
+	policy.Signature = reqBody.Signature
+
+	if !s.verifyPolicySignature(policy, true) {
+		s.logger.Error("invalid policy signature")
+		message := map[string]interface{}{
+			"message": "Authorization failed",
+			"error":   "Invalid policy signature",
+		}
+		return c.JSON(http.StatusForbidden, message)
+	}
+
+	if err := s.policyService.DeletePolicyWithSync(c.Request().Context(), policyID, reqBody.Signature); err != nil {
+		err = fmt.Errorf("failed to delete policy: %w", err)
 		message := map[string]interface{}{
 			"message": fmt.Sprintf("failed to delete policy: %s", policyID),
 		}
@@ -356,15 +398,14 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	policyID := c.Param("policyId")
+
 	if policyID == "" {
-		err := fmt.Errorf("policy id is required")
+		err := fmt.Errorf("policy ID is required")
 		message := map[string]interface{}{
 			"message": "failed to get policy",
 			"error":   err.Error(),
 		}
-
 		return c.JSON(http.StatusBadRequest, message)
-
 	}
 
 	policyHistory, err := s.policyService.GetPluginPolicyTransactionHistory(c.Request().Context(), policyID)
@@ -380,26 +421,6 @@ func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {
 	return c.JSON(http.StatusOK, policyHistory)
 }
 
-func calculateTransactionHash(txData string) (string, error) {
-	tx := &gtypes.Transaction{}
-	rawTx, err := hex.DecodeString(txData)
-	if err != nil {
-		return "", err
-	}
-
-	err = tx.UnmarshalBinary(rawTx)
-	if err != nil {
-		return "", err
-	}
-
-	chainID := tx.ChainId()
-
-	signer := gtypes.NewEIP155Signer(chainID)
-
-	hash := signer.Hash(tx).String()[2:]
-	return hash, nil
-}
-
 func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 	switch pluginType {
 	case "payroll":
@@ -409,12 +430,10 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read plugin config: %w", err)
 		}
-
 		rpcClient, err := ethclient.Dial(cfg.Server.Plugin.Eth.Rpc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize rpc client: %w", err)
 		}
-
 		uniswapV2RouterAddress := gcommon.HexToAddress(cfg.Server.Plugin.Eth.Uniswap.V2Router)
 		uniswapCfg := uniswap.NewConfig(
 			rpcClient,
@@ -423,9 +442,68 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 			50000,   // TODO: config
 			time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
 		)
-
 		return dca.NewDCAPlugin(uniswapCfg, s.db, s.logger)
 	default:
 		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
 	}
+}
+
+func (s *Server) verifyPolicySignature(policy types.PluginPolicy, update bool) bool {
+	msgHex, err := policyToMessageHex(policy, update)
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to convert policy to message hex: %w", err))
+		return false
+	}
+
+	msgBytes, err := hex.DecodeString(strings.TrimPrefix(msgHex, "0x"))
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to decode message bytes: %w", err))
+		return false
+	}
+
+	signatureBytes, err := hex.DecodeString(strings.TrimPrefix(policy.Signature, "0x"))
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to decode signature bytes: %w", err))
+		return false
+	}
+
+	isVerified, err := sigutil.VerifySignature(policy.PublicKey, policy.ChainCodeHex, policy.DerivePath, msgBytes, signatureBytes)
+	if err != nil {
+		s.logger.Error(fmt.Errorf("failed to verify signature: %w", err))
+		return false
+	}
+	return isVerified
+}
+
+func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error) {
+	if !isUpdate {
+		policy.ID = ""
+	}
+	// public key and signature are not part of the message that is signed
+	policy.PublicKey = ""
+	policy.Signature = ""
+
+	serializedPolicy, err := json.Marshal(policy)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize policy")
+	}
+	return hex.EncodeToString(serializedPolicy), nil
+}
+
+func calculateTransactionHash(txData string) (string, error) {
+	tx := &gtypes.Transaction{}
+	rawTx, err := hex.DecodeString(txData)
+	if err != nil {
+		return "", fmt.Errorf("invalid transaction hex: %w", err)
+	}
+
+	err = tx.UnmarshalBinary(rawTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal transaction: %w", err)
+	}
+
+	chainID := tx.ChainId()
+	signer := gtypes.NewEIP155Signer(chainID)
+	hash := signer.Hash(tx).String()[2:]
+	return hash, nil
 }

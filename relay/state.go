@@ -37,7 +37,7 @@ func NewLocalStateAccessorImp(localPartyID, folder, vaultFileName, vaultPasswd s
 	}
 
 	if vaultFileName != "" {
-		buf, err := storage.GetFile(vaultFileName + ".bak")
+		buf, err := storage.GetFile(common.GetVaultBackupFilename(vaultFileName))
 		if err != nil {
 			return nil, fmt.Errorf("fail to get vault file: %w", err)
 		}

@@ -21,8 +21,11 @@ import (
 )
 
 const (
-	PluginPartyID   = "plugin-service"
-	VerifierPartyID = "verifier-service"
+	// TODO: once the new resharding is done
+	PluginPartyID   = "Rado’s MacBook Pro-FD0" // change this to "plugin-service"
+	VerifierPartyID = "Server-58253"           // change this to "verifier-service"
+
+	vaultBackupSuffix = ".bak.vult"
 )
 
 func CompressData(data []byte) ([]byte, error) {
@@ -185,6 +188,7 @@ func GetVaultName(vault *vaultType.Vault) string {
 	return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
 }
 
+// TODO: pass if the key is ecdsa or eddsa
 func DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath string) (*common.Address, error) {
 	derivedPubKeyHex, err := tss.GetDerivedPubKey(compressedPubKeyHex, hexChainCode, derivePath, false)
 	if err != nil {
@@ -207,4 +211,8 @@ func DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath string) (*commo
 	address := common.BytesToAddress(hash[12:])
 
 	return &address, nil
+}
+
+func GetVaultBackupFilename(publicKey string) string {
+	return fmt.Sprintf("%s%s", publicKey, vaultBackupSuffix)
 }

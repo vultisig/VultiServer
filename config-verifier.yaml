@@ -3,6 +3,7 @@
 server:
   host: localhost
   port: 8080
+  jwt_secret: myjwtsecretphrase
   database:
     dsn: postgres://myuser:mypassword@localhost:5432/vultisig-verifier?sslmode=disable
   vaults_file_path: /tmp/verifier/vaults

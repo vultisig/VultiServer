@@ -27,7 +27,7 @@ func (uc *Client) GetRouterAddress() *common.Address {
 	return uc.cfg.routerAddress
 }
 
-func (uc *Client) ApproveERC20Token(chainID *big.Int, signerAddress *common.Address, tokenAddress, spenderAddress common.Address, amount *big.Int) ([]byte, []byte, error) {
+func (uc *Client) ApproveERC20Token(chainID *big.Int, signerAddress *common.Address, tokenAddress, spenderAddress common.Address, amount *big.Int, nonceOffset uint64) ([]byte, []byte, error) {
 	tokenABI := `[
 		{
 			"name": "approve",
@@ -58,11 +58,11 @@ func (uc *Client) ApproveERC20Token(chainID *big.Int, signerAddress *common.Addr
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to pack approve data: %w", err)
 	}
-	// TODO: use proper nonce management
 	nonce, err := uc.cfg.rpcClient.PendingNonceAt(context.Background(), *signerAddress)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
+	nonce += nonceOffset
 
 	gasPrice, err := uc.cfg.rpcClient.SuggestGasPrice(context.Background())
 	if err != nil {
@@ -86,7 +86,7 @@ func (uc *Client) ApproveERC20Token(chainID *big.Int, signerAddress *common.Addr
 	return hash, rawTx, err
 }
 
-func (uc *Client) SwapTokens(chainID *big.Int, signerAddress *common.Address, amountIn, amountOutMin *big.Int, path []common.Address) ([]byte, []byte, error) {
+func (uc *Client) SwapTokens(chainID *big.Int, signerAddress *common.Address, amountIn, amountOutMin *big.Int, path []common.Address, nonceOffset uint64) ([]byte, []byte, error) {
 	log.Println("Swapping tokens...")
 	routerABI := `[
 		{
@@ -127,12 +127,11 @@ func (uc *Client) SwapTokens(chainID *big.Int, signerAddress *common.Address, am
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: use proper nonce management
 	nonce, err := uc.cfg.rpcClient.PendingNonceAt(context.Background(), *signerAddress)
 	if err != nil {
 		return nil, nil, err
 	}
-	nonce += 1
+	nonce += nonceOffset
 
 	gasPrice, err := uc.cfg.rpcClient.SuggestGasPrice(context.Background())
 	if err != nil {

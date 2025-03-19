@@ -15,14 +15,43 @@ const Wallet = () => {
   const connectWallet = async (chain: string) => {
     switch (chain) {
       // add more switch cases as more chains are supported
-      case "ethereum":
+      case "ethereum": {
         const accounts =
           await VulticonnectWalletService.connectToVultiConnect();
         if (accounts.length && accounts[0]) {
           setConnectedWallet(true);
         }
 
+        const vaults = await window.vultisig?.getVaults();
+
+        if (!vaults || vaults.length === 0) {
+          throw new Error("No vaults found");
+        }
+
+        const publicKey = vaults[0].publicKeyEcdsa;
+        const chainCodeHex = vaults[0].hexChainCode;
+        const derivePath = "m/44'/60'/0'/0/0"; // Using standard Ethereum derivation path
+
+        const messageToSign =
+          (publicKey.startsWith("0x") ? publicKey.slice(2) : publicKey) + "1";
+
+        const hexMessage = toHex(messageToSign);
+
+        const signature = await VulticonnectWalletService.signCustomMessage(
+          hexMessage,
+          accounts[0]
+        );
+
+        const token = await VulticonnectWalletService.getAuthToken(
+          hexMessage,
+          signature,
+          publicKey,
+          chainCodeHex,
+          derivePath
+        );
+        localStorage.setItem("authToken", token);
         break;
+      }
 
       default:
         alert(`Chain ${chain} is currently not supported.`); // toast
@@ -43,3 +72,12 @@ const Wallet = () => {
 };
 
 export default Wallet;
+
+const toHex = (str: string): string => {
+  return (
+    "0x" +
+    Array.from(str)
+      .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
+      .join("")
+  );
+};

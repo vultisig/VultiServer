@@ -16,6 +16,7 @@ type Config struct {
 		} `mapstructure:"database" json:"database,omitempty"`
 		VaultsFilePath string `mapstructure:"vaults_file_path" json:"vaults_file_path,omitempty"`
 		Mode           string `mapstructure:"mode" json:"mode,omitempty"`
+		JWTSecret      string `mapstructure:"jwt_secret" json:"jwt_secret,omitempty"`
 		Plugin         struct {
 			Type string `mapstructure:"type" json:"type,omitempty"`
 			Eth  struct {

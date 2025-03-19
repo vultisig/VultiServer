@@ -166,38 +166,42 @@ curl -X POST http://localhost:8081/vault/reshare \
 `GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
 if server return http status code 200, it means the code is valid , other status code means the code is invalid -->
 
-# 7. Test Scripts
+# 7. Test DCA Plugin Execution (with Vault from Vulticonnect)
+
+1. Create 2-of-2 Fast vault (e.g. on device1 - computer)
+2. Backup the vault shares (device 1 share, vultiserver share via email)
+3. Import the vault into another device2 (e.g. phone) so we can later sign with device1 + device2
+4. Import the vault via QR code into Vulticonnect
+5. Import each backup into the relevant local S3 folder (vultiplugin, vultiserver) named as `publickey.bak.vult` (to have the state locally)
+6. Change local participant ids (`PluginPartyID, VerifierPartyID`) to match those from Vault backups (todo: remove)
+7. Change the hardcoded vault `passwords`, `encryptionkey` (todo: remove)
+8. Create a DCA policy through the UI
 
 ```sh
 export RPC_URL=http://127.0.0.1:8545
-export VAULT_NAME=TestVault26
-export STATE_DIR=vaults
 export PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 
+export VAULT_ADDRESS=0x5582df2D22194AF8201997D750e80fd8140387c2
+export TOKEN_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 ```
 
-## 7.1 Create vault
-
+10. Send some amount of native ETH to the vault address
 ```sh
-  go run scripts/dev/create_vault/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+  cast send $VAULT_ADDRESS --value 10ether --rpc-url $RPC_URL --private-key $PRIVATE_KEY
+  cast balance $VAULT_ADDRESS  --rpc-url $RPC_URL
+  cast nonce $VAULT_ADDRESS  --rpc-url $RPC_URL
 ```
 
-## 7.2 Init vault balance
-
-Send some amount of native ETH to the vault
+11. Mint some amount of ERC20 Token. If "-token" is not present, the script will default to minting WETH.
 ```sh
-  go run scripts/dev/add_balance/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+  go run scripts/dev/mint_erc20/main.go -vault-address $VAULT_ADDRESS -token $TOKEN_ADDRESS
 ```
 
-Mint some amount of ERC20 Token. If "-token" is not present, the script will default to minting WETH.
-```sh
-  go run scripts/dev/mint_erc20/main.go -state-dir $STATE_DIR -vault $VAULT_NAME -token $TOKEN_ADDRESS
-```
 
-Check balance and nonce of Vault
-```sh
-  cast balance 0x577D1Cd9F904F95bA56f0CE9D8e8b6a1a72577ec --rpc-url $RPC_URL
-  cast nonce 0x577D1Cd9F904F95bA56f0CE9D8e8b6a1a72577ec --rpc-url $RPC_URL
-```
+
+
+
+
+
 
 
 ## Create Payroll plugin policy
