@@ -530,10 +530,6 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 			return fmt.Errorf("upsertAndSyncTransaction failed: %v", err)
 		}
 
-		if err := s.db.UpdateTimeTriggerLastExecution(ctx, policy.ID); err != nil {
-			s.logger.Errorf("Failed to update last execution: %v", err)
-		}
-
 		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s", signResp.StatusCode, string(respBody))
 
 		var signatures map[string]tss.KeysignResponse
