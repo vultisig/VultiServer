@@ -385,8 +385,9 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	defer func() {
 		if err := s.db.UpdateTriggerStatus(ctx, triggerEvent.PolicyID, types.StatusTimeTriggerPending); err != nil {
 			s.logger.Errorf("db.UpdateTriggerStatus failed: %v", err)
-		} else {
-			s.logger.Infof("Time trigger status reset to PENDING for policy_id: %s", triggerEvent.PolicyID)
+		}
+		if err := s.db.UpdateTimeTriggerLastExecution(ctx, triggerEvent.PolicyID); err != nil {
+			s.logger.Errorf("db.UpdateTimeTriggerLastExecution failed: %v", err)
 		}
 	}()
 
