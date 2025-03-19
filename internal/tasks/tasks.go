@@ -10,4 +10,5 @@ const (
 	TypeKeyGenerationDKLS = "key:generationDKLS"
 	TypeKeySignDKLS       = "key:signDKLS"
 	TypeReshareDKLS       = "key:reshareDKLS"
+	TypeMigrate           = "key:migrate"
 )

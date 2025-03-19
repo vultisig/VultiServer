@@ -77,6 +77,7 @@ func (s *Server) StartServer() error {
 
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
+	grp.POST("/migrate", s.MigrateVault)
 	// grp.POST("/upload", s.UploadVault)
 	// grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
@@ -204,6 +205,38 @@ func (s *Server) ReshareVault(c echo.Context) error {
 		typeName = tasks.TypeReshareDKLS
 	}
 	_, err = s.client.Enqueue(asynq.NewTask(typeName, buf),
+		asynq.MaxRetry(-1),
+		asynq.Timeout(7*time.Minute),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
+	if err != nil {
+		return fmt.Errorf("fail to enqueue task, err: %w", err)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+// MigrateVault is a handler to migrate a vault from GG20 to DKLS
+func (s *Server) MigrateVault(c echo.Context) error {
+	var req types.MigrationRequest
+	if err := c.Bind(&req); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid request, err: %w", err)
+	}
+	buf, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
+	}
+	result, err := s.redis.Get(c.Request().Context(), req.SessionID)
+	if err == nil && result != "" {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
+		s.logger.Errorf("fail to set session, err: %v", err)
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeMigrate, buf),
 		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),

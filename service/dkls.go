@@ -231,13 +231,15 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 	var messageCache sync.Map
 	mpcKeygenWrapper := t.GetMPCKeygenWrapper(isEdDSA)
 	relayClient := relay.NewRelayClient(t.cfg.Relay.Server)
+	start := time.Now()
 	for {
 		select {
-		case <-time.After(time.Minute):
-			// set isKeygenFinished to true , so the other go routine can be stopped
-			t.isKeygenFinished.Store(true)
-			return "", "", TssKeyGenTimeout
 		case <-time.After(time.Millisecond * 100):
+			if time.Since(start) > time.Minute { // 1 minute timeout
+				t.isKeygenFinished.Store(true)
+				t.logger.Error("keygen timeout")
+				return "", "", TssKeyGenTimeout
+			}
 			messages, err := relayClient.DownloadMessages(sessionID, localPartyID, "")
 			if err != nil {
 				t.logger.Error("failed to download messages", "error", err)
