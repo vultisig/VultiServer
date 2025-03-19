@@ -385,8 +385,9 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 	defer func() {
 		if err := s.db.UpdateTriggerStatus(ctx, triggerEvent.PolicyID, types.StatusTimeTriggerPending); err != nil {
 			s.logger.Errorf("db.UpdateTriggerStatus failed: %v", err)
-		} else {
-			s.logger.Infof("Time trigger status reset to PENDING for policy_id: %s", triggerEvent.PolicyID)
+		}
+		if err := s.db.UpdateTimeTriggerLastExecution(ctx, triggerEvent.PolicyID); err != nil {
+			s.logger.Errorf("db.UpdateTimeTriggerLastExecution failed: %v", err)
 		}
 	}()
 
@@ -527,10 +528,6 @@ func (s *WorkerService) HandlePluginTransaction(ctx context.Context, t *asynq.Ta
 		newTx.Metadata = metadata
 		if err := s.upsertAndSyncTransaction(ctx, "update", &newTx, jwtToken); err != nil {
 			return fmt.Errorf("upsertAndSyncTransaction failed: %v", err)
-		}
-
-		if err := s.db.UpdateTimeTriggerLastExecution(ctx, policy.ID); err != nil {
-			s.logger.Errorf("Failed to update last execution: %v", err)
 		}
 
 		s.logger.Infof("Plugin signing test complete. Status: %d, Response: %s", signResp.StatusCode, string(respBody))
