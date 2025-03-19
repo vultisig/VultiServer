@@ -37,12 +37,6 @@ describe("PolicyService", () => {
         active: true,
         signature: "signature",
         policy: {},
-        is_ecdsa: true,
-        chain_code_hex: "chain_code_hex",
-        derive_path: "derive_path",
-        plugin_id: "plugin_id",
-        plugin_version: "1",
-        policy_version: "1",
       };
 
       (post as Mock).mockResolvedValue(mockResponse);
@@ -89,12 +83,6 @@ describe("PolicyService", () => {
         active: true,
         signature: "signature",
         policy: {},
-        is_ecdsa: true,
-        chain_code_hex: "chain_code_hex",
-        derive_path: "derive_path",
-        plugin_id: "plugin_id",
-        plugin_version: "1",
-        policy_version: "1",
       };
 
       (put as Mock).mockResolvedValue(mockResponse);
@@ -148,12 +136,6 @@ describe("PolicyService", () => {
           policy_version: "0.0.1",
           signature: "signature",
           policy: {},
-          is_ecdsa: true,
-          chain_code_hex: "chain_code_hex",
-          derive_path: "derive_path",
-          plugin_id: "plugin_id",
-          plugin_version: "1",
-          policy_version: "1",
         },
       ];
 

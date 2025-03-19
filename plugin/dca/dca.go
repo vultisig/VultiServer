@@ -38,7 +38,7 @@ const (
 
 const (
 	vaultPassword    = ""                                                                 // TODO:
-	hexEncryptionKey = "ee6438289ea754200d5c20de699f5e17761e76eaa0e36804780a5b574fb33815" // TODO:
+	hexEncryptionKey = "539440138236b389cb0355aa1e81d11e51e9ad7c94b09bb45704635913604a73" // TODO:
 )
 
 type DCAPlugin struct {

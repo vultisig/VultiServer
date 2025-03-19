@@ -166,15 +166,15 @@ curl -X POST http://localhost:8081/vault/reshare \
 `GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
 if server return http status code 200, it means the code is valid , other status code means the code is invalid -->
 
-# 7. Test DCA Plugin Execution
+# 7. Test DCA Plugin Execution (with Vault from Vulticonnect)
 
-1. Create 2-of-2 Fast vault on some device1 (e.g. computer)
-2. Backup the vault shares (device share, vultiserver share)
+1. Create 2-of-2 Fast vault (e.g. on device1 - computer)
+2. Backup the vault shares (device 1 share, vultiserver share via email)
 3. Import the vault into another device2 (e.g. phone) so we can later sign with device1 + device2
 4. Import the vault via QR code into Vulticonnect
-5. Import each backup into the relevant local S3 folder (vultiplugin, vultiserver) named as `publickey.bak.vult` (for local testing)
-6. Change local participant ids (`PluginPartyID, VerifierPartyID`) to match those from the backups (for local testing, will be removed once the new reshare process is implemented) 
-7. Change the hardcoded vault password (need to be removed)
+5. Import each backup into the relevant local S3 folder (vultiplugin, vultiserver) named as `publickey.bak.vult` (to have the state locally)
+6. Change local participant ids (`PluginPartyID, VerifierPartyID`) to match those from Vault backups (todo: remove)
+7. Change the hardcoded vault `passwords`, `encryptionkey` (todo: remove)
 8. Create a DCA policy through the UI
 
 ```sh
@@ -195,6 +195,14 @@ export TOKEN_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 ```sh
   go run scripts/dev/mint_erc20/main.go -vault-address $VAULT_ADDRESS -token $TOKEN_ADDRESS
 ```
+
+
+
+
+
+
+
+
 
 ## Create Payroll plugin policy
 

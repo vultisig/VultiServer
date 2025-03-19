@@ -95,12 +95,6 @@ const TestComponent = () => {
             active: true,
             signature: "signature",
             policy: {},
-            is_ecdsa: true,
-            chain_code_hex: "chain_code_hex",
-            derive_path: "derive_path",
-            plugin_id: "plugin_id",
-            plugin_version: "1",
-            policy_version: "1",
           })
         }
       >
@@ -122,12 +116,6 @@ const TestComponent = () => {
             active: true,
             signature: "signature",
             policy: {},
-            is_ecdsa: true,
-            chain_code_hex: "chain_code_hex",
-            derive_path: "derive_path",
-            plugin_id: "plugin_id",
-            plugin_version: "1",
-            policy_version: "1",
           })
         }
       >
