@@ -1,5 +1,3 @@
-const BASE_URL = import.meta.env.VITE_BASE_URL;
-
 /**
  * Handles HTTP responses by checking the status and returning the parsed JSON.
  * Throws an error if the response is not ok.
@@ -37,7 +35,7 @@ const handleError = (error: unknown) => {
  */
 export const post = async (endpoint: string, data: any, options?: any) => {
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -58,7 +56,7 @@ export const post = async (endpoint: string, data: any, options?: any) => {
  */
 export const get = async (endpoint: string, options: any) => {
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(endpoint, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -80,7 +78,7 @@ export const get = async (endpoint: string, options: any) => {
  */
 export const put = async (endpoint: string, data: any, options?: any) => {
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(endpoint, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -103,7 +101,7 @@ export const put = async (endpoint: string, data: any, options?: any) => {
  */
 export const remove = async (endpoint: string, data: any, options?: any) => {
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(endpoint, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",

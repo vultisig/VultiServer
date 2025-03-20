@@ -1,11 +1,12 @@
 import { get, post, put, remove } from "@/modules/core/services/httpService";
 import {
   PluginPolicy,
+  PolicySchema,
   PolicyTransactionHistory,
 } from "@/modules/policy/models/policy";
 import PolicyService from "@/modules/policy/services/policyService";
 import { generatePolicy } from "@/modules/policy/utils/policy.util";
-import { describe, it, expect, vi, afterEach, Mock } from "vitest";
+import { describe, it, expect, vi, afterEach, Mock, beforeEach } from "vitest";
 
 const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
 
@@ -17,17 +18,27 @@ vi.mock("@/modules/core/services/httpService", () => ({
 }));
 
 describe("PolicyService", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_PLUGIN_URL", "https://mock-api.com");
+  });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe("createPolicy", () => {
     it("should call /plugin/policy endpoint and return json object", async () => {
-      const mockPolicy: PluginPolicy = generatePolicy("dca", "", {});
+      const mockPolicy: PluginPolicy = generatePolicy(
+        "",
+        "",
+        "pluginType",
+        "",
+        {}
+      );
       const mockResponse: PluginPolicy = {
         id: "1",
         public_key: "public_key",
-        plugin_type: "dca",
+        plugin_type: "pluginType",
         is_ecdsa: true,
         chain_code_hex: "",
         derive_path: "",
@@ -43,18 +54,27 @@ describe("PolicyService", () => {
 
       const result = await PolicyService.createPolicy(mockPolicy);
 
-      expect(post).toHaveBeenCalledWith("/plugin/policy", mockPolicy);
+      expect(post).toHaveBeenCalledWith(
+        "https://mock-api.com/plugin/policy",
+        mockPolicy
+      );
       expect(result).toEqual(mockResponse);
     });
 
     it("throws an error when post fails", async () => {
-      const mockPolicy: PluginPolicy = generatePolicy("dca", "", {});
+      const mockPolicy: PluginPolicy = generatePolicy(
+        "",
+        "",
+        "pluginType",
+        "",
+        {}
+      );
       const mockError = new Error("API Error");
 
       (post as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
 
       await expect(PolicyService.createPolicy(mockPolicy)).rejects.toThrow(
         "API Error"
@@ -69,11 +89,17 @@ describe("PolicyService", () => {
 
   describe("updatePolicy", () => {
     it("should call /plugin/policy endpoint and return json object", async () => {
-      const mockPolicy: PluginPolicy = generatePolicy("dca", "", {});
+      const mockPolicy: PluginPolicy = generatePolicy(
+        "",
+        "",
+        "pluginType",
+        "",
+        {}
+      );
       const mockResponse: PluginPolicy = {
         id: "1",
         public_key: "public_key",
-        plugin_type: "dca",
+        plugin_type: "pluginType",
         is_ecdsa: true,
         chain_code_hex: "",
         derive_path: "",
@@ -89,18 +115,27 @@ describe("PolicyService", () => {
 
       const result = await PolicyService.updatePolicy(mockPolicy);
 
-      expect(put).toHaveBeenCalledWith("/plugin/policy", mockPolicy);
+      expect(put).toHaveBeenCalledWith(
+        "https://mock-api.com/plugin/policy",
+        mockPolicy
+      );
       expect(result).toEqual(mockResponse);
     });
 
     it("throws an error when put fails", async () => {
-      const mockPolicy: PluginPolicy = generatePolicy("dca", "", {});
+      const mockPolicy: PluginPolicy = generatePolicy(
+        "",
+        "",
+        "pluginType",
+        "",
+        {}
+      );
       const mockError = new Error("API Error");
 
       (put as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
 
       await expect(PolicyService.updatePolicy(mockPolicy)).rejects.toThrow(
         "API Error"
@@ -118,7 +153,7 @@ describe("PolicyService", () => {
       const mockRequest = {
         headers: {
           Authorization: "Bearer null",
-          plugin_type: "dca",
+          plugin_type: "pluginType",
           public_key: PUBLIC_KEY,
         },
       };
@@ -126,7 +161,7 @@ describe("PolicyService", () => {
         {
           id: "1",
           public_key: "public_key",
-          plugin_type: "dca",
+          plugin_type: "pluginType",
           active: true,
           is_ecdsa: true,
           chain_code_hex: "",
@@ -141,9 +176,12 @@ describe("PolicyService", () => {
 
       (get as Mock).mockResolvedValue(mockResponse);
 
-      const result = await PolicyService.getPolicies();
+      const result = await PolicyService.getPolicies("pluginType");
 
-      expect(get).toHaveBeenCalledWith("/plugin/policy", mockRequest);
+      expect(get).toHaveBeenCalledWith(
+        "https://mock-api.com/plugin/policy",
+        mockRequest
+      );
       expect(result).toEqual(mockResponse);
     });
 
@@ -153,9 +191,11 @@ describe("PolicyService", () => {
       (get as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
 
-      await expect(PolicyService.getPolicies()).rejects.toThrow("API Error");
+      await expect(PolicyService.getPolicies("pluginType")).rejects.toThrow(
+        "API Error"
+      );
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error getting policies:",
@@ -186,7 +226,7 @@ describe("PolicyService", () => {
         await PolicyService.getPolicyTransactionHistory("policyId");
 
       expect(get).toHaveBeenCalledWith(
-        "/plugin/policy/history/policyId",
+        "https://mock-api.com/plugin/policy/history/policyId",
         mockRequest
       );
       expect(result).toEqual(mockResponse);
@@ -198,7 +238,7 @@ describe("PolicyService", () => {
       (get as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
 
       await expect(
         PolicyService.getPolicyTransactionHistory("policyId")
@@ -217,9 +257,12 @@ describe("PolicyService", () => {
 
       const result = await PolicyService.deletePolicy("policyId", "signature");
 
-      expect(remove).toHaveBeenCalledWith("/plugin/policy/policyId", {
-        signature: "signature",
-      });
+      expect(remove).toHaveBeenCalledWith(
+        "https://mock-api.com/plugin/policy/policyId",
+        {
+          signature: "signature",
+        }
+      );
       expect(result).toEqual(undefined);
     });
 
@@ -229,12 +272,67 @@ describe("PolicyService", () => {
       (remove as Mock).mockRejectedValue(mockError);
       const consoleErrorSpy = vi
         .spyOn(console, "error")
-        .mockImplementation(() => { });
+        .mockImplementation(() => {});
 
-      await expect(PolicyService.deletePolicy("policyId", "signature")).rejects.toThrow("API Error");
+      await expect(
+        PolicyService.deletePolicy("policyId", "signature")
+      ).rejects.toThrow("API Error");
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error deleting policy:",
+        mockError
+      );
+    });
+  });
+
+  describe("getPolicySchema", () => {
+    it("should call /plugins/schema endpoint and return json object", async () => {
+      const mockRequest = {
+        headers: {
+          plugin_type: "pluginType",
+        },
+      };
+      const mockResponse: PolicySchema[] = [
+        {
+          form: {
+            schema: {},
+            uiSchema: {},
+            plugin_version: "",
+            policy_version: "",
+            plugin_type: "",
+          },
+          table: {
+            columns: [],
+            mapping: {},
+          },
+        },
+      ];
+
+      (get as Mock).mockResolvedValue(mockResponse);
+
+      const result = await PolicyService.getPolicySchema("pluginType");
+
+      expect(get).toHaveBeenCalledWith(
+        "https://mock-api.com/plugin/policy/schema",
+        mockRequest
+      );
+      expect(result).toEqual(mockResponse);
+    });
+
+    it("throws an error when get fails", async () => {
+      const mockError = new Error("API Error");
+
+      (get as Mock).mockRejectedValue(mockError);
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      await expect(PolicyService.getPolicySchema("pluginType")).rejects.toThrow(
+        "API Error"
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Error getting policy schema:",
         mockError
       );
     });

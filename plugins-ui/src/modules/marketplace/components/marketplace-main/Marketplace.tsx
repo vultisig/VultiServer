@@ -31,6 +31,7 @@ const Marketplace = () => {
           {[1, 2, 3, 4, 5].map((_, index) => (
             <div className={view === "list" ? "list-card" : ""} key={index}>
               <PluginCard
+                pluginType="dca" // todo remove hardcoding once we have the marketplace
                 uiStyle={view as ViewFilter}
                 id={index.toString()}
                 title="DCA Plugin"

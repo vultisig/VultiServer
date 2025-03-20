@@ -17,7 +17,13 @@ describe("generatePolicy", () => {
       someUndefinedInput: undefined,
     };
 
-    const result = generatePolicy("pluginType", "", policyData);
+    const result = generatePolicy(
+      "0.0.1",
+      "0.0.1",
+      "pluginType",
+      "",
+      policyData
+    );
 
     expect(result).toStrictEqual({
       active: true,

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -394,6 +396,44 @@ func (s *Server) DeletePluginPolicyById(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (s *Server) GetPolicySchema(c echo.Context) error {
+	pluginType := c.Request().Header.Get("plugin_type") // this is a unique identifier; this won't be needed once the DCA and Payroll are separate services
+	if pluginType == "" {
+		err := fmt.Errorf("missing required header: plugin_type")
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("failed to get policy schema for plugin: %s", pluginType),
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	keyPath := filepath.Join("plugin", pluginType, "dcaPluginUiSchema.json")
+
+	jsonData, err := os.ReadFile(keyPath)
+	if err != nil {
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("missing schema for plugin: %s", pluginType),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	var data map[string]interface{}
+	jsonErr := json.Unmarshal([]byte(jsonData), &data)
+	if jsonErr != nil {
+
+		message := map[string]interface{}{
+			"message": fmt.Sprintf("could not unmarshal json: %s", jsonErr),
+			"error":   jsonErr.Error(),
+		}
+		s.logger.Error(jsonErr)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, data)
 }
 
 func (s *Server) GetPluginPolicyTransactionHistory(c echo.Context) error {

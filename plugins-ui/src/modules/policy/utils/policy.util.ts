@@ -1,6 +1,8 @@
 import { PluginPolicy, Policy } from "../models/policy";
 
 export const generatePolicy = (
+  plugin_version: string,
+  policy_version: string,
   plugin_type: string,
   policyId: string,
   policy: Policy
@@ -12,8 +14,8 @@ export const generatePolicy = (
     chain_code_hex: "",
     derive_path: "",
     plugin_id: "TODO",
-    plugin_version: "0.0.1",
-    policy_version: "0.0.1",
+    plugin_version,
+    policy_version,
     plugin_type,
     signature: "",
     policy: convertToStrings(policy),

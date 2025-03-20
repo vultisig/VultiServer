@@ -2,6 +2,7 @@ import { post, get, put, remove } from "@/modules/core/services/httpService";
 import { PluginPolicy, PolicyTransactionHistory } from "../models/policy";
 
 const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
+const getPluginUrl = () => import.meta.env.VITE_PLUGIN_URL; // todo this is to be deleted and instead fetched with the policy from DB
 
 const PolicyService = {
   /**
@@ -11,7 +12,7 @@ const PolicyService = {
    */
   createPolicy: async (pluginPolicy: PluginPolicy): Promise<PluginPolicy> => {
     try {
-      const endpoint = "/plugin/policy";
+      const endpoint = `${getPluginUrl()}/plugin/policy`;
       const newPolicy = await post(endpoint, pluginPolicy);
       return newPolicy;
     } catch (error) {
@@ -27,7 +28,7 @@ const PolicyService = {
    */
   updatePolicy: async (pluginPolicy: PluginPolicy): Promise<PluginPolicy> => {
     try {
-      const endpoint = "/plugin/policy";
+      const endpoint = `${getPluginUrl()}/plugin/policy`;
       const newPolicy = await put(endpoint, pluginPolicy);
       return newPolicy;
     } catch (error) {
@@ -40,12 +41,12 @@ const PolicyService = {
    * Get policies from the API.
    * @returns {Promise<Object>} A promise that resolves to the fetched policies.
    */
-  getPolicies: async (): Promise<PluginPolicy[]> => {
+  getPolicies: async (pluginType: string): Promise<PluginPolicy[]> => {
     try {
-      const endpoint = "/plugin/policy";
+      const endpoint = `${getPluginUrl()}/plugin/policy`;
       const newPolicy = await get(endpoint, {
         headers: {
-          plugin_type: "dca", // todo remove hardcoding once we have the marketplace
+          plugin_type: pluginType,
           public_key: PUBLIC_KEY, // TODO: get Vault's pub key
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
@@ -65,7 +66,7 @@ const PolicyService = {
     policyId: string
   ): Promise<PolicyTransactionHistory[]> => {
     try {
-      const endpoint = `/plugin/policy/history/${policyId}`;
+      const endpoint = `${getPluginUrl()}/plugin/policy/history/${policyId}`;
       const history = await get(endpoint, {
         headers: {
           public_key: PUBLIC_KEY, // TODO: get Vault's pub key
@@ -86,12 +87,29 @@ const PolicyService = {
    */
   deletePolicy: async (id: string, signature: string) => {
     try {
-      const endpoint = `/plugin/policy/${id}`;
-      return await remove(endpoint, {
-        signature: signature,
-      });
+      const endpoint = `${getPluginUrl()}/plugin/policy/${id}`;
+      return await remove(endpoint, { signature: signature });
     } catch (error) {
       console.error("Error deleting policy:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get PolicySchema
+   * @returns {Promise<Object>} A promise that resolves to the fetched schema.
+   */
+  getPolicySchema: async (pluginType: string): Promise<any> => {
+    try {
+      const endpoint = `${getPluginUrl()}/plugin/policy/schema`;
+      const newPolicy = await get(endpoint, {
+        headers: {
+          plugin_type: pluginType,
+        },
+      });
+      return newPolicy;
+    } catch (error) {
+      console.error("Error getting policy schema:", error);
       throw error;
     }
   },
