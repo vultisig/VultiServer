@@ -206,6 +206,7 @@ func (s *Server) StartServer() error {
 	pluginGroup.PUT("/policy", s.UpdatePluginPolicyById)
 	pluginGroup.GET("/policy", s.GetAllPluginPolicies, s.AuthMiddleware)
 	pluginGroup.GET("/policy/history/:policyId", s.GetPluginPolicyTransactionHistory, s.AuthMiddleware)
+	pluginGroup.GET("/policy/schema", s.GetPolicySchema)
 	pluginGroup.GET("/policy/:policyId", s.GetPluginPolicyById, s.AuthMiddleware)
 	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
 

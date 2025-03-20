@@ -14,6 +14,7 @@ import { USDC_TOKEN, WETH_TOKEN } from "@/modules/shared/data/tokens";
 const customRender = (ui: ReactNode, policyMap: Map<string, PluginPolicy>) => {
   const mockValue: PolicyContextType = {
     policyMap: policyMap,
+    policySchemaMap: new Map(),
     addPolicy: vi.fn(),
     updatePolicy: vi.fn().mockResolvedValue(true),
     removePolicy: vi.fn(),
@@ -27,10 +28,16 @@ const customRender = (ui: ReactNode, policyMap: Map<string, PluginPolicy>) => {
 
 describe("PolicyActions", () => {
   it("should render Pause/Pause button for each policy depending on its state", async () => {
-    const mockPolicyActive: PluginPolicy = generatePolicy("dca", "1", {
-      source_token_id: WETH_TOKEN,
-      destination_token_id: USDC_TOKEN,
-    });
+    const mockPolicyActive: PluginPolicy = generatePolicy(
+      "",
+      "",
+      "pluginType",
+      "1",
+      {
+        source_token_id: WETH_TOKEN,
+        destination_token_id: USDC_TOKEN,
+      }
+    );
 
     const presetPolicies = new Map();
     presetPolicies.set(mockPolicyActive.id, mockPolicyActive);
@@ -61,10 +68,16 @@ describe("PolicyActions", () => {
   });
 
   it("should open edit modal for policy", () => {
-    const mockPolicyActive: PluginPolicy = generatePolicy("dca", "1", {
-      source_token_id: WETH_TOKEN,
-      destination_token_id: USDC_TOKEN,
-    });
+    const mockPolicyActive: PluginPolicy = generatePolicy(
+      "",
+      "",
+      "pluginType",
+      "1",
+      {
+        source_token_id: WETH_TOKEN,
+        destination_token_id: USDC_TOKEN,
+      }
+    );
 
     const presetPolicies = new Map();
     presetPolicies.set(mockPolicyActive.id, mockPolicyActive);
@@ -84,10 +97,16 @@ describe("PolicyActions", () => {
   });
 
   it("should open transaction history for policy", () => {
-    const mockPolicyActive: PluginPolicy = generatePolicy("dca", "1", {
-      source_token_id: WETH_TOKEN,
-      destination_token_id: USDC_TOKEN,
-    });
+    const mockPolicyActive: PluginPolicy = generatePolicy(
+      "",
+      "",
+      "pluginType",
+      "1",
+      {
+        source_token_id: WETH_TOKEN,
+        destination_token_id: USDC_TOKEN,
+      }
+    );
 
     const presetPolicies = new Map();
     presetPolicies.set(mockPolicyActive.id, mockPolicyActive);
@@ -109,10 +128,16 @@ describe("PolicyActions", () => {
   });
 
   it("should delete policy", async () => {
-    const mockPolicyActive: PluginPolicy = generatePolicy("dca", "1", {
-      source_token_id: WETH_TOKEN,
-      destination_token_id: USDC_TOKEN,
-    });
+    const mockPolicyActive: PluginPolicy = generatePolicy(
+      "",
+      "",
+      "pluginType",
+      "1",
+      {
+        source_token_id: WETH_TOKEN,
+        destination_token_id: USDC_TOKEN,
+      }
+    );
 
     const presetPolicies = new Map();
     presetPolicies.set(mockPolicyActive.id, mockPolicyActive);

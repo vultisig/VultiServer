@@ -6,12 +6,18 @@ import { ViewFilter } from "@/modules/marketplace/models/marketplace";
 
 type PluginCardProps = {
   id: string;
+  pluginType: string;
   title: string;
   description: string;
   uiStyle: ViewFilter;
 };
 
-const PluginCard = ({ uiStyle, id, title, description }: PluginCardProps) => {
+const PluginCard = ({
+  uiStyle,
+  pluginType,
+  title,
+  description,
+}: PluginCardProps) => {
   const navigate = useNavigate();
 
   return (
@@ -30,7 +36,7 @@ const PluginCard = ({ uiStyle, id, title, description }: PluginCardProps) => {
         size={uiStyle === "grid" ? "small" : "mini"}
         type="button"
         styleType="primary"
-        onClick={() => navigate(`/plugin-policy/${id}`)}
+        onClick={() => navigate(`/plugin-policy/${pluginType}`)}
       >
         See details
       </Button>

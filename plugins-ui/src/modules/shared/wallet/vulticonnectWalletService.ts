@@ -71,7 +71,8 @@ const VulticonnectWalletService = {
 
   getAuthToken: async (message: string, signature: string, publicKey: string, chainCodeHex: string, derivePath: string) => {
     try {
-      const response = await post('/auth', {
+      // TODO: fix this
+      const response = await post('http://localhost:8081/auth', {
         "message": message,
         "signature": signature,
         "public_key": publicKey,
@@ -89,7 +90,8 @@ const VulticonnectWalletService = {
 
   refreshAuthToken: async (token: string) => {
     try {
-      const response = await post('/auth/refresh', {
+      // TODO: fix this
+      const response = await post('http://localhost:8081/auth/refresh', {
         "token": token,
       });
       return response.token;
