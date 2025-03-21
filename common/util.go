@@ -14,6 +14,7 @@ import (
 	"math"
 
 	"github.com/ulikunitz/xz"
+	v1 "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -175,7 +176,10 @@ func GetVaultName(vault *vaultType.Vault) string {
 			break
 		}
 	}
-	return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
+	if vault.LibType == v1.LibType_LIB_TYPE_GG20 {
+		return fmt.Sprintf("%s-%s-part%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
+	}
+	return fmt.Sprintf("%s-%s-share%dof%d-Vultiserver.vult", vault.Name, lastFourCharOfPubKey, partIndex+1, len(vault.Signers))
 }
 
 func GetThreshold(value int) (int, error) {
