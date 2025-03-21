@@ -19,25 +19,89 @@
 Verify the buckets were created by visiting the MinIO Console: http://localhost:9001 (username: minioadmin, password: minioadmin)
 
 
-### 2. Start the servers and workers
+### 2. Start the Verifier and the Plugin service
 
-Start the services in the following order, each one in a different terminal:
+Start each service in a different tab:
 
-Servers:
+Verifer
 ```sh
 make verifier-server
-make plugin-server
+make verifier-worker
 ```
 
-Workers:
+Plugin
 ```sh
-make verifier-worker
+make plugin-server
 make plugin-worker
 ```
 
-For clean restart, do `make down`, and restart the servers/workers again.
+For a clean restart, run `make down` and restart the servers and workers (consider deleting the volumes and images for a fresh start)
 
-### 3. Key Generation
+### 3. Test the DCA Plugin execution with production vault (imported into Vulticonnect)
+
+There is an easier way to test via script, however, the vault created through a script is not easy to be imported into Vulitconnect at this time for full end-to-end testing. As a result, additional steps are required to bring in the missing production data locally.
+
+1. Create a 2-of-3 vault, allowing you to sign plugin policies using only two user devices
+2. Back up both device shares by exporting them from the Vultisig apps on each device
+3. Import the vault via QR code into VaultConnect, allowing you to sign plugin policies
+4. Rename each backup as `<PUBLIC_KEY>.bak` and import each into the corresponding local S3 folder (`vultisig-plugin`, `vultisig-verifier`), since we are testing with a vault created from production, it is necessary to have the vault state locally.
+5. This steps will be removed, but for now there are some hardcoded pieces that should match the vault being used in VaultConnect.
+  - change the `PluginPartyID` and `VerifierPartyID` in common/util.go to match those from the Vultisig app -> Vault settings -> Details.
+  - change the hardcoded `vaultPassword` to match the vault password and the `hexEncryptionKey` to match the `hexChainCode` that we can get if we execute `await window.vultisig.getVaults()`
+6. Create a DCA policy through the UI
+
+7. The policy execution will start, so it is essential to ensure that the vault address has sufficient balance for the token and amount specified in the policy.
+
+```sh
+export RPC_URL=http://127.0.0.1:8545 # from the local ethereum fork
+export PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # from the local ethereum fork
+export VAULT_ADDRESS=0x5582df2D22194AF8201997D750e80fd8140387c2 # from the vultisig app
+```
+ 
+Send some amount of native ETH to the vault address
+```sh
+  cast send $VAULT_ADDRESS --value 10ether --rpc-url $RPC_URL --private-key $PRIVATE_KEY
+  cast balance $VAULT_ADDRESS  --rpc-url $RPC_URL
+```
+
+Mint some amount of ERC20 Token. If "-token" is not present, the script will default to minting WETH.
+```sh
+  export TOKEN_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 # USDC in this case
+  go run scripts/dev/mint_erc20/main.go -vault-address $VAULT_ADDRESS -token $TOKEN_ADDRESS
+```
+
+
+---
+
+## Test the Payroll plugin via script (WIP)
+
+```sh
+  go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+- Token contract (usdc) `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
+- Polygon token contract `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
+Enter recipients and amounts one by one - enter 'done' when finished
+- Enter a recipient address: `0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67`
+- chain id : `137`
+- Enter the amount for this recipient: `100`
+- `done`
+- schedule frequency : `5-minutely`
+
+```sh
+  go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
+```
+
+- Enter token contract: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` UCDC
+Enter recipients and amounts one by one - enter 'done' when finished
+- Enter a recipient address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
+- Enter the amount for this recipient: `1000`
+- `done`
+- schedule frequency : `5-minutely`
+
+---
+
+### Key Generation
 
 - name: Vault name
 - session_id: Key generation session ID (random UUID)
@@ -82,7 +146,7 @@ curl -X POST http://localhost:8080/vault/create \
 }'
 ```
 
-### 4. Key Signing
+### Key Signing
 
 Before starting the keysign, make sure to replace the public key by the one appearing in the logs of the keygen. 
 
@@ -128,7 +192,7 @@ curl -X POST http://localhost:8080/vault/sign \
 }'
 ```
 
-## 5. Resharing
+## Resharing
 
 Allow user to reshare the vault share
 
@@ -165,67 +229,3 @@ curl -X POST http://localhost:8081/vault/reshare \
 
 `GET` `/vault/verify/:public_key_ecdsa/:code` , this endpoint allow user to verify the code
 if server return http status code 200, it means the code is valid , other status code means the code is invalid -->
-
-# 7. Test DCA Plugin Execution (with Vault from Vulticonnect)
-
-1. Create 2-of-2 Fast vault (e.g. on device1 - computer)
-2. Backup the vault shares (device 1 share, vultiserver share via email)
-3. Import the vault into another device2 (e.g. phone) so we can later sign with device1 + device2
-4. Import the vault via QR code into Vulticonnect
-5. Import each backup into the relevant local S3 folder (vultiplugin, vultiserver) named as `publickey.bak.vult` (to have the state locally)
-6. Change local participant ids (`PluginPartyID, VerifierPartyID`) to match those from Vault backups (todo: remove)
-7. Change the hardcoded vault `passwords`, `encryptionkey` (todo: remove)
-8. Create a DCA policy through the UI
-
-```sh
-export RPC_URL=http://127.0.0.1:8545
-export PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 
-export VAULT_ADDRESS=0x5582df2D22194AF8201997D750e80fd8140387c2
-export TOKEN_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
-```
-
-10. Send some amount of native ETH to the vault address
-```sh
-  cast send $VAULT_ADDRESS --value 10ether --rpc-url $RPC_URL --private-key $PRIVATE_KEY
-  cast balance $VAULT_ADDRESS  --rpc-url $RPC_URL
-  cast nonce $VAULT_ADDRESS  --rpc-url $RPC_URL
-```
-
-11. Mint some amount of ERC20 Token. If "-token" is not present, the script will default to minting WETH.
-```sh
-  go run scripts/dev/mint_erc20/main.go -vault-address $VAULT_ADDRESS -token $TOKEN_ADDRESS
-```
-
-
-
-
-
-
-
-
-
-## Create Payroll plugin policy
-
-```sh
-  go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
-```
-
-- Token contract (usdc) `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
-- Polygon token contract `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
-Enter recipients and amounts one by one - enter 'done' when finished
-- Enter a recipient address: `0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67`
-- chain id : `137`
-- Enter the amount for this recipient: `100`
-- `done`
-- schedule frequency : `5-minutely`
-
-```sh
-  go run scripts/dev/create_payroll_policy/main.go -state-dir $STATE_DIR -vault $VAULT_NAME
-```
-
-- Enter token contract: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` UCDC
-Enter recipients and amounts one by one - enter 'done' when finished
-- Enter a recipient address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
-- Enter the amount for this recipient: `1000`
-- `done`
-- schedule frequency : `5-minutely`
