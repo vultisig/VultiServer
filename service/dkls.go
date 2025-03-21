@@ -235,7 +235,7 @@ func (t *DKLSTssService) processKeygenInbound(handle Handle,
 	for {
 		select {
 		case <-time.After(time.Millisecond * 100):
-			if time.Since(start) > time.Minute { // 1 minute timeout
+			if time.Since(start) > (time.Minute * 2) { // 2 minute timeout
 				t.isKeygenFinished.Store(true)
 				t.logger.Error("keygen timeout")
 				return "", "", TssKeyGenTimeout
