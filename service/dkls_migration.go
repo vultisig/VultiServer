@@ -215,7 +215,6 @@ func (t *DKLSTssService) migrate(
 		"keygen_committee": keygenCommittee,
 		"publicKey":        publicKey,
 		"hexChainCode":     hexChainCode,
-		"localUI":          localUI,
 		"attempt":          attempt,
 	}).Info("migrate")
 	t.isKeygenFinished.Store(false)
