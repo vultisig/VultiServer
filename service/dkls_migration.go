@@ -9,10 +9,11 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/vultisig/vultisigner/internal/types"
 	"github.com/vultisig/vultisigner/relay"
 )
 
@@ -126,21 +127,43 @@ func (t *DKLSTssService) ProceeMigration(vault *vaultType.Vault,
 	if t.backup == nil {
 		return nil
 	}
-	req := types.VaultCreateRequest{
-		Name:               vault.Name,
-		SessionID:          sessionID,
-		HexEncryptionKey:   hexEncryptionKey,
-		HexChainCode:       vault.HexChainCode,
-		LocalPartyId:       localPartyId,
-		EncryptionPassword: encryptionPassword,
-		Email:              email,
-		LibType:            types.DKLS,
-	}
-	err = t.backup.BackupVault(req, partiesJoined, publicKeyECDSA, publicKeyEdDSA, chainCodeECDSA, t.localStateAccessor)
+
+	ecdsaKeyShare, err := t.localStateAccessor.GetLocalCacheState(publicKeyECDSA)
 	if err != nil {
-		return fmt.Errorf("failed to backup vault: %w", err)
+		return fmt.Errorf("failed to get local sate: %w", err)
 	}
-	return nil
+	if ecdsaKeyShare == "" {
+		return fmt.Errorf("failed to get ecdsa keyshare")
+	}
+	eddsaKeyShare, err := t.localStateAccessor.GetLocalCacheState(publicKeyEdDSA)
+	if err != nil {
+		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+	if eddsaKeyShare == "" {
+		return fmt.Errorf("failed to get eddsa keyshare")
+	}
+	newVault := &vaultType.Vault{
+		Name:           vault.Name,
+		PublicKeyEcdsa: publicKeyECDSA,
+		PublicKeyEddsa: publicKeyEdDSA,
+		Signers:        partiesJoined,
+		CreatedAt:      timestamppb.Now(),
+		HexChainCode:   chainCodeECDSA,
+		KeyShares: []*vaultType.Vault_KeyShare{
+			{
+				PublicKey: publicKeyECDSA,
+				Keyshare:  ecdsaKeyShare,
+			},
+			{
+				PublicKey: publicKeyEdDSA,
+				Keyshare:  eddsaKeyShare,
+			},
+		},
+		LocalPartyId:  vault.LocalPartyId,
+		LibType:       keygenType.LibType_LIB_TYPE_DKLS,
+		ResharePrefix: "",
+	}
+	return t.backup.SaveVaultAndScheduleEmail(newVault, encryptionPassword, email)
 }
 
 func (t *DKLSTssService) migrateWithRetry(publicKey string,
