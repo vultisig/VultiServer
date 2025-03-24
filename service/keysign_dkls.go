@@ -49,9 +49,13 @@ func (t *DKLSTssService) ProcessDKLSKeysign(req types.KeysignRequest) (map[strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to wait for session start: %w", err)
 	}
+	publicKey := req.PublicKey
+	if !req.IsECDSA {
+		publicKey = localStateAccessor.Vault.PublicKeyEddsa
+	}
 	// start to do keysign
 	for _, msg := range req.Messages {
-		sig, err := t.keysignWithRetry(req.SessionID, req.HexEncryptionKey, req.PublicKey, !req.IsECDSA, msg, req.DerivePath, localPartyID, partiesJoined)
+		sig, err := t.keysignWithRetry(req.SessionID, req.HexEncryptionKey, publicKey, !req.IsECDSA, msg, req.DerivePath, localPartyID, partiesJoined)
 		if err != nil {
 			return result, fmt.Errorf("failed to keysign: %w", err)
 		}
