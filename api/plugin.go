@@ -519,8 +519,7 @@ func policyToMessageHex(policy types.PluginPolicy, isUpdate bool) (string, error
 	if !isUpdate {
 		policy.ID = ""
 	}
-	// public key and signature are not part of the message that is signed
-	policy.PublicKey = ""
+	// signature is not part of the message that is signed
 	policy.Signature = ""
 
 	serializedPolicy, err := json.Marshal(policy)

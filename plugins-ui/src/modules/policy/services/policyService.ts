@@ -1,7 +1,7 @@
 import { post, get, put, remove } from "@/modules/core/services/httpService";
 import { PluginPolicy, PolicyTransactionHistory } from "../models/policy";
 
-const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
+const getPublicKey = () => localStorage.getItem("publicKey");
 const getPluginUrl = () => import.meta.env.VITE_PLUGIN_URL; // todo this is to be deleted and instead fetched with the policy from DB
 
 const PolicyService = {
@@ -47,7 +47,7 @@ const PolicyService = {
       const newPolicy = await get(endpoint, {
         headers: {
           plugin_type: pluginType,
-          public_key: PUBLIC_KEY, // TODO: get Vault's pub key
+          public_key: getPublicKey(),
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
       });
@@ -69,7 +69,7 @@ const PolicyService = {
       const endpoint = `${getPluginUrl()}/plugin/policy/history/${policyId}`;
       const history = await get(endpoint, {
         headers: {
-          public_key: PUBLIC_KEY, // TODO: get Vault's pub key
+          public_key: getPublicKey(),
           Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
       });
@@ -110,6 +110,33 @@ const PolicyService = {
       return newPolicy;
     } catch (error) {
       console.error("Error getting policy schema:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Post signature, publicKey, chainCodeHex, derivePath to the APi
+   * @returns {Promise<Object>} A promise that resolves with auth token.
+   */
+  getAuthToken: async (
+    message: string,
+    signature: string,
+    publicKey: string,
+    chainCodeHex: string,
+    derivePath: string
+  ): Promise<string> => {
+    try {
+      const endpoint = `${getPluginUrl()}/auth`;
+      const response = await post(endpoint, {
+        message: message,
+        signature: signature,
+        public_key: publicKey,
+        chain_code_hex: chainCodeHex,
+        derive_path: derivePath,
+      });
+      return response.token;
+    } catch (error) {
+      console.error("Failed to get auth token", error);
       throw error;
     }
   },

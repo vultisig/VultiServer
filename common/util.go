@@ -28,6 +28,12 @@ const (
 	vaultBackupSuffix = ".bak.vult"
 )
 
+var (
+	DerivePathMap = map[string]string{
+		"1": "m/44'/60'/0'/0/0", // ethereum
+	}
+)
+
 func CompressData(data []byte) ([]byte, error) {
 	var compressedData bytes.Buffer
 	// Create a new XZ writer.
@@ -215,4 +221,33 @@ func DeriveAddress(compressedPubKeyHex, hexChainCode, derivePath string) (*commo
 
 func GetVaultBackupFilename(publicKey string) string {
 	return fmt.Sprintf("%s%s", publicKey, vaultBackupSuffix)
+}
+
+func CheckIfPublicKeyIsValid(pubKeyBytes []byte, isEcdsa bool) bool {
+	if isEcdsa {
+
+		// Check for ECDSA (Compressed or Uncompressed)
+		if len(pubKeyBytes) == 33 || len(pubKeyBytes) == 65 {
+			firstByte := pubKeyBytes[0]
+
+			// Compressed ECDSA key (starts with 0x02 or 0x03)
+			if len(pubKeyBytes) == 33 && (firstByte == 0x02 || firstByte == 0x03) {
+				return true // Valid Compressed ECDSA public key
+			}
+
+			// Uncompressed ECDSA key (starts with 0x04)
+			if len(pubKeyBytes) == 65 && firstByte == 0x04 {
+				return true // Valid Uncompressed ECDSA public key
+			}
+		}
+	}
+
+	if !isEcdsa {
+		// Check for Ed25519 (EdDSA) - 32 bytes
+		if len(pubKeyBytes) == 32 {
+			return true // Valid EdDSA (Ed25519) public key
+		}
+	}
+
+	return false
 }

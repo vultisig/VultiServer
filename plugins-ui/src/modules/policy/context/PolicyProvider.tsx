@@ -5,7 +5,11 @@ import {
   PolicyTransactionHistory,
 } from "../models/policy";
 import PolicyService from "../services/policyService";
-import { isSupportedChainType } from "@/modules/shared/wallet/wallet.utils";
+import {
+  derivePathMap,
+  isSupportedChainType,
+  toHex,
+} from "@/modules/shared/wallet/wallet.utils";
 import Toast from "@/modules/core/components/ui/toast/Toast";
 import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalletService";
 
@@ -183,16 +187,13 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("Need to connect to wallet");
       }
 
-      const vaults = await window.vultisig?.getVaults();
-      if (!vaults || vaults.length === 0) {
-        throw new Error("No vaults found");
-      }
+      const vaults = await VulticonnectWalletService.getVaults();
 
-      policy.public_key = "";
+      policy.public_key = vaults[0].publicKeyEcdsa;
       policy.signature = "";
       policy.is_ecdsa = true;
       policy.chain_code_hex = vaults[0].hexChainCode;
-      policy.derive_path = "m/44'/60'/0'/0/0"; // TODO: add mapping { ethereum => "m/44'/60'/0'/0/0", thor => ... })
+      policy.derive_path = derivePathMap[chain];
       const serializedPolicy = JSON.stringify(policy);
       const hexMessage = toHex(serializedPolicy);
 
@@ -200,8 +201,6 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
         hexMessage,
         accounts[0]
       );
-
-      policy.public_key = vaults[0].publicKeyEcdsa;
 
       console.log("Public key ecdsa: ", policy.public_key);
       console.log("Chain code hex: ", policy.chain_code_hex);
@@ -262,13 +261,4 @@ export const usePolicies = (): PolicyContextType => {
     throw new Error("usePolicies must be used within a PolicyProvider");
   }
   return context;
-};
-
-const toHex = (str: string): string => {
-  return (
-    "0x" +
-    Array.from(str)
-      .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
-      .join("")
-  );
 };
