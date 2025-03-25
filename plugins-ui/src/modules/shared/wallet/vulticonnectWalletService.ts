@@ -1,5 +1,4 @@
 // more on the exposed methods here: https://github.com/vultisig/vultisig-windows/blob/main/clients/extension/docs/integration-guide.md
-import { post } from "@/modules/core/services/httpService";
 
 interface ProviderError {
   code: number;
@@ -69,38 +68,25 @@ const VulticonnectWalletService = {
     }
   },
 
-  getAuthToken: async (message: string, signature: string, publicKey: string, chainCodeHex: string, derivePath: string) => {
-    try {
-      // TODO: fix this
-      const response = await post('http://localhost:8081/auth', {
-        "message": message,
-        "signature": signature,
-        "public_key": publicKey,
-        "chain_code_hex": chainCodeHex,
-        "derive_path": derivePath
-      });
-      return response.token
-    } catch (error) {
-      console.error("Failed to get auth token", error);
-      throw new Error("Failed to get auth token");
+  getVaults: async () => {
+    if (!window.vultisig) {
+      alert(`No wallet found. Please install VultiConnect.`);
+      return;
     }
 
+    try {
+      const vaults = await window.vultisig.getVaults();
 
+      if (!vaults || vaults.length === 0) {
+        throw new Error("No vaults found");
+      }
+
+      return vaults;
+    } catch (error) {
+      console.error(`Failed to get vaults ${error}`);
+      throw error;
+    }
   },
-
-  refreshAuthToken: async (token: string) => {
-    try {
-      // TODO: fix this
-      const response = await post('http://localhost:8081/auth/refresh', {
-        "token": token,
-      });
-      return response.token;
-    } catch (error) {
-      console.error("Failed to refresh auth token", error);
-      throw new Error("Failed to refresh auth token");
-    }
-
-  }
 };
 
 export default VulticonnectWalletService;

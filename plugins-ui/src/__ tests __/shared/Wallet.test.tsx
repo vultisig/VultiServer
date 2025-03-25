@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 import Wallet from "@/modules/shared/wallet/Wallet";
 import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalletService";
+import PolicyService from "@/modules/policy/services/policyService";
 
 describe("Wallet", () => {
   afterEach(() => {
@@ -40,7 +41,7 @@ describe("Wallet", () => {
       () => Promise.resolve("some hex signature")
     );
 
-    vi.spyOn(VulticonnectWalletService, "getAuthToken").mockImplementation(() =>
+    vi.spyOn(PolicyService, "getAuthToken").mockImplementation(() =>
       Promise.resolve("auth token")
     );
 
@@ -75,7 +76,7 @@ describe("Wallet", () => {
       () => Promise.resolve("some hex signature")
     );
 
-    vi.spyOn(VulticonnectWalletService, "getAuthToken").mockImplementation(() =>
+    vi.spyOn(PolicyService, "getAuthToken").mockImplementation(() =>
       Promise.resolve("auth token")
     );
 

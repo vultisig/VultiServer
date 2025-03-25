@@ -135,7 +135,32 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 		return fmt.Errorf("policy does not match plugin type, expected: %s, got: %s", pluginType, policyDoc.PluginType)
 	}
 
-	// TODO: check the plugin and policy versions with the ones in the policy document
+	if policyDoc.PluginVersion != pluginVersion {
+		return fmt.Errorf("policy does not match plugin version, expected: %s, got: %s", pluginVersion, policyDoc.PluginVersion)
+	}
+
+	if policyDoc.PolicyVersion != policyVersion {
+		return fmt.Errorf("policy does not match policy version, expected: %s, got: %s", policyVersion, policyDoc.PolicyVersion)
+	}
+
+	if policyDoc.ChainCodeHex == "" {
+		return fmt.Errorf("policy does not contain chain_code_hex")
+	}
+
+	if policyDoc.PublicKey == "" {
+		return fmt.Errorf("policy does not contain public_key")
+	}
+
+	pubKeyBytes, err := hex.DecodeString(policyDoc.PublicKey)
+	if err != nil {
+		return fmt.Errorf("invalid hex encoding: %w", err)
+	}
+
+	isValidPublicKey := common.CheckIfPublicKeyIsValid(pubKeyBytes, policyDoc.IsEcdsa)
+
+	if !isValidPublicKey {
+		return fmt.Errorf("invalid public_key")
+	}
 
 	var dcaPolicy types.DCAPolicy
 	if err := json.Unmarshal(policyDoc.Policy, &dcaPolicy); err != nil {
@@ -210,6 +235,10 @@ func (p *DCAPlugin) ValidatePluginPolicy(policyDoc types.PluginPolicy) error {
 
 	if dcaPolicy.ChainID == "" {
 		return fmt.Errorf("chain id is required")
+	}
+
+	if policyDoc.DerivePath != common.DerivePathMap[dcaPolicy.ChainID] {
+		return fmt.Errorf("policy does not match derive path, expected: %s, got: %s", common.DerivePathMap[dcaPolicy.ChainID], policyDoc.DerivePath)
 	}
 
 	if err := validateInterval(dcaPolicy.Schedule.Interval, dcaPolicy.Schedule.Frequency); err != nil {

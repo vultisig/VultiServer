@@ -1,6 +1,8 @@
 import Button from "@/modules/core/components/ui/button/Button";
 import VulticonnectWalletService from "./vulticonnectWalletService";
 import { useState } from "react";
+import PolicyService from "@/modules/policy/services/policyService";
+import { derivePathMap, getHexMessage } from "./wallet.utils";
 
 const Wallet = () => {
   let chain = localStorage.getItem("chain") as string;
@@ -22,34 +24,33 @@ const Wallet = () => {
           setConnectedWallet(true);
         }
 
-        const vaults = await window.vultisig?.getVaults();
-
-        if (!vaults || vaults.length === 0) {
-          throw new Error("No vaults found");
-        }
+        const vaults = await VulticonnectWalletService.getVaults();
 
         const publicKey = vaults[0].publicKeyEcdsa;
+        if (publicKey) {
+          localStorage.setItem("publicKey", publicKey);
+        }
         const chainCodeHex = vaults[0].hexChainCode;
-        const derivePath = "m/44'/60'/0'/0/0"; // Using standard Ethereum derivation path
+        const derivePath = derivePathMap[chain];
 
-        const messageToSign =
-          (publicKey.startsWith("0x") ? publicKey.slice(2) : publicKey) + "1";
-
-        const hexMessage = toHex(messageToSign);
+        const hexMessage = getHexMessage(publicKey);
 
         const signature = await VulticonnectWalletService.signCustomMessage(
           hexMessage,
           accounts[0]
         );
 
-        const token = await VulticonnectWalletService.getAuthToken(
-          hexMessage,
-          signature,
-          publicKey,
-          chainCodeHex,
-          derivePath
-        );
-        localStorage.setItem("authToken", token);
+        if (signature && typeof signature === "string") {
+          const token = await PolicyService.getAuthToken(
+            hexMessage,
+            signature,
+            publicKey,
+            chainCodeHex,
+            derivePath
+          );
+          localStorage.setItem("authToken", token);
+        }
+
         break;
       }
 
@@ -72,12 +73,3 @@ const Wallet = () => {
 };
 
 export default Wallet;
-
-const toHex = (str: string): string => {
-  return (
-    "0x" +
-    Array.from(str)
-      .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
-      .join("")
-  );
-};

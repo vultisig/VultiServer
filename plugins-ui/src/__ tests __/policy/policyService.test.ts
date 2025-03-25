@@ -8,8 +8,6 @@ import PolicyService from "@/modules/policy/services/policyService";
 import { generatePolicy } from "@/modules/policy/utils/policy.util";
 import { describe, it, expect, vi, afterEach, Mock, beforeEach } from "vitest";
 
-const PUBLIC_KEY = import.meta.env.VITE_PUBLIC_KEY;
-
 vi.mock("@/modules/core/services/httpService", () => ({
   post: vi.fn(),
   put: vi.fn(),
@@ -20,10 +18,12 @@ vi.mock("@/modules/core/services/httpService", () => ({
 describe("PolicyService", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_PLUGIN_URL", "https://mock-api.com");
+    localStorage.setItem("publicKey", "publicKey");
   });
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+    localStorage.clear();
   });
 
   describe("createPolicy", () => {
@@ -150,6 +150,7 @@ describe("PolicyService", () => {
 
   describe("getPolicies", () => {
     it("should call /plugin/policy endpoint and return json object", async () => {
+      const PUBLIC_KEY = localStorage.getItem("publicKey");
       const mockRequest = {
         headers: {
           Authorization: "Bearer null",
@@ -206,6 +207,9 @@ describe("PolicyService", () => {
 
   describe("getPolicyTransactionHistory", () => {
     it("should call /plugin/policy/history/{policyId} endpoint and return json object", async () => {
+      const PUBLIC_KEY = localStorage.getItem("publicKey");
+      console.log(111, PUBLIC_KEY);
+
       const mockRequest = {
         headers: {
           Authorization: "Bearer null",
