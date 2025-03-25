@@ -66,7 +66,12 @@ func (p *PostgresBackend) CreateTransactionHistoryTx(ctx context.Context, dbTx p
         INSERT INTO transaction_history (
             policy_id, tx_body, tx_hash, status, metadata
         ) VALUES ($1, $2, $3, $4, $5)
-				RETURNING id
+        ON CONFLICT (tx_hash) DO UPDATE SET
+            policy_id = EXCLUDED.policy_id,
+            tx_body = EXCLUDED.tx_body,
+            status = 'PENDING',
+            metadata = EXCLUDED.metadata
+		RETURNING id
     `
 	var txID uuid.UUID
 	err := dbTx.QueryRow(ctx, query,
@@ -205,6 +210,22 @@ func (p *PostgresBackend) GetTransactionByHash(ctx context.Context, txHash strin
 	}
 
 	return &tx, nil
+}
+
+func (p *PostgresBackend) CountTransactions(ctx context.Context, policyID uuid.UUID, status types.TransactionStatus, txType string) (int64, error) {
+	var count int64
+	query := `
+		SELECT COUNT(*)
+		FROM transaction_history
+		WHERE policy_id = $1
+		AND status = $2
+		AND metadata->>'transaction_type' = $3
+	`
+	err := p.pool.QueryRow(ctx, query, policyID, status, txType).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count transactions: %w", err)
+	}
+	return count, nil
 }
 
 func (p *PostgresBackend) Pool() *pgxpool.Pool {

@@ -34,6 +34,7 @@ type DatabaseStorage interface {
 	UpdateTriggerStatus(ctx context.Context, policyID string, status types.TimeTriggerStatus) error
 	GetTriggerStatus(ctx context.Context, policyID string) (types.TimeTriggerStatus, error)
 
+	CountTransactions(ctx context.Context, policyID uuid.UUID, status types.TransactionStatus, txType string) (int64, error)
 	CreateTransactionHistoryTx(ctx context.Context, dbTx pgx.Tx, tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatusTx(ctx context.Context, dbTx pgx.Tx, txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
 	CreateTransactionHistory(ctx context.Context, tx types.TransactionHistory) (uuid.UUID, error)

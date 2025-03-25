@@ -159,7 +159,7 @@ func (s *PolicyService) GetPluginPolicyTransactionHistory(ctx context.Context, p
 	// Convert string to UUID
 	policyUUID, err := uuid.Parse(policyID)
 	if err != nil {
-		return []types.TransactionHistory{}, fmt.Errorf("invalid policyis: %s", policyID)
+		return []types.TransactionHistory{}, fmt.Errorf("invalid policy_id: %s", policyID)
 	}
 
 	history, err := s.db.GetTransactionHistory(ctx, policyUUID, 30, 0) // take the last 30 records and skip the first 0

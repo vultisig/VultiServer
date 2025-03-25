@@ -104,7 +104,7 @@ func NewServer(
 				50000,   // TODO: config
 				time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
 			)
-			plugin, err = dca.NewDCAPlugin(uniswapCfg, db, logger)
+			plugin, err = dca.NewDCAPlugin(uniswapCfg, db,logger)
 			if err != nil {
 				logger.Fatal("fail to initialize DCA plugin: ", err)
 			}
@@ -126,7 +126,7 @@ func NewServer(
 			logger.Fatal("Failed to initialize DCA plugin: ", err)
 		}
 
-		syncerService = syncer.NewPolicySyncer(logger.WithField("service", "syncer").Logger, cfg)
+		syncerService = syncer.NewPolicySyncer(logger.WithField("service", "syncer").Logger, cfg.Server.Host, cfg.Server.Port)
 	}
 
 	policyService, err := service.NewPolicyService(db, syncerService, schedulerService, logger.WithField("service", "policy").Logger)
@@ -701,7 +701,16 @@ func (s *Server) CreateTransaction(c echo.Context) error {
 
 	existingTx, _ := s.db.GetTransactionByHash(c.Request().Context(), reqTx.TxHash)
 	if existingTx != nil {
-		return c.NoContent(http.StatusConflict)
+		if existingTx.Status != types.StatusSigningFailed &&
+			existingTx.Status != types.StatusRejected {
+			return c.NoContent(http.StatusConflict)
+		}
+
+		if err := s.db.UpdateTransactionStatus(c.Request().Context(), existingTx.ID, types.StatusPending, reqTx.Metadata); err != nil {
+			s.logger.Errorf("fail to update transaction status: %v", err)
+			return c.NoContent(http.StatusInternalServerError)
+		}
+		return c.NoContent(http.StatusOK)
 	}
 
 	if _, err := s.db.CreateTransactionHistory(c.Request().Context(), reqTx); err != nil {

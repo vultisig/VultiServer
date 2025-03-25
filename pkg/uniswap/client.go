@@ -86,6 +86,57 @@ func (uc *Client) ApproveERC20Token(chainID *big.Int, signerAddress *common.Addr
 	return hash, rawTx, err
 }
 
+func (uc *Client) GetAllowance(signerAddress common.Address, tokenAddress common.Address) (*big.Int, error) {
+	tokenABI := `[{
+        "constant": true,
+        "inputs": [
+            {
+                "name": "_owner",
+                "type": "address"
+            },
+            {
+                "name": "_spender",
+                "type": "address"
+            }
+        ],
+        "name": "allowance",
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "payable": false,
+        "stateMutability": "view",
+        "type": "function"
+    }]`
+
+	parsedABI, err := abi.JSON(strings.NewReader(tokenABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse allowance ABI: %w", err)
+	}
+
+	data, err := parsedABI.Pack("allowance", signerAddress, *uc.cfg.routerAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack allowance data: %w", err)
+	}
+
+	result, err := uc.cfg.rpcClient.CallContract(context.Background(), ethereum.CallMsg{
+		To:   &tokenAddress,
+		Data: data,
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call allowance: %w", err)
+	}
+
+	var allowance *big.Int
+	err = parsedABI.UnpackIntoInterface(&allowance, "allowance", result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack allowance: %w", err)
+	}
+	return allowance, nil
+}
+
 func (uc *Client) SwapTokens(chainID *big.Int, signerAddress *common.Address, amountIn, amountOutMin *big.Int, path []common.Address, nonceOffset uint64) ([]byte, []byte, error) {
 	log.Println("Swapping tokens...")
 	routerABI := `[
