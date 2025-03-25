@@ -15,6 +15,8 @@ server:
       uniswap:
         v2_router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D
         deadline: 5 # minutes
+  user_auth:
+    jwt_secret: tokensecret
 
 relay:
   server: https://api.vultisig.com/router
@@ -28,7 +30,7 @@ redis:
 block_storage:
   type: s3
   endpoint: http://localhost:9000
-  bucket: vultisig-verifier  
+  bucket: vultisig-verifier
   access_key: minioadmin
   secret: minioadmin
   region: us-east-1

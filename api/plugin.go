@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/vultisig/vultisigner/common"
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/jwt"
+	"github.com/vultisig/vultisigner/internal/password"
 	"github.com/vultisig/vultisigner/internal/sigutil"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
@@ -486,6 +488,236 @@ func (s *Server) initializePlugin(pluginType string) (plugin.Plugin, error) {
 	default:
 		return nil, fmt.Errorf("unknown plugin type: %s", pluginType)
 	}
+}
+
+func (s *Server) UserLogin(c echo.Context) error {
+	cfg, err := config.ReadConfig("config-verifier")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"message": "Failed to read config"})
+	}
+
+	var auth types.UserAuthDto
+	if err := c.Bind(&auth); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"message": "Invalid request"})
+	}
+
+	if err := c.Validate(&auth); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"message": err.Error(),
+		})
+	}
+
+	user, err := s.db.FindUserByName(c.Request().Context(), auth.Username)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"message": "Invalid credentials"})
+	}
+	if passwordValid := password.CheckPassword(auth.Password, user.Password); !passwordValid {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"message": "Invalid credentials"})
+	}
+
+	token, err := jwt.GenerateJWT(user.ID, cfg.Server.UserAuth.JwtSecret)
+	if err != nil {
+		s.logger.Error("Failed to generate jwt", err)
+		return c.JSON(http.StatusInternalServerError, echo.Map{"message": "Failed to generate token"})
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{"token": token})
+}
+
+func (s *Server) GetLoggedUser(c echo.Context) error {
+	user := c.Get("user")
+
+	return c.JSON(http.StatusOK, user)
+}
+
+func (s *Server) GetPricing(c echo.Context) error {
+	pricingID := c.Param("pricingId")
+	if pricingID == "" {
+		err := fmt.Errorf("pricing id is required")
+		message := echo.Map{
+			"message": "failed to get pricing",
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	pricing, err := s.db.FindPricingById(c.Request().Context(), pricingID)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to get pricing",
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, pricing)
+}
+
+func (s *Server) CreatePricing(c echo.Context) error {
+	var pricing types.PricingCreateDto
+	if err := c.Bind(&pricing); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
+	if err := c.Validate(&pricing); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"message": err.Error(),
+		})
+	}
+
+	created, err := s.db.CreatePricing(c.Request().Context(), pricing)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to create pricing",
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, created)
+}
+
+func (s *Server) DeletePricing(c echo.Context) error {
+	pricingID := c.Param("pricingId")
+	if pricingID == "" {
+		message := echo.Map{
+			"message": "failed to delete pricing",
+			"error":   "pricing id is required",
+		}
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	err := s.db.DeletePricingById(c.Request().Context(), pricingID)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to delete pricing",
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (s *Server) GetPlugins(c echo.Context) error {
+	plugins, err := s.db.FindPlugins(c.Request().Context())
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to get plugins",
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, plugins)
+}
+
+func (s *Server) GetPlugin(c echo.Context) error {
+	pluginID := c.Param("pluginId")
+	if pluginID == "" {
+		err := fmt.Errorf("plugin id is required")
+		message := echo.Map{
+			"message": "failed to get plugin",
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	plugin, err := s.db.FindPluginById(c.Request().Context(), pluginID)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to get plugin",
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, plugin)
+}
+
+func (s *Server) CreatePlugin(c echo.Context) error {
+	var plugin types.PluginCreateDto
+	if err := c.Bind(&plugin); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
+	if err := c.Validate(&plugin); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"message": err.Error(),
+		})
+	}
+
+	created, err := s.db.CreatePlugin(c.Request().Context(), plugin)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to create plugin",
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, created)
+}
+
+func (s *Server) UpdatePlugin(c echo.Context) error {
+	pluginID := c.Param("pluginId")
+	if pluginID == "" {
+		message := echo.Map{
+			"message": "failed to delete plugin",
+			"error":   "plugin id is required",
+		}
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	var plugin types.PluginUpdateDto
+	if err := c.Bind(&plugin); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+
+	if err := c.Validate(&plugin); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{
+			"message": err.Error(),
+		})
+	}
+
+	updated, err := s.db.UpdatePlugin(c.Request().Context(), pluginID, plugin)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to update plugin",
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.JSON(http.StatusOK, updated)
+}
+
+func (s *Server) DeletePlugin(c echo.Context) error {
+	pluginID := c.Param("pluginId")
+	if pluginID == "" {
+		message := echo.Map{
+			"message": "failed to delete plugin",
+			"error":   "plugin id is required",
+		}
+		return c.JSON(http.StatusBadRequest, message)
+	}
+
+	err := s.db.DeletePluginById(c.Request().Context(), pluginID)
+	if err != nil {
+		message := echo.Map{
+			"message": "failed to delete plugin",
+			"error":   err.Error(),
+		}
+		s.logger.Error(err)
+		return c.JSON(http.StatusInternalServerError, message)
+	}
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (s *Server) verifyPolicySignature(policy types.PluginPolicy, update bool) bool {

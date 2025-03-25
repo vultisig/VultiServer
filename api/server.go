@@ -20,6 +20,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/syncer"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/internal/types"
+	vv "github.com/vultisig/vultisigner/internal/vultisig_validator"
 	"github.com/vultisig/vultisigner/pkg/uniswap"
 	"github.com/vultisig/vultisigner/plugin"
 	"github.com/vultisig/vultisigner/plugin/dca"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	gcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/go-playground/validator/v10"
 	"github.com/hibiken/asynq"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -165,6 +167,9 @@ func (s *Server) StartServer() error {
 		middleware.RateLimiterMemoryStoreConfig{Rate: 5, Burst: 30, ExpiresIn: 5 * time.Minute},
 	)
 	e.Use(middleware.RateLimiter(limiterStore))
+
+	e.Validator = &vv.VultisigValidator{Validator: validator.New()}
+
 	e.GET("/ping", s.Ping)
 	e.GET("/getDerivedPublicKey", s.GetDerivedPublicKey)
 	e.POST("/signFromPlugin", s.SignPluginMessages)
@@ -210,27 +215,29 @@ func (s *Server) StartServer() error {
 	pluginGroup.GET("/policy/:policyId", s.GetPluginPolicyById, s.AuthMiddleware)
 	pluginGroup.DELETE("/policy/:policyId", s.DeletePluginPolicyById)
 
+	if s.mode == "verifier" {
+		e.POST("/login", s.UserLogin)
+		e.GET("/users/me", s.GetLoggedUser, s.userAuthMiddleware)
+
+		pluginsGroup := e.Group("/plugins")
+		pluginsGroup.GET("", s.GetPlugins)
+		pluginsGroup.GET("/:pluginId", s.GetPlugin)
+		pluginsGroup.POST("", s.CreatePlugin, s.userAuthMiddleware)
+		pluginsGroup.PATCH("/:pluginId", s.UpdatePlugin, s.userAuthMiddleware)
+		pluginsGroup.DELETE("/:pluginId", s.DeletePlugin, s.userAuthMiddleware)
+
+		pricingsGroup := e.Group("/pricings")
+		pricingsGroup.GET("/:pricingId", s.GetPricing)
+		pricingsGroup.POST("", s.CreatePricing, s.userAuthMiddleware)
+		pricingsGroup.DELETE("/:pricingId", s.DeletePricing, s.userAuthMiddleware)
+	}
+
 	syncGroup := e.Group("/sync")
 	syncGroup.Use(s.AuthMiddleware)
 	syncGroup.POST("/transaction", s.CreateTransaction)
 	syncGroup.PUT("/transaction", s.UpdateTransaction)
 
 	return e.Start(fmt.Sprintf(":%d", s.port))
-}
-
-func (s *Server) statsdMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		start := time.Now()
-		err := next(c)
-		duration := time.Since(start).Milliseconds()
-
-		// Send metrics to statsd
-		_ = s.sdClient.Incr("http.requests", []string{"path:" + c.Path()}, 1)
-		_ = s.sdClient.Timing("http.response_time", time.Duration(duration)*time.Millisecond, []string{"path:" + c.Path()}, 1)
-		_ = s.sdClient.Incr("http.status."+fmt.Sprint(c.Response().Status), []string{"path:" + c.Path(), "method:" + c.Request().Method}, 1)
-
-		return err
-	}
 }
 
 func (s *Server) Ping(c echo.Context) error {
