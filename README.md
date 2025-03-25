@@ -131,6 +131,7 @@ Note: user can only request a resend every three minutes
 if server return http status code 200, it means the code is valid , other status code means the code is invalid
 
 ### Migrate Request
+`POST` `/vault/migrate` , this endpoint allow user to migrate the vault share from GG20 to DKLS
 ```json
 {
   "public_key": "ECDSA public key of the vault",
