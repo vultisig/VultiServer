@@ -15,7 +15,7 @@ import (
 	"github.com/vultisig/vultisigner/internal/types"
 )
 
-func (p *PayrollPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
+func (p *PayrollPlugin) ValidateProposedTransactions(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
 	err := p.ValidatePluginPolicy(policy)
 	if err != nil {
 		return fmt.Errorf("failed to validate plugin policy: %v", err)

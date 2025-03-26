@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/google/uuid"
-	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/vultisig/mobile-tss-lib/tss"
 )
@@ -39,6 +38,10 @@ const (
 const (
 	vaultPassword    = "Nontestato75"                                                     // TODO:
 	hexEncryptionKey = "539440138236b389cb0355aa1e81d11e51e9ad7c94b09bb45704635913604a73" // TODO:
+)
+
+var (
+	ErrCompletedPolicy = errors.New("policy completed all swaps")
 )
 
 type DCAPlugin struct {
@@ -70,17 +73,6 @@ func NewDCAPlugin(uniswapCfg *uniswap.Config, db storage.DatabaseStorage, logger
 		db:            db,
 		logger:        logger,
 	}, nil
-}
-
-// TODO: remove from interface
-func (p *DCAPlugin) GetNextNonce(address string) (uint64, error) {
-	return 0, nil
-}
-
-// TODO: do we actually need this?
-func (p *DCAPlugin) SignPluginMessages(e echo.Context) error {
-	p.logger.Debug("DCA: SIGN PLUGIN MESSAGES")
-	return nil
 }
 
 func (p *DCAPlugin) SigningComplete(
@@ -320,42 +312,14 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 	}
 
 	if completedSwaps >= totalOrders.Int64() {
-		p.logger.WithFields(logrus.Fields{
-			"policy_id": policy.ID,
-		}).Info("DCA: All orders completed, no transactions to propose")
-
-		// TODO: Sync a COMPLETED state for the policy with the verifier database.
-		ctx := context.Background()
-		dbTx, err := p.db.Pool().Begin(ctx)
-		defer dbTx.Rollback(ctx)
-		if err != nil {
-			return txs, fmt.Errorf("fail to begin transaction: %w", err)
+		if err := p.completePolicy(context.Background(), policy); err != nil {
+			return txs, fmt.Errorf("fail to complete policy: %w", err)
 		}
-		policy.Active = false
-		_, err = p.db.UpdatePluginPolicyTx(ctx, dbTx, policy)
-		if err != nil {
-			return txs, fmt.Errorf("fail to update policy: %w", err)
-		}
-
-		if err := dbTx.Commit(ctx); err != nil {
-			return txs, fmt.Errorf("failed to commit transaction: %w", err)
-		}
-
-		return txs, nil
+		return txs, ErrCompletedPolicy
 	}
 
 	// Calculate base amount and remainder
-	baseAmount := new(big.Int).Div(totalAmount, totalOrders)
-	p.logger.Info("DCA: BASE AMOUNT: ", baseAmount.String())
-	remainder := new(big.Int).Mod(totalAmount, totalOrders)
-	p.logger.Info("DCA: REMAINDER: ", remainder.String())
-
-	// Determine swap amount for the next order
-	swapAmount := new(big.Int).Set(baseAmount)
-	if big.NewInt(completedSwaps+1).Cmp(remainder) <= 0 {
-		p.logger.Info("DCA: REMAINDER ADDING")
-		swapAmount.Add(swapAmount, big.NewInt(1)) // Add 1 to distribute remainder
-	}
+	swapAmount := p.calculateSwapAmountPerOrder(totalAmount, totalOrders, completedSwaps)
 	p.logger.Info("DCA: SWAP AMOUNT: ", swapAmount.String())
 
 	// build transactions
@@ -398,7 +362,7 @@ func (p *DCAPlugin) ProposeTransactions(policy types.PluginPolicy) ([]types.Plug
 	return txs, nil
 }
 
-func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
+func (p *DCAPlugin) ValidateProposedTransactions(policy types.PluginPolicy, txs []types.PluginKeysignRequest) error {
 	p.logger.Info("DCA: VALIDATE TRANSACTION PROPOSAL")
 
 	if len(txs) == 0 {
@@ -428,22 +392,40 @@ func (p *DCAPlugin) ValidateTransactionProposal(policy types.PluginPolicy, txs [
 		return fmt.Errorf("invalid total amount")
 	}
 
+	totalOrders, ok := new(big.Int).SetString(dcaPolicy.TotalOrders, 10)
+	if !ok {
+		return fmt.Errorf("invalid total orders")
+	}
+
 	signerAddress, err := common.DeriveAddress(policy.PublicKey, policy.ChainCodeHex, policy.DerivePath)
 	if err != nil {
 		return fmt.Errorf("failed to derive address: %w", err)
 	}
 	p.logger.Warn("Signer address used for swaps: ", signerAddress.String())
 
+	completedSwaps, err := p.getCompletedSwapTransactionsCount(context.Background(), policy.ID)
+	if err != nil {
+		return fmt.Errorf("fail to get completed swaps: %w", err)
+	}
+	// TODO: Change this to make the policy to status COMPLETED if: completed swaps == total orders.
+	if completedSwaps >= totalOrders.Int64() {
+		if err := p.completePolicy(context.Background(), policy); err != nil {
+			return fmt.Errorf("fail to complete policy: %w", err)
+		}
+		p.logger.Info("DCA: COMPLETED SWAPS: ", totalOrders.Int64())
+		return ErrCompletedPolicy
+	}
+
 	// Validate each transaction
 	for _, tx := range txs {
-		if err := p.validateTransaction(tx, totalAmount, policyChainID, &sourceAddrPolicy, &destAddrPolicy, signerAddress); err != nil {
+		if err := p.validateTransaction(tx, completedSwaps, totalAmount, totalOrders, policyChainID, &sourceAddrPolicy, &destAddrPolicy, signerAddress); err != nil {
 			return fmt.Errorf("failed to validate transaction: %w", err)
 		}
 	}
 	return nil
 }
 
-func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignRequest, totalAmountPolicy, policyChainID *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
+func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignRequest, completedSwaps int64, policyTotalAmount, policyTotalOrders, policyChainID *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
 	// Parse the transaction
 	var tx *gtypes.Transaction
 	txBytes, err := hex.DecodeString(keysignRequest.Transaction)
@@ -463,17 +445,6 @@ func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignReques
 		return fmt.Errorf("chain ID mismatch: expected %s, got %s", policyChainID.String(), tx.ChainId().String())
 	}
 
-	// Validate destination address
-	txDestination := tx.To()
-	if txDestination == nil {
-		p.logger.Error("transaction missing destination address")
-		return fmt.Errorf("transaction missing destination address")
-	}
-	if p.uniswapClient.GetRouterAddress() != txDestination {
-		// TODO: change when mint and approve transactions are removed.
-		p.logger.Warn("invalid router: ", txDestination)
-	}
-
 	// Validate gas parameters
 	if tx.Gas() == 0 {
 		p.logger.Error("invalid gas limit: must be greater than zero")
@@ -484,36 +455,119 @@ func (p *DCAPlugin) validateTransaction(keysignRequest types.PluginKeysignReques
 		return fmt.Errorf("invalid gas price: must be greater than zero")
 	}
 
-	// Validate transaction data
+	// Validate destination address
+	if tx.To() == nil {
+		return fmt.Errorf("transaction has no destination")
+	}
+
+	// Validate transaction data exists
 	if len(tx.Data()) == 0 {
 		p.logger.Error("transaction contains empty payload")
 		return fmt.Errorf("transaction contains empty payload")
 	}
 
-	parsedRouterABI, err := p.getRouterABI()
-	if err != nil {
-		p.logger.Error("failed to parse router ABI: ", err)
-		return fmt.Errorf("failed to parse router ABI: %w", err)
+	txDestination := *tx.To()
+
+	switch {
+	case txDestination.Cmp(*p.uniswapClient.GetRouterAddress()) == 0:
+		// Swap transaction
+		return p.validateSwapTransaction(tx, completedSwaps, policyTotalAmount, policyTotalOrders, sourceAddrPolicy, destAddrPolicy, signerAddress)
+	case txDestination.Cmp(*sourceAddrPolicy) == 0:
+		// Approve transaction
+		return p.validateApproveTransaction(tx, completedSwaps, policyTotalAmount, policyTotalOrders)
+	default:
+		// Unknown transaction type
+		p.logger.Error("invalid transaction destination: ", txDestination.String())
+		return fmt.Errorf("unsupported transaction: %s", txDestination.String())
 	}
-	method, err := parsedRouterABI.MethodById(tx.Data())
+}
+
+func (p *DCAPlugin) validateSwapTransaction(tx *gtypes.Transaction, completedSwaps int64, policyTotalAmount, policyTotalOrders *big.Int, sourceAddrPolicy *gcommon.Address, destAddrPolicy *gcommon.Address, signerAddress *gcommon.Address) error {
+	parsedSwapABI, err := p.getSwapABI()
 	if err != nil {
-		p.logger.Warn("failed to find method in router ABI")
+		p.logger.Error("failed to parse swap ABI: ", err)
+		return fmt.Errorf("failed to parse swap ABI: %w", err)
 	}
+
+	method, err := parsedSwapABI.MethodById(tx.Data())
+	if err != nil {
+		p.logger.Error("failed to find method in swap ABI")
+		return fmt.Errorf("failed to find method in swap ABI: %w", err)
+	}
+
 	if method != nil && method.Name != "swapExactTokensForTokens" {
 		return fmt.Errorf("unexpected transaction method: expected 'swapExactTokensForTokens', got %s'", method.Name)
 	}
 
-	// Validate swap parameters if it's a swap transaction
-	if method != nil && method.Name == "swapExactTokensForTokens" {
-		p.logger.Info("DCA: method is swapExactTokensForTokens")
-		if err := p.validateSwapParameters(tx, method, totalAmountPolicy, sourceAddrPolicy, destAddrPolicy, signerAddress); err != nil {
-			return fmt.Errorf("failed to validate swap parameters: %w", err)
-		}
+	if err = p.validateSwapParameters(tx, method, completedSwaps, policyTotalAmount, policyTotalOrders, sourceAddrPolicy, destAddrPolicy, signerAddress); err != nil {
+		return fmt.Errorf("failed to validate swap parameters: %w", err)
 	}
+
 	return nil
 }
 
-func (p *DCAPlugin) validateSwapParameters(tx *gtypes.Transaction, method *abi.Method, totalAmountPolicy *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
+func (p *DCAPlugin) validateApproveTransaction(tx *gtypes.Transaction, completedSwaps int64, policyTotalAmount, policyTotalOrders *big.Int) error {
+	parsedApproveABI, err := p.getApproveABI()
+	if err != nil {
+		p.logger.Error("failed to parse approve ABI: ", err)
+		return fmt.Errorf("failed to parse approve ABI: %w", err)
+	}
+	method, err := parsedApproveABI.MethodById(tx.Data())
+	if err != nil {
+		p.logger.Error("failed to find method in approve ABI")
+		return fmt.Errorf("failed to find method in approve ABI: %w", err)
+	}
+
+	if method != nil && method.Name != "approve" {
+		return fmt.Errorf("unexpected transaction method: expected 'approve', got %s'", method.Name)
+	}
+
+	if err = p.validateApproveParameters(tx, method, completedSwaps, policyTotalAmount, policyTotalOrders); err != nil {
+		return fmt.Errorf("failed to validate approve parameters: %w", err)
+	}
+
+	return nil
+}
+
+func (p *DCAPlugin) validateApproveParameters(tx *gtypes.Transaction, method *abi.Method, completedSwaps int64, policyTotalAmount, policyTotalOrders *big.Int) error {
+	p.logger.Info("VALIDATING APPROVE PARAMETERS")
+
+	// Decode the parameters
+	inputData := tx.Data()[4:]
+	decodedParams, err := method.Inputs.Unpack(inputData)
+	if err != nil {
+		return fmt.Errorf("failed to decode approve parameters: %w", err)
+	}
+
+	// Validate spender address (should be the router)
+	spender, ok := decodedParams[0].(gcommon.Address)
+	if !ok {
+		return fmt.Errorf("failed to parse spender address: invalid format")
+	}
+
+	if spender.Cmp(*p.uniswapClient.GetRouterAddress()) != 0 {
+		return fmt.Errorf("invalid spender address: expected=%s, got=%s", p.uniswapClient.GetRouterAddress().String(), spender.String())
+	}
+
+	// Validate approval amount (should be within policy limits)
+	amount, ok := decodedParams[1].(*big.Int)
+	if !ok {
+		return fmt.Errorf("failed to parse approval amount: invalid format")
+	}
+	p.logger.Info("VALIDATING AMOUNT: ", amount.String())
+
+	expectedSwapAmount := p.calculateSwapAmountPerOrder(policyTotalAmount, policyTotalOrders, completedSwaps)
+	p.logger.Info("EXPECTED APPROVE AMOUNT: ", expectedSwapAmount.String())
+	if expectedSwapAmount.Cmp(amount) != 0 {
+		return fmt.Errorf("invalid approval amount: expected=%v, got=%v", expectedSwapAmount, amount)
+	}
+
+	return nil
+}
+
+func (p *DCAPlugin) validateSwapParameters(tx *gtypes.Transaction, method *abi.Method, completedSwaps int64, policyTotalAmount, policyTotalOrders *big.Int, sourceAddrPolicy, destAddrPolicy, signerAddress *gcommon.Address) error {
+	p.logger.Info("VALIDATING SWAP PARAMETERS")
+
 	inputData := tx.Data()[4:]
 	decodedParams, err := method.Inputs.Unpack(inputData)
 	if err != nil {
@@ -528,25 +582,29 @@ func (p *DCAPlugin) validateSwapParameters(tx *gtypes.Transaction, method *abi.M
 		return fmt.Errorf("swap path tokens mismatch: expected source=%s, destination=%s", *sourceAddrPolicy, *destAddrPolicy)
 	}
 
-	// TODO: change this validation to not compare the total amount, but to validate it is in valid range.
-	amountIn, ok := decodedParams[0].(*big.Int)
-	if !ok {
-		return fmt.Errorf("failed to parse swap amount: invalid format")
-	}
-	if amountIn.Cmp(totalAmountPolicy) > 0 {
-		return fmt.Errorf("swap amount exceeds policy limit: max=%s, got=%s", totalAmountPolicy.String(), amountIn.String())
-	}
-
 	// Validate destination address matches signer
 	to, ok := decodedParams[3].(gcommon.Address)
 	if !ok || to != *signerAddress {
 		return fmt.Errorf("invalid swap destination: expected=%s, got=%s", *signerAddress, to.String())
 	}
 
+	amountIn, ok := decodedParams[0].(*big.Int)
+	if !ok {
+		return fmt.Errorf("failed to parse swap amount: invalid format")
+	}
+
+	p.logger.Info("VALIDATING AMOUNT: ", amountIn.String())
+
+	expectedSwapAmountIn := p.calculateSwapAmountPerOrder(policyTotalAmount, policyTotalOrders, completedSwaps)
+	p.logger.Info("EXPECTED AMOUNT: ", expectedSwapAmountIn.String())
+	if amountIn.Cmp(expectedSwapAmountIn) != 0 {
+		return fmt.Errorf("invalid swap amount: expected=%s, got=%s", expectedSwapAmountIn.String(), amountIn.String())
+	}
+
 	return nil
 }
 
-func (p *DCAPlugin) getRouterABI() (abi.ABI, error) {
+func (p *DCAPlugin) getSwapABI() (abi.ABI, error) {
 	routerABI := `[
         {
             "name": "swapExactTokensForTokens",
@@ -578,7 +636,34 @@ func (p *DCAPlugin) getRouterABI() (abi.ABI, error) {
 	return abi.JSON(strings.NewReader(routerABI))
 }
 
-func (p *DCAPlugin) Frontend() embed.FS {
+func (p *DCAPlugin) getApproveABI() (abi.ABI, error) {
+	approveABI := `[
+		{
+			"name": "approve",
+			"type": "function",
+			"inputs": [
+				{
+					"name": "spender",
+					"type": "address"
+				},
+				{
+					"name": "value",
+					"type": "uint256"
+				}
+			],
+			"outputs": [
+				{
+					"name": "",
+					"type": "bool"
+				}
+			]
+		}
+	]`
+
+	return abi.JSON(strings.NewReader(approveABI))
+}
+
+func (p *DCAPlugin) FrontendSchema() embed.FS {
 	return embed.FS{}
 }
 
@@ -662,4 +747,43 @@ func (p *DCAPlugin) getCompletedSwapTransactionsCount(ctx context.Context, polic
 		return 0, err
 	}
 	return count, nil
+}
+
+func (p *DCAPlugin) calculateSwapAmountPerOrder(totalAmount, totalOrders *big.Int, completedSwaps int64) *big.Int {
+	baseAmount := new(big.Int).Div(totalAmount, totalOrders)
+	p.logger.Info("DCA: BASE AMOUNT: ", baseAmount.String())
+	remainder := new(big.Int).Mod(totalAmount, totalOrders)
+	p.logger.Info("DCA: REMAINDER: ", remainder.String())
+
+	// Determine swap amount for the next order
+	swapAmount := new(big.Int).Set(baseAmount)
+	if big.NewInt(completedSwaps+1).Cmp(remainder) <= 0 {
+		p.logger.Info("DCA: REMAINDER ADDING")
+		swapAmount.Add(swapAmount, big.NewInt(1)) // Add 1 to distribute remainder
+	}
+	return swapAmount
+}
+
+func (p *DCAPlugin) completePolicy(ctx context.Context, policy types.PluginPolicy) error {
+	p.logger.WithFields(logrus.Fields{
+		"policy_id": policy.ID,
+	}).Info("DCA: All orders completed, no transactions to propose")
+
+	// TODO: Sync a COMPLETED state for the policy with the verifier database.
+	dbTx, err := p.db.Pool().Begin(ctx)
+	defer dbTx.Rollback(ctx)
+	if err != nil {
+		return fmt.Errorf("fail to begin transaction: %w", err)
+	}
+	policy.Active = false
+	_, err = p.db.UpdatePluginPolicyTx(ctx, dbTx, policy)
+	if err != nil {
+		return fmt.Errorf("fail to update policy: %w", err)
+	}
+
+	if err := dbTx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }

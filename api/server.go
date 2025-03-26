@@ -104,7 +104,7 @@ func NewServer(
 				50000,   // TODO: config
 				time.Duration(cfg.Server.Plugin.Eth.Uniswap.Deadline)*time.Minute,
 			)
-			plugin, err = dca.NewDCAPlugin(uniswapCfg, db,logger)
+			plugin, err = dca.NewDCAPlugin(uniswapCfg, db, logger)
 			if err != nil {
 				logger.Fatal("fail to initialize DCA plugin: ", err)
 			}
@@ -202,7 +202,7 @@ func (s *Server) StartServer() error {
 			Index:      "index.html",
 			Browse:     false,
 			HTML5:      true,
-			Filesystem: http.FS(s.plugin.Frontend()),
+			Filesystem: http.FS(s.plugin.FrontendSchema()),
 		}))
 	}
 
@@ -798,22 +798,4 @@ func (s *Server) RefreshToken(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"token": newToken})
-}
-
-func (s *Server) AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		authHeader := c.Request().Header.Get("Authorization")
-		if authHeader == "" {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Missing Authorization header"})
-		}
-
-		tokenStr := authHeader[len("Bearer "):]
-		_, err := s.authService.ValidateToken(tokenStr)
-		if err != nil {
-			s.logger.Warnf("fail to validate token, err: %v", err)
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
-		}
-		s.logger.Info("Token validated successfully")
-		return next(c)
-	}
 }

@@ -63,7 +63,7 @@ func (s *Server) SignPluginMessages(c echo.Context) error {
 		return fmt.Errorf("failed to initialize plugin: %w", err)
 	}
 
-	if err := plg.ValidateTransactionProposal(policy, []types.PluginKeysignRequest{req}); err != nil {
+	if err := plg.ValidateProposedTransactions(policy, []types.PluginKeysignRequest{req}); err != nil {
 		return fmt.Errorf("failed to validate transaction proposal: %w", err)
 	}
 
