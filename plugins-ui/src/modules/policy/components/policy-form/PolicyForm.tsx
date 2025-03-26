@@ -9,7 +9,6 @@ import { TitleFieldTemplate } from "../policy-title/PolicyTitle";
 import TokenSelector from "@/modules/shared/token-selector/TokenSelector";
 import WeiConverter from "@/modules/shared/wei-converter/WeiConverter";
 import { RJSFValidationError } from "@rjsf/utils";
-import { useParams } from "react-router-dom";
 
 type PolicyFormProps = {
   data?: PluginPolicy;
@@ -21,13 +20,12 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
 
   const initialFormData = data ? data.policy : {}; // Define the initial form state
   const [formData, setFormData] = useState(initialFormData);
-  const { addPolicy, updatePolicy, policySchemaMap } = usePolicies();
+  const { addPolicy, updatePolicy, policySchemaMap, pluginType } =
+    usePolicies();
   const [schema, setSchema] = useState<PolicySchema | null>(null);
-  const { id } = useParams();
-  const safeId = id ?? "not-found";
 
   useEffect(() => {
-    const savedSchema = policySchemaMap.get(safeId);
+    const savedSchema = policySchemaMap.get(pluginType);
     if (savedSchema) {
       setSchema(savedSchema);
     }
@@ -97,7 +95,7 @@ const PolicyForm = ({ data, onSubmitCallback }: PolicyFormProps) => {
       {schema && (
         <Form
           key={formKey} // Forces full re-render on reset
-          idPrefix={safeId}
+          idPrefix={pluginType}
           schema={schema.form.schema}
           uiSchema={schema.form.uiSchema}
           validator={validator}

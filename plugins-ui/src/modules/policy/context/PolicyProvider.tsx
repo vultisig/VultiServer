@@ -12,8 +12,10 @@ import {
 } from "@/modules/shared/wallet/wallet.utils";
 import Toast from "@/modules/core/components/ui/toast/Toast";
 import VulticonnectWalletService from "@/modules/shared/wallet/vulticonnectWalletService";
+import { useParams } from "react-router-dom";
 
 export interface PolicyContextType {
+  pluginType: string;
   policyMap: Map<string, PluginPolicy>;
   policySchemaMap: Map<string, PolicySchema>;
   addPolicy: (policy: PluginPolicy) => Promise<boolean>;
@@ -39,10 +41,13 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
     type: "success" | "error";
   } | null>(null);
 
+  const { id } = useParams(); // Get 'id' from the URL
+  const [pluginType, _] = useState(id ?? "not-found");
+
   useEffect(() => {
     const fetchPolicies = async (): Promise<void> => {
       try {
-        const fetchedPolicies = await PolicyService.getPolicies("dca"); // todo remove hardcoding once we have the marketplace
+        const fetchedPolicies = await PolicyService.getPolicies(pluginType);
 
         const constructPolicyMap: Map<string, PluginPolicy> = new Map(
           fetchedPolicies?.map((p: PluginPolicy) => [p.id, p]) // Convert the array into [key, value] pairs
@@ -86,7 +91,7 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
 
-    fetchPolicySchema("dca"); // todo remove hardcoding once we have the marketplace
+    fetchPolicySchema(pluginType);
   }, []);
 
   const addPolicy = async (policy: PluginPolicy): Promise<boolean> => {
@@ -235,6 +240,7 @@ export const PolicyProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <PolicyContext.Provider
       value={{
+        pluginType,
         policyMap,
         policySchemaMap,
         addPolicy,

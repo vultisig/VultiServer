@@ -54,7 +54,7 @@ export const post = async (endpoint: string, data: any, options?: any) => {
  * @param {string} endpoint - The API endpoint.
  * @param {Object} options - Additional fetch options (e.g., headers).
  */
-export const get = async (endpoint: string, options: any) => {
+export const get = async (endpoint: string, options?: any) => {
   try {
     const response = await fetch(endpoint, {
       method: "GET",

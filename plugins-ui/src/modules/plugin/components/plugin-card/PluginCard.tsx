@@ -4,6 +4,10 @@ import logo from "../../../../assets/DCA-image.png"; // Adjust path based on fil
 import "./PluginCard.css";
 import { ViewFilter } from "@/modules/marketplace/models/marketplace";
 
+const truncateText = (text: string, maxLength: number = 500): string => {
+  return text.length > maxLength ? text.slice(0, maxLength) + "..." : text;
+};
+
 type PluginCardProps = {
   id: string;
   pluginType: string;
@@ -27,7 +31,7 @@ const PluginCard = ({
 
         <div className="plugin-info">
           <h3>{title}</h3>
-          <p>{description}</p>
+          <p>{truncateText(description)}</p>
         </div>
       </div>
 

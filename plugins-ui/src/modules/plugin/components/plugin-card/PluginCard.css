@@ -3,11 +3,13 @@
     background: var(--button-secondary-color);
     border-radius: 12px;
     align-items: center;
+    justify-content: space-between;
   }
   
   .plugin.grid {
     flex-direction: column;
     width: 352px;
+    height: 95%;
     padding: 12px;
     align-items: center;
   }

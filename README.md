@@ -18,18 +18,19 @@
 
 Verify the buckets were created by visiting the MinIO Console: http://localhost:9001 (username: minioadmin, password: minioadmin)
 
-
 ### 2. Start the Verifier and the Plugin service
 
 Start each service in a different tab:
 
 Verifer
+
 ```sh
 make verifier-server
 make verifier-worker
 ```
 
 Plugin
+
 ```sh
 make plugin-server
 make plugin-worker
@@ -37,7 +38,60 @@ make plugin-worker
 
 For a clean restart, run `make down` and restart the servers and workers (consider deleting the volumes and images for a fresh start)
 
-### 3. Test the DCA Plugin execution with production vault (imported into Vulticonnect)
+### 3. Add new plugin listing in the Marketplace
+
+#### Users
+
+Create an admin user
+
+```sh
+  go run ./scripts/dev/create_verifier_admin/main.go -username=admin -password=supersecret
+```
+
+User login (to get an auth token)
+
+```sh
+curl --location localhost:8080/login --request POST \
+--header 'Content-Type: application/json' \
+--data '{"username":"admin","password":"supersecret"}'
+```
+
+#### Pricing
+
+Create a pricing plan
+
+```sh
+curl --location localhost:8080/pricings --request POST \
+--header 'Authorization: Bearer mytoken' \
+--header 'Content-Type: application/json' \
+--data '{
+  "type": "FREE",
+  "amount": 0,
+  "metric": "FIXED"
+}'
+```
+
+#### Plugin Listing
+
+Add new plugin listing
+
+```sh
+curl --location localhost:8080/plugins --request POST \
+--header 'Authorization: Bearer mytoken' \
+--header 'Content-Type: application/json' \
+--data '{
+    "title": "DCA Plugin",
+    "type": "dca",
+    "description": "Dollar-cost averaging plugin automation",
+    "metadata": "{\"foo\": \"bar\"}",
+    "server_endpoint": "http://localhost:8081",
+    "pricing_id": "1"
+}'
+```
+
+---
+
+### 4. Test the DCA Plugin execution with production vault (imported into Vulticonnect)
 
 There is an easier way to test via script, however, the vault created through a script is not easy to be imported into Vulitconnect at this time for full end-to-end testing. As a result, additional steps are required to bring in the missing production data locally.
 
@@ -46,8 +100,10 @@ There is an easier way to test via script, however, the vault created through a 
 3. Import the vault via QR code into VaultConnect, allowing you to sign plugin policies
 4. Rename each backup as `<PUBLIC_KEY>.bak` and import each into the corresponding local S3 folder (`vultisig-plugin`, `vultisig-verifier`), since we are testing with a vault created from production, it is necessary to have the vault state locally.
 5. This steps will be removed, but for now there are some hardcoded pieces that should match the vault being used in VaultConnect.
-  - change the `PluginPartyID` and `VerifierPartyID` in common/util.go to match those from the Vultisig app -> Vault settings -> Details.
-  - change the hardcoded `vaultPassword` to match the vault password and the `hexEncryptionKey` to match the `hexChainCode` that we can get if we execute `await window.vultisig.getVaults()`
+
+- change the `PluginPartyID` and `VerifierPartyID` in common/util.go to match those from the Vultisig app -> Vault settings -> Details.
+- change the hardcoded `vaultPassword` to match the vault password and the `hexEncryptionKey` to match the `hexChainCode` that we can get if we execute `await window.vultisig.getVaults()`
+
 6. Create a DCA policy through the UI
 
 7. The policy execution will start, so it is essential to ensure that the vault address has sufficient balance for the token and amount specified in the policy.
@@ -57,19 +113,20 @@ export RPC_URL=http://127.0.0.1:8545 # from the local ethereum fork
 export PRIVATE_KEY=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 # from the local ethereum fork
 export VAULT_ADDRESS=0x5582df2D22194AF8201997D750e80fd8140387c2 # from the vultisig app
 ```
- 
+
 Send some amount of native ETH to the vault address
+
 ```sh
   cast send $VAULT_ADDRESS --value 10ether --rpc-url $RPC_URL --private-key $PRIVATE_KEY
   cast balance $VAULT_ADDRESS  --rpc-url $RPC_URL
 ```
 
 Mint some amount of ERC20 Token. If "-token" is not present, the script will default to minting WETH.
+
 ```sh
   export TOKEN_ADDRESS=0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 # USDC in this case
   go run scripts/dev/mint_erc20/main.go -vault-address $VAULT_ADDRESS -token $TOKEN_ADDRESS
 ```
-
 
 ---
 
@@ -81,7 +138,7 @@ Mint some amount of ERC20 Token. If "-token" is not present, the script will def
 
 - Token contract (usdc) `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48`
 - Polygon token contract `0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174`
-Enter recipients and amounts one by one - enter 'done' when finished
+  Enter recipients and amounts one by one - enter 'done' when finished
 - Enter a recipient address: `0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67`
 - chain id : `137`
 - Enter the amount for this recipient: `100`
@@ -93,7 +150,7 @@ Enter recipients and amounts one by one - enter 'done' when finished
 ```
 
 - Enter token contract: `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` UCDC
-Enter recipients and amounts one by one - enter 'done' when finished
+  Enter recipients and amounts one by one - enter 'done' when finished
 - Enter a recipient address: `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266`
 - Enter the amount for this recipient: `1000`
 - `done`
@@ -105,7 +162,7 @@ Enter recipients and amounts one by one - enter 'done' when finished
 
 - name: Vault name
 - session_id: Key generation session ID (random UUID)
-- hex_encryption_key: 32-byte hex encoded string for encryption/decryption 
+- hex_encryption_key: 32-byte hex encoded string for encryption/decryption
 - hex_chain_code: 32-byte hex encoded string
 - local_party_id: Identifier for VultiServer in the keygen session
 - encryption_password: Password to encrypt the generated vault share
@@ -148,7 +205,7 @@ curl -X POST http://localhost:8080/vault/create \
 
 ### Key Signing
 
-Before starting the keysign, make sure to replace the public key by the one appearing in the logs of the keygen. 
+Before starting the keysign, make sure to replace the public key by the one appearing in the logs of the keygen.
 
 - public_key: ECDSA public key of the vault
 - messages: List of hex encoded messages to be signed
@@ -217,7 +274,7 @@ curl -X POST http://localhost:8081/vault/reshare \
     "hex_encryption_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "hex_chain_code": "2023456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "local_party_id": "1",
-    "old_parties": ["1", "2"], 
+    "old_parties": ["1", "2"],
     "encryption_password": "your-secure-password",
     "email": "admin@example.com",
     "start_session": false,

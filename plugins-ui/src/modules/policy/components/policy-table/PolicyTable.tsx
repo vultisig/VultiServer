@@ -16,7 +16,6 @@ import TokenName from "@/modules/shared/token-name/TokenName";
 import TokenAmount from "@/modules/shared/token-amount/TokenAmount";
 import { mapTableColumnData } from "../../utils/policy.util";
 import ActiveStatus from "@/modules/shared/active-status/ActiveStatus";
-import { useParams } from "react-router-dom";
 import { PolicySchema } from "../../models/policy";
 
 const componentMap: Record<string, React.FC<any>> = {
@@ -57,13 +56,11 @@ const getTableColumns = (schema: PolicySchema) => {
 
 const PolicyTable = () => {
   const [data, setData] = useState<any>(() => []);
-  const { policyMap, policySchemaMap } = usePolicies();
+  const { policyMap, policySchemaMap, pluginType } = usePolicies();
   const [columns, setColumns] = useState<ColumnDef<any>[]>([]);
-  const { id } = useParams();
-  const safeId = id ?? "not-found";
 
   useEffect(() => {
-    const savedSchema = policySchemaMap.get(safeId);
+    const savedSchema = policySchemaMap.get(pluginType);
 
     if (
       savedSchema &&
@@ -106,7 +103,7 @@ const PolicyTable = () => {
     <div>
       <PolicyFilters onFiltersChange={setColumnFilters} />
 
-      {policySchemaMap.has(safeId) && (
+      {policySchemaMap.has(pluginType) && (
         <table className="policy-table">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
