@@ -39,7 +39,7 @@ type DatabaseStorage interface {
 	UpdateTransactionStatusTx(ctx context.Context, dbTx pgx.Tx, txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
 	CreateTransactionHistory(ctx context.Context, tx types.TransactionHistory) (uuid.UUID, error)
 	UpdateTransactionStatus(ctx context.Context, txID uuid.UUID, status types.TransactionStatus, metadata map[string]interface{}) error
-	GetTransactionHistory(ctx context.Context, policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error)
+	GetTransactionHistory(ctx context.Context, policyID uuid.UUID, transactionType string, take int, skip int) ([]types.TransactionHistory, error)
 	GetTransactionByHash(ctx context.Context, txHash string) (*types.TransactionHistory, error)
 
 	FindPlugins(ctx context.Context, take int, skip int, sort string) (types.PlugisDto, error)

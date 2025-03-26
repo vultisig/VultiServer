@@ -162,7 +162,7 @@ func (s *PolicyService) GetPluginPolicyTransactionHistory(ctx context.Context, p
 		return []types.TransactionHistory{}, fmt.Errorf("invalid policy_id: %s", policyID)
 	}
 
-	history, err := s.db.GetTransactionHistory(ctx, policyUUID, 30, 0) // take the last 30 records and skip the first 0
+	history, err := s.db.GetTransactionHistory(ctx, policyUUID, "SWAP", 30, 0) // take the last 30 records and skip the first 0
 	if err != nil {
 		return []types.TransactionHistory{}, fmt.Errorf("failed to get policy history: %w", err)
 	}

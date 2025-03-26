@@ -135,16 +135,17 @@ func (p *PostgresBackend) UpdateTransactionStatus(ctx context.Context, txID uuid
 
 }
 
-func (p *PostgresBackend) GetTransactionHistory(ctx context.Context, policyID uuid.UUID, take int, skip int) ([]types.TransactionHistory, error) {
+func (p *PostgresBackend) GetTransactionHistory(ctx context.Context, policyID uuid.UUID, transactionType string, take int, skip int) ([]types.TransactionHistory, error) {
 	query := `
         SELECT id, policy_id, tx_body, tx_hash, status, created_at, updated_at, metadata, error_message
         FROM transaction_history
         WHERE policy_id = $1
+        AND metadata->>'transaction_type' = $2
         ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3
+		LIMIT $3 OFFSET $4
     `
 
-	rows, err := p.pool.Query(ctx, query, policyID, take, skip)
+	rows, err := p.pool.Query(ctx, query, policyID, transactionType, take, skip)
 	if err != nil {
 		return nil, err
 	}
