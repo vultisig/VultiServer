@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/vultisig/vultisigner/config"
+	"github.com/vultisig/vultisigner/internal/syncer"
 	"github.com/vultisig/vultisigner/internal/tasks"
 	"github.com/vultisig/vultisigner/service"
 	"github.com/vultisig/vultisigner/storage"
@@ -18,7 +19,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	sdClient, err := statsd.New("127.0.0.1:8125")
+
+	sdClient, err := statsd.New(cfg.Datadog.Host + ":" + cfg.Datadog.Port)
 	if err != nil {
 		panic(err)
 	}
@@ -32,8 +34,18 @@ func main() {
 		Password: cfg.Redis.Password,
 		DB:       cfg.Redis.DB,
 	}
+	logger := logrus.StandardLogger()
+	verifierConfig, err := config.ReadConfig("config-verifier")
+	if err != nil {
+		panic(err)
+	}
+	syncerService := syncer.NewPolicySyncer(logger.WithField("service", "syncer").Logger, verifierConfig.Server.Host, verifierConfig.Server.Port)
+	authService := service.NewAuthService(cfg.Server.JWTSecret)
+
 	client := asynq.NewClient(redisOptions)
-	workerServce, err := service.NewWorker(*cfg, client, sdClient, blockStorage)
+	inspector := asynq.NewInspector(redisOptions)
+
+	workerService, err := service.NewWorker(*cfg, verifierConfig.Server.Port, client, sdClient, syncerService, authService, blockStorage, inspector)
 	if err != nil {
 		panic(err)
 	}
@@ -41,21 +53,23 @@ func main() {
 	srv := asynq.NewServer(
 		redisOptions,
 		asynq.Config{
-			Logger:      logrus.StandardLogger(),
+			Logger:      logger,
 			Concurrency: 10,
 			Queues: map[string]int{
-				tasks.QUEUE_NAME:       10,
-				tasks.EMAIL_QUEUE_NAME: 100,
+				tasks.QUEUE_NAME:         10,
+				tasks.EMAIL_QUEUE_NAME:   100,
+				"scheduled_plugin_queue": 10, // new queue
 			},
 		},
 	)
 
-	// mux maps a type to a handler
 	mux := asynq.NewServeMux()
-	mux.HandleFunc(tasks.TypeKeyGeneration, workerServce.HandleKeyGeneration)
-	mux.HandleFunc(tasks.TypeKeySign, workerServce.HandleKeySign)
-	mux.HandleFunc(tasks.TypeEmailVaultBackup, workerServce.HandleEmailVaultBackup)
-	mux.HandleFunc(tasks.TypeReshare, workerServce.HandleReshare)
+	mux.HandleFunc(tasks.TypeKeyGeneration, workerService.HandleKeyGeneration)
+	mux.HandleFunc(tasks.TypeKeySign, workerService.HandleKeySign)
+	mux.HandleFunc(tasks.TypeEmailVaultBackup, workerService.HandleEmailVaultBackup)
+	mux.HandleFunc(tasks.TypeReshare, workerService.HandleReshare)
+	mux.HandleFunc(tasks.TypePluginTransaction, workerService.HandlePluginTransaction)
+
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))
 	}

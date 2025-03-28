@@ -1,0 +1,48 @@
+.toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 200px;
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .toast-success {
+    background: var(--background-success-color);
+    border: 1px solid var(--alert-success-color);
+    color: var(--alert-success-color);
+    svg {
+      color: var(--alert-success-color);
+    }
+  }
+
+  .toast-warning {
+    background: var(--background-warning-color);
+    border: 1px solid var(--alert-warning-color);
+    color: var(--alert-warning-color);
+    svg {
+      color: var(--alert-warning-color);
+    }
+  }
+  
+  .toast-error {
+    background:  var(--background-error-color);
+    border: 1px solid var(--alert-error-color);
+    color: var(--alert-error-color);
+
+    svg {
+      color: var(--alert-error-color);
+    }
+  }
+
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  

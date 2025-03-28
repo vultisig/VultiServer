@@ -1,0 +1,35 @@
+.history-panel {
+    padding: 16px;
+  }
+  
+  .history-panel h2 {
+    font-size: 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 6px;
+  }
+  
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .history-item:last-child {
+    border-bottom: none;
+  }
+  
+  .history-date {
+    font-weight: bold;
+  }
+  
+  .history-time {
+    width: 65px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .history-status {
+    color: var(--alert-success-color);
+  }
+  

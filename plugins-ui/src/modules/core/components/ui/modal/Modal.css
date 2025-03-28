@@ -1,0 +1,121 @@
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999; /* Ensure it's on top */
+}
+
+.modal-content {
+    width: 475px;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    position: relative;
+    background-color: var(--background-tertiary-color);
+    z-index: 10000; /* Ensure content is above the overlay */
+
+    .form {
+        border: none;
+    }
+}
+
+.modal-close {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+}
+
+.panel-overlay {
+    justify-content: flex-end;
+}
+
+.panel-content {
+    width: 475px;
+    height: 100vh;
+    right: 0;
+    position: fixed;
+    top: 0;
+    background: var(--background-primary-color);
+    box-shadow: -4px 0 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease-in-out;
+    overflow: scroll;
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.modal-header h2 {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    font-weight: 500;
+    color: var(--text-primary-color);
+    margin: 0;
+    padding-bottom: 16px;
+}
+
+.modal-header input {
+    width: 100%;
+    padding: 1rem;
+    color: var(--text-extra-light-color);
+    font-weight: 500;
+    font-size: 1rem;
+    border: 1px solid var(--border-light-color);
+    background-color: var(--background-secondary-color);
+    border-radius: 12px;
+}
+
+.input-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none; /* Prevent interaction */
+}
+
+.modal-options {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 0;
+    max-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--background-secondary-color) var(--background-tertiary-color); 
+}
+
+.modal-option {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.modal-option:hover {
+    background: var(--background-secondary-color);
+}
+
+.modal-option:focus-visible {
+    background: var(--background-secondary-color);
+    outline: none
+}
+
+.modal-no-options {
+    padding: 8px;
+    color: var(--text-extra-light-color);
+}
+

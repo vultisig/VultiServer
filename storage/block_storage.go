@@ -90,7 +90,7 @@ func (bs *BlockStorage) GetFile(fileName string) ([]byte, error) {
 		Key:    aws.String(fileName),
 	})
 	if err != nil {
-		bs.logger.Error(err)
+		bs.logger.Error("error getting file: ", err)
 		return nil, err
 	}
 	defer func() {

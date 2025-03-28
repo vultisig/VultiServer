@@ -1,0 +1,15 @@
+.accordion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+}
+
+.accordion-content {
+    width: 100%;
+    font-size: 0.875rem;
+}

@@ -1,0 +1,53 @@
+.plugin {
+    display: flex;
+    background: var(--button-secondary-color);
+    border-radius: 12px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .plugin.grid {
+    flex-direction: column;
+    width: 352px;
+    height: 95%;
+    padding: 12px;
+    align-items: center;
+  }
+  
+  .plugin.grid img {
+    width: 352px;
+  }
+  
+  .plugin.list {
+    justify-content: space-between;
+    flex-direction: row;
+    padding: 16px;
+  }
+  
+  .plugin.list img {
+    width: 64px;
+  }
+  
+  .plugin.list .plugin-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0;
+    gap: 8px;
+    margin: 0 1rem;
+  }
+  
+  .plugin.list h3 {
+    font-size: 1.125rem;
+    margin: 0;
+  }
+  
+  .plugin.list p {
+    font-size: 0.875rem;
+    margin: 0;
+  }
+
+  .info-group {
+    display: flex;
+  }
+  

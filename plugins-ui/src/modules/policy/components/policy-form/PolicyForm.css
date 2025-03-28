@@ -1,0 +1,84 @@
+.policy-form {
+    display: flex;
+    flex-direction: column;
+}
+
+form .form-control {
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary-color);
+}
+  
+form button[type="submit"] {
+    width: 100%;
+    background-color: var(--button-tertiary-color);
+    color: var(--text-primary-color);
+    padding: 10px 20px;
+    font-size: 0.875rem;
+    border-radius: 99px;
+    border: none;
+    cursor: pointer;
+}
+  
+form button[type="submit"]:hover {
+    background-color: var(--button-tertiary-hover-color);
+}
+
+.form-group {
+    margin: 10px 0;
+}
+
+fieldset {
+    border: none;
+}
+
+.form-row {
+    fieldset {
+        display: flex;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+.control-label {
+    margin-bottom: 8px;
+    .required {
+        display: none;
+    }
+}
+
+.input-background {
+    flex: 1;
+    .form-control {
+        background-color: var(--background-secondary-color);
+        border: 1px solid var(--border-light-color);
+        border-radius: 12px;
+        padding: 16px;
+    }
+} 
+  
+.stacked-input {
+    label, input {
+        width: 100%; /* Both label and input take full width of their parent div */
+        display: block; /* Makes label and input stack vertically */
+        box-sizing: border-box; /* Prevents padding from affecting width */
+    }
+}
+
+.text-danger {
+    color: var(--alert-error-color);
+    list-style-type: none;
+}
+
+.has-error {
+    .form-control, #wei {
+
+        border: 1px solid var(--alert-error-color);
+    }
+}
+
+.error-detail {
+    padding: 0;
+}
+  
