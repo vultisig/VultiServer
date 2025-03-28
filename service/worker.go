@@ -637,6 +637,8 @@ func (s *WorkerService) waitForTaskResult(taskID string, timeout time.Duration) 
 
 		time.Sleep(pollInterval)
 	}
+}
+
 func (s *WorkerService) HandleReshareDKLS(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
