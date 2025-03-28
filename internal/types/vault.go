@@ -24,6 +24,8 @@ type VaultCreateRequest struct {
 	EncryptionPassword string  `json:"encryption_password" validate:"required"` // password used to encrypt the vault file
 	Email              string  `json:"email" validate:"required"`               // this is the email of the user that the vault backup will be sent to
 	LibType            LibType `json:"lib_type"`                                // this is the type of the vault
+	StartSession       bool    `json:"start_session"`                           // this is the flag to start the session
+	Parties            []string `json:"parties"`                                 // this is the list of parties that will participate in the vault creation process
 }
 
 func isValidHexString(s string) bool {

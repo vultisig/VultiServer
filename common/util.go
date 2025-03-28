@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 
 	"github.com/eager7/dogd/btcec"
 	"github.com/ethereum/go-ethereum/common"
