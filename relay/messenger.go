@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -23,20 +24,25 @@ type MessengerImp struct {
 	HexEncryptionKey string
 	logger           *logrus.Logger
 	messageCache     sync.Map
+	isGCM            bool
+	messageID        string
+	counter          int
 }
 
-func NewMessenger(server, sessionID, hexEncryptionKey string) *MessengerImp {
+func NewMessenger(server, sessionID, hexEncryptionKey string, isGCM bool, messageID string) *MessengerImp {
 	return &MessengerImp{
 		Server:           server,
 		SessionID:        sessionID,
 		HexEncryptionKey: hexEncryptionKey,
 		messageCache:     sync.Map{},
 		logger:           logrus.WithField("service", "messenger").Logger,
+		isGCM:            isGCM,
+		counter:          0,
 	}
 }
 func (m *MessengerImp) Send(from, to, body string) error {
 	if m.HexEncryptionKey != "" {
-		encryptedBody, err := encrypt(body, m.HexEncryptionKey)
+		encryptedBody, err := encryptWrapper(body, m.HexEncryptionKey, m.isGCM)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt body: %w", err)
 		}
@@ -52,21 +58,24 @@ func (m *MessengerImp) Send(from, to, body string) error {
 	}
 
 	buf, err := json.MarshalIndent(struct {
-		SessionID string   `json:"session_id,omitempty"`
-		From      string   `json:"from,omitempty"`
-		To        []string `json:"to,omitempty"`
-		Body      string   `json:"body,omitempty"`
-		Hash      string   `json:"hash,omitempty"`
+		SessionID  string   `json:"session_id,omitempty"`
+		From       string   `json:"from,omitempty"`
+		To         []string `json:"to,omitempty"`
+		Body       string   `json:"body,omitempty"`
+		Hash       string   `json:"hash,omitempty"`
+		SequenceNo int      `json:"sequence_no,omitempty"`
 	}{
-		SessionID: m.SessionID,
-		From:      from,
-		To:        []string{to},
-		Body:      body,
-		Hash:      hashStr,
+		SessionID:  m.SessionID,
+		From:       from,
+		To:         []string{to},
+		Body:       body,
+		Hash:       hashStr,
+		SequenceNo: m.counter,
 	}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("fail to marshal message: %w", err)
 	}
+	m.counter++
 
 	url := fmt.Sprintf("%s/message/%s", m.Server, m.SessionID)
 	req, err := http.NewRequest("POST", url, bytes.NewReader(buf))
@@ -79,7 +88,9 @@ func (m *MessengerImp) Send(from, to, body string) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
+	if m.messageID != "" {
+		req.Header.Set("message_id", m.messageID)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
@@ -102,6 +113,12 @@ func (m *MessengerImp) Send(from, to, body string) error {
 
 	return nil
 }
+func encryptWrapper(plainText, hexKey string, isGCM bool) (string, error) {
+	if isGCM {
+		return encryptGCM(plainText, hexKey)
+	}
+	return encrypt(plainText, hexKey)
+}
 
 func encrypt(plainText, hexKey string) (string, error) {
 	key, err := hex.DecodeString(hexKey)
@@ -123,6 +140,38 @@ func encrypt(plainText, hexKey string) (string, error) {
 	ciphertext := make([]byte, len(plainByte))
 	mode.CryptBlocks(ciphertext, plainByte)
 	ciphertext = append(iv, ciphertext...)
+	return string(ciphertext), nil
+}
+
+func encryptGCM(plainText, hexKey string) (string, error) {
+	passwd, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return "", err
+	}
+
+	hash := sha256.Sum256(passwd)
+	key := hash[:]
+
+	// Create a new AES cipher using the key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	// Use GCM (Galois/Counter Mode)
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a nonce. Nonce size is specified by GCM
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	// Seal encrypts and authenticates plaintext
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plainText), nil)
 	return string(ciphertext), nil
 }
 

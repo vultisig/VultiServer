@@ -14,6 +14,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/sirupsen/logrus"
+	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	mtss "github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/proto"
@@ -59,16 +60,12 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 	if err != nil {
 		return fmt.Errorf("failed to wait for session start: %w", err)
 	}
-	keyShares := make(map[string]string)
-	for _, share := range vault.KeyShares {
-		keyShares[share.PublicKey] = share.Keyshare
-	}
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(vault.LocalPartyId, s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword, s.blockStorage)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, vault.PublicKeyEcdsa, encryptionPassword, s.blockStorage)
 	if err != nil {
 		return fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
 
-	tssServerImp, err := s.createTSSService(serverURL, sessionID, hexEncryptionKey, localStateAccessor, true)
+	tssServerImp, err := s.createTSSService(serverURL, sessionID, hexEncryptionKey, localStateAccessor, true, "")
 	if err != nil {
 		return fmt.Errorf("failed to create TSS service: %w", err)
 	}
@@ -111,14 +108,19 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 		}).Error("Failed to check completed parties")
 	}
 
-	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
+	ecdsaKeyShare, err := localStateAccessor.GetLocalCacheState(ecdsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
 	}
-
-	eddsaKeyShare, err := localStateAccessor.GetLocalState(eddsaPubkey)
+	if ecdsaKeyShare == "" {
+		return fmt.Errorf("ecdsaKeyShare is empty")
+	}
+	eddsaKeyShare, err := localStateAccessor.GetLocalCacheState(eddsaPubkey)
 	if err != nil {
 		return fmt.Errorf("failed to get local sate: %w", err)
+	}
+	if eddsaKeyShare == "" {
+		return fmt.Errorf("eddsaKeyShare is empty")
 	}
 
 	newVault := &vaultType.Vault{
@@ -139,6 +141,7 @@ func (s *WorkerService) Reshare(vault *vaultType.Vault,
 			},
 		},
 		LocalPartyId:  vault.LocalPartyId,
+		LibType:       keygenType.LibType_LIB_TYPE_GG20,
 		ResharePrefix: newResharePrefix,
 	}
 	return s.SaveVaultAndScheduleEmail(newVault, encryptionPassword, email)
@@ -210,7 +213,7 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	s.logger.Info("Email task enqueued: ", taskInfo.ID)
 	return nil
 }
-func (s *WorkerService) getOldParties(newParties []string, oldSignerCommittee []string) []string {
+func getOldParties(newParties []string, oldSignerCommittee []string) []string {
 	oldParties := make([]string, 0)
 	for _, party := range oldSignerCommittee {
 		if slices.Contains(newParties, party) {
@@ -224,7 +227,7 @@ func (s *WorkerService) reshareWithRetry(tssService *mtss.ServiceImpl,
 	vault *vaultType.Vault,
 	newParties []string,
 ) (string, string, string, error) {
-	oldParties := s.getOldParties(newParties, vault.Signers)
+	oldParties := getOldParties(newParties, vault.Signers)
 	resp, err := s.reshareECDSAKey(tssService, vault.PublicKeyEcdsa, vault.LocalPartyId, vault.HexChainCode, vault.ResharePrefix,
 		newParties, oldParties)
 	if err != nil {

@@ -7,16 +7,14 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	keygen "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -25,6 +23,11 @@ import (
 
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 )
+
+type VaultOperation interface {
+	BackupVault(req types.VaultCreateRequest, partiesJoined []string, ecdsaPubkey, eddsaPubkey, hexChainCode string, localStateAccessor *relay.LocalStateAccessorImp) error
+	SaveVaultAndScheduleEmail(vault *vaultType.Vault, encryptionPassword, email string) error
+}
 
 func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string, string, error) {
 	keyFolder := s.cfg.Server.VaultsFilePath
@@ -55,12 +58,12 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		return "", "", fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	localStateAccessor, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, keyFolder, "", "", s.blockStorage)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(keyFolder, "", "", s.blockStorage)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
 
-	tssServerImp, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, true)
+	tssServerImp, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, true, "")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TSS service: %w", err)
 	}
@@ -94,7 +97,7 @@ func (s *WorkerService) JoinKeyGeneration(req types.VaultCreateRequest) (string,
 		}).Error("Failed to check completed parties")
 	}
 
-	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, localStateAccessor)
+	err = s.BackupVault(req, partiesJoined, ecdsaPubkey, eddsaPubkey, req.HexChainCode, localStateAccessor)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to backup vault: %w", err)
 	}
@@ -164,6 +167,7 @@ func (s *WorkerService) generateEDDSAKey(tssService tss.Service, req types.Vault
 func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 	partiesJoined []string,
 	ecdsaPubkey, eddsaPubkey string,
+	hexChainCode string,
 	localStateAccessor *relay.LocalStateAccessorImp) error {
 	ecdsaKeyShare, err := localStateAccessor.GetLocalState(ecdsaPubkey)
 	if err != nil {
@@ -181,7 +185,7 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		PublicKeyEddsa: eddsaPubkey,
 		Signers:        partiesJoined,
 		CreatedAt:      timestamppb.New(time.Now()),
-		HexChainCode:   req.HexChainCode,
+		HexChainCode:   hexChainCode,
 		KeyShares: []*vaultType.Vault_KeyShare{
 			{
 				PublicKey: ecdsaPubkey,
@@ -195,11 +199,16 @@ func (s *WorkerService) BackupVault(req types.VaultCreateRequest,
 		LocalPartyId:  req.LocalPartyId,
 		ResharePrefix: "",
 	}
+	if req.LibType == types.DKLS {
+		vault.LibType = keygen.LibType_LIB_TYPE_DKLS
+	} else {
+		vault.LibType = keygen.LibType_LIB_TYPE_GG20
+	}
 	return s.SaveVaultAndScheduleEmail(vault, req.EncryptionPassword, req.Email)
 }
 
-func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool) (*tss.ServiceImpl, error) {
-	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey)
+func (s *WorkerService) createTSSService(serverURL, Session, HexEncryptionKey string, localStateAccessor tss.LocalStateAccessor, createPreParam bool, messageID string) (*tss.ServiceImpl, error) {
+	messenger := relay.NewMessenger(serverURL, Session, HexEncryptionKey, false, messageID)
 	tssService, err := tss.NewService(messenger, localStateAccessor, createPreParam)
 	if err != nil {
 		return nil, fmt.Errorf("create TSS service: %w", err)
@@ -228,47 +237,18 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 		"local_party_id": localPartyID,
 	})
 	logger.Info("Start downloading messages from : ", server)
-
+	relayClient := relay.NewRelayClient(server)
 	for {
 		select {
 		case <-endCh: // we are done
 			logger.Info("Stop downloading messages")
 			return
 		case <-time.After(time.Second):
-
-			req, err := http.NewRequest(http.MethodGet, server+"/message/"+session+"/"+localPartyID, nil)
+			messages, err := relayClient.DownloadMessages(session, localPartyID, messageID)
 			if err != nil {
-				logger.Errorf("Fail to create request,err: %s", err)
-				return
-			}
-			if messageID != "" {
-				req.Header.Set("message_id", messageID)
-			}
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				logger.Errorf("Failed to get data from server,err: %s", err)
+				logger.Errorf("Failed to get messages: %v", err)
 				continue
 			}
-			if resp.StatusCode != http.StatusOK {
-				logger.Errorf("Failed to get data from server, status code is not 200 OK")
-				continue
-			}
-			decoder := json.NewDecoder(resp.Body)
-			var messages []struct {
-				SessionID  string   `json:"session_id,omitempty"`
-				From       string   `json:"from,omitempty"`
-				To         []string `json:"to,omitempty"`
-				Body       string   `json:"body,omitempty"`
-				Hash       string   `json:"hash,omitempty"`
-				SequenceNo int64    `json:"sequence_no,omitempty"`
-			}
-			if err := decoder.Decode(&messages); err != nil {
-				logger.Errorf("Failed to decode data: %v", err)
-				continue
-			}
-			sort.Slice(messages, func(i, j int) bool {
-				return messages[i].SequenceNo < messages[j].SequenceNo
-			})
 			for _, message := range messages {
 				cacheKey := fmt.Sprintf("%s-%s-%s", session, localPartyID, message.Hash)
 				if messageID != "" {
@@ -297,59 +277,49 @@ func (s *WorkerService) downloadMessages(server, session, localPartyID, hexEncry
 				}
 
 				messageCache.Store(cacheKey, true)
-				client := http.Client{}
-				reqDel, err := http.NewRequest(http.MethodDelete, server+"/message/"+session+"/"+localPartyID+"/"+message.Hash, nil)
-				if err != nil {
+				if err := relayClient.DeleteMessageFromServer(session, localPartyID, message.Hash, messageID); err != nil {
 					logger.Errorf("Failed to delete message: %v", err)
-					continue
-				}
-				if messageID != "" {
-					reqDel.Header.Set("message_id", messageID)
-				}
-				resp, err := client.Do(reqDel)
-				if err != nil {
-					logger.Errorf("Failed to delete message: %v", err)
-					continue
-				}
-
-				if resp.StatusCode != http.StatusOK {
-					logger.Errorf("Failed to delete message, status code is not 200 OK")
-					continue
 				}
 			}
 		}
 	}
 }
 
-func decrypt(cipherText, hexKey string) (string, error) {
+func decrypt(cipherText, hexKey string) (result string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	result = ""
+	err = nil
 	var block cipher.Block
-	var err error
-	key, err := hex.DecodeString(hexKey)
-	if err != nil {
-		return "", err
+	key, decodeErr := hex.DecodeString(hexKey)
+	if decodeErr != nil {
+		err = decodeErr
+		return
 	}
 	cipherByte := []byte(cipherText)
-
 	if block, err = aes.NewCipher(key); err != nil {
-		return "", err
+		return
 	}
 
 	if len(cipherByte) < aes.BlockSize {
-		fmt.Printf("ciphertext too short")
-		return "", err
+		err = fmt.Errorf("ciphertext too short")
+		return
 	}
 
 	iv := cipherByte[:aes.BlockSize]
 	cipherByte = cipherByte[aes.BlockSize:]
-
 	cbc := cipher.NewCBCDecrypter(block, iv)
 	plaintext := make([]byte, len(cipherByte))
 	cbc.CryptBlocks(plaintext, cipherByte)
 	plaintext, err = unpad(plaintext)
 	if err != nil {
-		return "", err
+		return
 	}
-	return string(plaintext), nil
+	result = string(plaintext)
+	return
 }
 
 func unpad(data []byte) ([]byte, error) {
@@ -385,7 +355,7 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 	result := map[string]tss.KeysignResponse{}
 	keyFolder := s.cfg.Server.VaultsFilePath
 	serverURL := s.cfg.Relay.Server
-	localStateAccessor, err := relay.NewLocalStateAccessorImp("", keyFolder, req.PublicKey, req.VaultPassword, s.blockStorage)
+	localStateAccessor, err := relay.NewLocalStateAccessorImp(keyFolder, req.PublicKey, req.VaultPassword, s.blockStorage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create localStateAccessor: %w", err)
 	}
@@ -429,11 +399,6 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 		return nil, fmt.Errorf("failed to wait for session start: %w", err)
 	}
 
-	tssServerImp, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TSS service: %w", err)
-	}
-
 	for _, message := range req.Messages {
 		var signature *tss.KeysignResponse
 		for attempt := 0; attempt < 3; attempt++ {
@@ -441,9 +406,9 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 				localPartyId,
 				req,
 				partiesJoined,
-				tssServerImp,
 				message,
-				localStateAccessor.Vault.PublicKeyEddsa)
+				localStateAccessor.Vault.PublicKeyEddsa,
+				localStateAccessor)
 			if err == nil {
 				break
 			}
@@ -470,16 +435,15 @@ func (s *WorkerService) JoinKeySign(req types.KeysignRequest) (map[string]tss.Ke
 func (s *WorkerService) keysignWithRetry(serverURL, localPartyId string,
 	req types.KeysignRequest,
 	partiesJoined []string,
-	tssService tss.Service,
 	msg string,
-	publicKeyEdDSA string) (*tss.KeysignResponse, error) {
-
-	s.logger.WithFields(logrus.Fields{
-		"message_to_sign": msg,
-		"pub_key":         req.PublicKey,
-		"parties":         strings.Join(partiesJoined, ","),
-	}).Info("Starting keysign")
-	messageID := hex.EncodeToString(md5.New().Sum([]byte(msg)))
+	publicKeyEdDSA string, localStateAccessor *relay.LocalStateAccessorImp) (*tss.KeysignResponse, error) {
+	md5Hash := md5.Sum([]byte(msg))
+	messageID := hex.EncodeToString(md5Hash[:])
+	s.logger.Infoln("Start keysign for message: ", messageID)
+	tssService, err := s.createTSSService(serverURL, req.SessionID, req.HexEncryptionKey, localStateAccessor, false, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TSS service: %w", err)
+	}
 	msgBuf, err := hex.DecodeString(msg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode message: %w", err)

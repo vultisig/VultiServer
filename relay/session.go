@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -293,4 +294,118 @@ func (c *Client) EndSession(sessionID string) error {
 		return fmt.Errorf("fail to end session: %s", resp.Status)
 	}
 	return nil
+}
+func (c *Client) UploadSetupMessage(sessionID string, payload string) error {
+	sessionUrl := c.relayServer + "/setup-message/" + sessionID
+	body := []byte(payload)
+	bodyReader := bytes.NewReader(body)
+	resp, err := http.Post(sessionUrl, "application/json", bodyReader)
+	if err != nil {
+		return fmt.Errorf("fail to upload setup message: %w", err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("fail to upload setup message: %s", resp.Status)
+	}
+	return nil
+}
+
+func (c *Client) WaitForSetupMessage(ctx context.Context, sessionID, messageID string) (string, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+			payload, err := c.GetSetupMessage(sessionID, messageID)
+			if err == nil && payload != "" {
+				return payload, err
+			}
+			c.logger.Errorf("payload is not ready: %v", err)
+			time.Sleep(time.Second) // backoff for 1 sec
+		}
+	}
+}
+
+func (c *Client) GetSetupMessage(sessionID, messageID string) (string, error) {
+	sessionUrl := c.relayServer + "/setup-message/" + sessionID
+	req, err := http.NewRequest(http.MethodGet, sessionUrl, nil)
+	if err != nil {
+		return "", fmt.Errorf("fail to get setup message: %w", err)
+	}
+	if messageID != "" {
+		// TODO: this is a workaround , need to get dkls fast vault keysign working
+		// but we should all
+		if messageID == "eddsa" {
+			req.Header.Add("message-id", messageID)
+		} else {
+			req.Header.Add("message_id", messageID)
+		}
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fail to get setup message: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fail to get setup message: %s", resp.Status)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Println("fail to close response body", err)
+		}
+	}()
+	result, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("fail to read setup message: %w", err)
+	}
+
+	return string(result), nil
+}
+
+func (c *Client) DeleteMessageFromServer(sessionID, localPartyID, hash, messageID string) error {
+	req, err := http.NewRequest(http.MethodDelete, c.relayServer+"/message/"+sessionID+"/"+localPartyID+"/"+hash, nil)
+	if err != nil {
+		return fmt.Errorf("fail to delete message: %w", err)
+	}
+	if messageID != "" {
+		req.Header.Add("message_id", messageID)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("fail to delete message: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("fail to delete message: status %s", resp.Status)
+	}
+	return nil
+}
+
+func (c *Client) DownloadMessages(sessionID string, localPartyID string, messageID string) ([]Message, error) {
+	req, err := http.NewRequest(http.MethodGet, c.relayServer+"/message/"+sessionID+"/"+localPartyID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fail to create request: %w", err)
+	}
+	if messageID != "" {
+		req.Header.Add("message_id", messageID)
+	}
+	resp, err := c.client.Do(req)
+	if err != nil {
+		c.logger.Error("fail to get data from server", "error", err)
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Debug("fail to get data from server", "status", resp.Status)
+		return nil, fmt.Errorf("fail to get data from server: %s", resp.Status)
+	}
+	decoder := json.NewDecoder(resp.Body)
+	var messages []Message
+	if err := decoder.Decode(&messages); err != nil {
+		if err != io.EOF {
+			c.logger.Error("fail to decode messages", "error", err)
+		}
+		return nil, err
+	}
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].SequenceNo < messages[j].SequenceNo
+	})
+	return messages, nil
 }

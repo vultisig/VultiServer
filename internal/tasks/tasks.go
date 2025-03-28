@@ -14,6 +14,10 @@ const (
 	TypeEmailVaultBackup  = "key:email"
 	TypeReshare           = "key:reshare"
 	TypePluginTransaction = "plugin:transaction"
+	TypeKeyGenerationDKLS = "key:generationDKLS"
+	TypeKeySignDKLS       = "key:signDKLS"
+	TypeReshareDKLS       = "key:reshareDKLS"
+	TypeMigrate           = "key:migrate"
 )
 
 func GetTaskResult(inspector *asynq.Inspector, taskID string) ([]byte, error) {

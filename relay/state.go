@@ -11,17 +11,15 @@ import (
 )
 
 type LocalStateAccessorImp struct {
-	localPartyID string
 	Folder       string
 	Vault        *vaultType.Vault
 	cache        map[string]string
 	blockStorage *storage.BlockStorage
 }
 
-func NewLocalStateAccessorImp(localPartyID, folder, vaultFileName, vaultPasswd string,
+func NewLocalStateAccessorImp(folder, vaultFileName, vaultPasswd string,
 	storage *storage.BlockStorage) (*LocalStateAccessorImp, error) {
 	localStateAccessor := &LocalStateAccessorImp{
-		localPartyID: localPartyID,
 		Folder:       folder,
 		Vault:        nil,
 		cache:        make(map[string]string),
@@ -65,4 +63,8 @@ func (l *LocalStateAccessorImp) GetLocalState(pubKey string) (string, error) {
 func (l *LocalStateAccessorImp) SaveLocalState(pubKey, localState string) error {
 	l.cache[pubKey] = localState
 	return nil
+}
+
+func (l *LocalStateAccessorImp) GetLocalCacheState(pubKey string) (string, error) {
+	return l.cache[pubKey], nil
 }

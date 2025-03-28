@@ -17,6 +17,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/sirupsen/logrus"
+	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 
@@ -335,7 +336,7 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid reshare request: %s: %w", err, asynq.SkipRetry)
 	}
-	localState, err := relay.NewLocalStateAccessorImp(req.LocalPartyId, s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
+	localState, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
 	if err != nil {
 		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
 		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)
@@ -344,7 +345,6 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 	if localState.Vault != nil {
 		// reshare vault
 		vault = localState.Vault
-
 	} else {
 		vault = &vaultType.Vault{
 			Name:           req.Name,
@@ -355,7 +355,6 @@ func (s *WorkerService) HandleReshare(ctx context.Context, t *asynq.Task) error 
 			Signers:        req.OldParties,
 			ResharePrefix:  req.OldResharePrefix,
 		}
-		// create new vault
 	}
 	if err := s.Reshare(vault,
 		req.SessionID,
@@ -638,4 +637,103 @@ func (s *WorkerService) waitForTaskResult(taskID string, timeout time.Duration) 
 
 		time.Sleep(pollInterval)
 	}
+func (s *WorkerService) HandleReshareDKLS(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	var req types.ReshareRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	if req.LibType != types.DKLS {
+		return fmt.Errorf("invalid lib type: %d: %w", req.LibType, asynq.SkipRetry)
+	}
+
+	defer s.measureTime("worker.vault.reshare.latency", time.Now(), []string{})
+	s.incCounter("worker.vault.reshare.dkls", []string{})
+	s.logger.WithFields(logrus.Fields{
+		"name":           req.Name,
+		"session":        req.SessionID,
+		"local_party_id": req.LocalPartyId,
+		"email":          req.Email,
+	}).Info("reshare request")
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid reshare request: %s: %w", err, asynq.SkipRetry)
+	}
+	localState, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
+	if err != nil {
+		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)
+	}
+	var vault *vaultType.Vault
+	if localState.Vault != nil {
+		// reshare vault
+		vault = localState.Vault
+	} else {
+		vault = &vaultType.Vault{
+			Name:           req.Name,
+			PublicKeyEcdsa: "",
+			PublicKeyEddsa: "",
+			HexChainCode:   req.HexChainCode,
+			LocalPartyId:   req.LocalPartyId,
+			Signers:        req.OldParties,
+			ResharePrefix:  req.OldResharePrefix,
+			LibType:        keygenType.LibType_LIB_TYPE_DKLS,
+		}
+		// create new vault
+	}
+	service, err := NewDKLSTssService(s.cfg, s.blockStorage, localState, s)
+	if err != nil {
+		s.logger.Errorf("NewDKLSTssService failed: %v", err)
+		return fmt.Errorf("NewDKLSTssService failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := service.ProcessReshare(vault, req.SessionID, req.HexEncryptionKey, req.EncryptionPassword, req.Email); err != nil {
+		s.logger.Errorf("reshare failed: %v", err)
+		return fmt.Errorf("reshare failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	return nil
+}
+
+func (s *WorkerService) HandleMigrateDKLS(ctx context.Context, t *asynq.Task) error {
+	if err := contexthelper.CheckCancellation(ctx); err != nil {
+		return err
+	}
+	var req types.MigrationRequest
+	if err := json.Unmarshal(t.Payload(), &req); err != nil {
+		s.logger.Errorf("json.Unmarshal failed: %v", err)
+		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	defer s.measureTime("worker.vault.migrate.latency", time.Now(), []string{})
+	s.incCounter("worker.vault.migrate.dkls", []string{})
+	s.logger.WithFields(logrus.Fields{
+		"session": req.SessionID,
+		"email":   req.Email,
+	}).Info("migrate request")
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid migrate request: %s: %w", err, asynq.SkipRetry)
+	}
+	localState, err := relay.NewLocalStateAccessorImp(s.cfg.Server.VaultsFilePath, req.PublicKey, req.EncryptionPassword, s.blockStorage)
+	if err != nil {
+		s.logger.Errorf("relay.NewLocalStateAccessorImp failed: %v", err)
+		return fmt.Errorf("relay.NewLocalStateAccessorImp failed: %v: %w", err, asynq.SkipRetry)
+	}
+	if localState.Vault == nil {
+		return fmt.Errorf("vault doesn't exist , fail to migrate: %w", asynq.SkipRetry)
+	}
+
+	service, err := NewDKLSTssService(s.cfg, s.blockStorage, localState, s)
+	if err != nil {
+		s.logger.Errorf("NewDKLSTssService failed: %v", err)
+		return fmt.Errorf("NewDKLSTssService failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	if err := service.ProceeMigration(localState.Vault, req.SessionID, req.HexEncryptionKey, req.EncryptionPassword, req.Email); err != nil {
+		s.logger.Errorf("migrate failed: %v", err)
+		return fmt.Errorf("migrate failed: %v: %w", err, asynq.SkipRetry)
+	}
+
+	return nil
 }

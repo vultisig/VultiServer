@@ -38,6 +38,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
+	keygen "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	"github.com/vultisig/mobile-tss-lib/tss"
 )
 
@@ -181,8 +182,9 @@ func (s *Server) StartServer() error {
 	grp := e.Group("/vault")
 	grp.POST("/create", s.CreateVault)
 	grp.POST("/reshare", s.ReshareVault)
-	//grp.POST("/upload", s.UploadVault)
-	//grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
+	grp.POST("/migrate", s.MigrateVault)
+	// grp.POST("/upload", s.UploadVault)
+	// grp.GET("/download/:publicKeyECDSA", s.DownloadVault)
 	grp.GET("/get/:publicKeyECDSA", s.GetVault)     // Get Vault Data
 	grp.GET("/exist/:publicKeyECDSA", s.ExistVault) // Check if Vault exists
 	//	grp.DELETE("/delete/:publicKeyECDSA", s.DeleteVault) // Delete Vault Data
@@ -296,8 +298,14 @@ func (s *Server) CreateVault(c echo.Context) error {
 	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
-	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeKeyGeneration, buf),
-		asynq.MaxRetry(0),
+	var typeName = ""
+	if req.LibType == types.GG20 {
+		typeName = tasks.TypeKeyGeneration
+	} else {
+		typeName = tasks.TypeKeyGenerationDKLS
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(typeName, buf),
+		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -328,8 +336,46 @@ func (s *Server) ReshareVault(c echo.Context) error {
 	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
 		s.logger.Errorf("fail to set session, err: %v", err)
 	}
-	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeReshare, buf),
-		asynq.MaxRetry(0),
+	var typeName = ""
+	if req.LibType == types.GG20 {
+		typeName = tasks.TypeReshare
+	} else {
+		typeName = tasks.TypeReshareDKLS
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(typeName, buf),
+		asynq.MaxRetry(-1),
+		asynq.Timeout(7*time.Minute),
+		asynq.Retention(10*time.Minute),
+		asynq.Queue(tasks.QUEUE_NAME))
+	if err != nil {
+		return fmt.Errorf("fail to enqueue task, err: %w", err)
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+// MigrateVault is a handler to migrate a vault from GG20 to DKLS
+func (s *Server) MigrateVault(c echo.Context) error {
+	var req types.MigrationRequest
+	if err := c.Bind(&req); err != nil {
+		return fmt.Errorf("fail to parse request, err: %w", err)
+	}
+	if err := req.IsValid(); err != nil {
+		return fmt.Errorf("invalid request, err: %w", err)
+	}
+	buf, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("fail to marshal to json, err: %w", err)
+	}
+	result, err := s.redis.Get(c.Request().Context(), req.SessionID)
+	if err == nil && result != "" {
+		return c.NoContent(http.StatusOK)
+	}
+
+	if err := s.redis.Set(c.Request().Context(), req.SessionID, req.SessionID, 5*time.Minute); err != nil {
+		s.logger.Errorf("fail to set session, err: %v", err)
+	}
+	_, err = s.client.Enqueue(asynq.NewTask(tasks.TypeMigrate, buf),
+		asynq.MaxRetry(-1),
 		asynq.Timeout(7*time.Minute),
 		asynq.Retention(10*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -514,7 +560,7 @@ func (s *Server) SignMessages(c echo.Context) error {
 		return wrappedErr
 	}
 
-	_, err = common.DecryptVaultFromBackup(req.VaultPassword, content)
+	vault, err := common.DecryptVaultFromBackup(req.VaultPassword, content)
 	if err != nil {
 		return fmt.Errorf("fail to decrypt vault from the backup, err: %w", err)
 	}
@@ -522,9 +568,15 @@ func (s *Server) SignMessages(c echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("fail to marshal to json, err: %w", err)
 	}
+	var typeName = ""
+	if vault.LibType == keygen.LibType_LIB_TYPE_GG20 {
+		typeName = tasks.TypeKeySign
+	} else {
+		typeName = tasks.TypeKeySignDKLS
+	}
 	ti, err := s.client.EnqueueContext(c.Request().Context(),
-		asynq.NewTask(tasks.TypeKeySign, buf),
-		asynq.MaxRetry(0),
+		asynq.NewTask(typeName, buf),
+		asynq.MaxRetry(-1),
 		asynq.Timeout(2*time.Minute),
 		asynq.Retention(5*time.Minute),
 		asynq.Queue(tasks.QUEUE_NAME))
@@ -686,9 +738,11 @@ func (s *Server) VerifyCode(c echo.Context) error {
 	if result != code {
 		return c.NoContent(http.StatusBadRequest)
 	}
-	if err := s.redis.Delete(c.Request().Context(), key); err != nil {
-		s.logger.Errorf("fail to delete code, err: %v", err)
+	// set the code to be expired in 5 minutes
+	if err := s.redis.Expire(c.Request().Context(), key, time.Minute*5); err != nil {
+		s.logger.Errorf("fail to expire code, err: %v", err)
 	}
+
 	return c.NoContent(http.StatusOK)
 }
 
