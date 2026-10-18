@@ -216,11 +216,28 @@ func (t *DKLSTssService) saveImportedVault(
 		ResharePrefix:  "",
 	}
 
-	for name, pr := range result.phaseResults {
+	// Walk the protocol list rather than the phaseResults map: keyshares must be stored root
+	// keys first and then in ChainPublicKeys order, because chains that derive the same key
+	// (all EVM chains, ...) each own a distinct keyshare under one public key and keysign
+	// picks the right one by position (see relay.GetChainLocalState).
+	allDefs := buildImportProtocolList(req.Protocols, req.Chains)
+	for _, def := range allDefs {
+		pr := result.phaseResults[def.name]
+		if pr == nil {
+			continue
+		}
 		vault.KeyShares = append(vault.KeyShares,
 			&vaultType.Vault_KeyShare{PublicKey: pr.PublicKey, Keyshare: pr.Keyshare},
 		)
-		switch name {
+		if def.isChain {
+			vault.ChainPublicKeys = append(vault.ChainPublicKeys, &vaultType.Vault_ChainPublicKey{
+				Chain:     def.chain,
+				PublicKey: pr.PublicKey,
+				IsEddsa:   def.isEdDSA,
+			})
+			continue
+		}
+		switch def.name {
 		case "ecdsa":
 			vault.PublicKeyEcdsa = pr.PublicKey
 			vault.HexChainCode = pr.ChainCode
@@ -229,22 +246,6 @@ func (t *DKLSTssService) saveImportedVault(
 		case "mldsa":
 			vault.PublicKeyMldsa44 = pr.PublicKey
 		}
-	}
-
-	allDefs := buildImportProtocolList(req.Protocols, req.Chains)
-	for _, def := range allDefs {
-		if !def.isChain {
-			continue
-		}
-		pr := result.phaseResults[def.chain]
-		if pr == nil {
-			continue
-		}
-		vault.ChainPublicKeys = append(vault.ChainPublicKeys, &vaultType.Vault_ChainPublicKey{
-			Chain:     def.chain,
-			PublicKey: pr.PublicKey,
-			IsEddsa:  def.isEdDSA,
-		})
 	}
 
 	return t.backup.SaveVaultAndScheduleEmail(vault, req.EncryptionPassword, req.Email)

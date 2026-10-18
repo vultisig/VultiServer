@@ -97,24 +97,21 @@ func (t *DKLSTssService) ProcessDKLSKeysign(req types.KeysignRequest) (map[strin
 		publicKey = localStateAccessor.Vault.PublicKeyEddsa
 	}
 
+	// keyshare pinned to the requested chain; empty means "look it up by public key"
+	chainKeyshare := ""
 	if !req.Mldsa && req.Chain != "" && localStateAccessor.Vault.LibType == v1.LibType_LIB_TYPE_KEYIMPORT {
-		found := false
-		for _, chainInfo := range localStateAccessor.Vault.ChainPublicKeys {
-			if strings.EqualFold(chainInfo.Chain, req.Chain) {
-				publicKey = chainInfo.PublicKey
-				found = true
-				break
-			}
+		chainPublicKey, ks, err := localStateAccessor.GetChainLocalState(req.Chain)
+		if err != nil {
+			return nil, err
 		}
-		if !found {
-			return nil, fmt.Errorf("public key for chain %s not found in vault", req.Chain)
-		}
+		publicKey = chainPublicKey
+		chainKeyshare = ks
 		// when it is KeyImport vault , DerivePath need to be ignored
 		req.DerivePath = "m"
 	}
 	// start to do keysign
 	for _, msg := range req.Messages {
-		sig, err := t.keysignWithRetry(req.SessionID, req.HexEncryptionKey, publicKey, !req.IsECDSA, msg, req.DerivePath, localPartyID, partiesJoined, req.Mldsa, mldsaSession.MlDsa44)
+		sig, err := t.keysignWithRetry(req.SessionID, req.HexEncryptionKey, publicKey, chainKeyshare, !req.IsECDSA, msg, req.DerivePath, localPartyID, partiesJoined, req.Mldsa, mldsaSession.MlDsa44)
 		if err != nil {
 			var banErr *abortAndBanPartyError
 			if errors.As(err, &banErr) {
@@ -140,6 +137,7 @@ func (t *DKLSTssService) ProcessDKLSKeysign(req types.KeysignRequest) (map[strin
 func (t *DKLSTssService) keysignWithRetry(sessionID string,
 	hexEncryptionKey string,
 	publicKey string,
+	keyshare string,
 	isEdDSA bool,
 	message string,
 	derivePath string,
@@ -150,6 +148,7 @@ func (t *DKLSTssService) keysignWithRetry(sessionID string,
 		keysignResult, err := t.keysign(sessionID,
 			hexEncryptionKey,
 			publicKey,
+			keyshare,
 			isEdDSA,
 			message,
 			derivePath,
@@ -182,6 +181,7 @@ func (t *DKLSTssService) keysignWithRetry(sessionID string,
 func (t *DKLSTssService) keysign(sessionID string,
 	hexEncryptionKey string,
 	publicKey string,
+	keyshare string,
 	isEdDSA bool,
 	message string,
 	derivePath string,
@@ -217,9 +217,12 @@ func (t *DKLSTssService) keysign(sessionID string,
 	}).Info("Keysign")
 
 	// we need to get the shares
-	keyshare, err := t.localStateAccessor.GetLocalState(publicKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get keyshare: %w", err)
+	if keyshare == "" {
+		ks, err := t.localStateAccessor.GetLocalState(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get keyshare: %w", err)
+		}
+		keyshare = ks
 	}
 	keyshareBytes, err := base64.StdEncoding.DecodeString(keyshare)
 	if err != nil {
