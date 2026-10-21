@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -87,7 +88,26 @@ func EncryptVault(password string, vault []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+// Password-protected vault backup format shared with the apps and the SDK:
+// magic || 16-byte salt || 12-byte GCM nonce || ciphertext+tag, keyed with
+// PBKDF2-HMAC-SHA256. The iteration count is fixed, not on the wire.
+const (
+	vaultBackupMagic            = "VLT\x02"
+	vaultBackupSaltLen          = 16
+	vaultBackupNonceLen         = 12
+	vaultBackupPBKDF2Iterations = 600_000
+	vaultBackupKeyLen           = 32
+	vaultBackupTagLen           = 16
+	vaultBackupHeaderLen        = len(vaultBackupMagic) + vaultBackupSaltLen + vaultBackupNonceLen
+)
+
+// DecryptVault decrypts a password-protected vault: the PBKDF2 format when the
+// blob starts with the format magic, otherwise the legacy SHA-256(password) format.
 func DecryptVault(password string, vault []byte) ([]byte, error) {
+	if bytes.HasPrefix(vault, []byte(vaultBackupMagic)) {
+		return decryptVaultPBKDF2(password, vault)
+	}
+
 	// Hash the password to create a key
 	hash := sha256.Sum256([]byte(password))
 	key := hash[:]
@@ -120,6 +140,27 @@ func DecryptVault(password string, vault []byte) ([]byte, error) {
 	}
 
 	return plaintext, nil
+}
+
+func decryptVaultPBKDF2(password string, vault []byte) ([]byte, error) {
+	if len(vault) < vaultBackupHeaderLen+vaultBackupTagLen {
+		return nil, errors.New("encrypted vault is truncated")
+	}
+	salt := vault[len(vaultBackupMagic) : len(vaultBackupMagic)+vaultBackupSaltLen]
+	nonce := vault[len(vaultBackupMagic)+vaultBackupSaltLen : vaultBackupHeaderLen]
+	key, err := pbkdf2.Key(sha256.New, password, salt, vaultBackupPBKDF2Iterations, vaultBackupKeyLen)
+	if err != nil {
+		return nil, fmt.Errorf("pbkdf2.Key failed: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	return gcm.Open(nil, nonce, vault[vaultBackupHeaderLen:], nil)
 }
 
 func DecryptVaultFromBackup(password string, vaultBackupRaw []byte) (*vaultType.Vault, error) {
