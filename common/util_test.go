@@ -1,6 +1,7 @@
 package common
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
@@ -134,5 +135,36 @@ func TestDecryptVaultLegacyNonceWithMagic(t *testing.T) {
 	}
 	if _, err := DecryptVault("wrong-password", blob); err == nil {
 		t.Fatal("wrong password decrypted")
+	}
+}
+
+func TestEncryptVaultPBKDF2GoldenVector(t *testing.T) {
+	salt := bytes.Repeat([]byte{0x03}, vaultBackupSaltLen)
+	nonce := bytes.Repeat([]byte{0x04}, vaultBackupNonceLen)
+	blob, err := sealVaultPBKDF2("golden-cross-platform", []byte("xy"), salt, nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hex.EncodeToString(blob); got != pbkdf2GoldenVectorHex {
+		t.Fatalf("blob: %s, expected: %s", got, pbkdf2GoldenVectorHex)
+	}
+
+	first, err := EncryptVault("password", []byte("vault_bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := EncryptVault("password", []byte("vault_bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(first, []byte(vaultBackupMagic)) {
+		t.Fatalf("EncryptVault output does not start with the format magic: %x", first[:len(vaultBackupMagic)])
+	}
+	saltEnd := len(vaultBackupMagic) + vaultBackupSaltLen
+	if bytes.Equal(first[len(vaultBackupMagic):saltEnd], second[len(vaultBackupMagic):saltEnd]) {
+		t.Fatal("EncryptVault reused the salt")
+	}
+	if bytes.Equal(first[saltEnd:vaultBackupHeaderLen], second[saltEnd:vaultBackupHeaderLen]) {
+		t.Fatal("EncryptVault reused the nonce")
 	}
 }
