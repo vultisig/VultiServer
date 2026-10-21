@@ -16,6 +16,7 @@ import (
 	keygenType "github.com/vultisig/commondata/go/vultisig/keygen/v1"
 	vaultType "github.com/vultisig/commondata/go/vultisig/vault/v1"
 
+	"github.com/vultisig/vultiserver/common"
 	"github.com/vultisig/vultiserver/config"
 	"github.com/vultisig/vultiserver/contexthelper"
 	"github.com/vultisig/vultiserver/internal/types"
@@ -157,6 +158,22 @@ func (s *WorkerService) HandleKeySign(ctx context.Context, t *asynq.Task) error 
 
 	return nil
 }
+
+// backupAttachment returns the stored backup only if it still matches the digest taken at enqueue time.
+func (s *WorkerService) backupAttachment(backupKey, digest, legacyContent string) (string, error) {
+	if backupKey == "" {
+		return legacyContent, nil
+	}
+	content, err := s.blockStorage.GetFile(backupKey)
+	if err != nil {
+		return "", fmt.Errorf("blockStorage.GetFile %s: %w", backupKey, err)
+	}
+	if common.BackupDigest(content) != digest {
+		return "", fmt.Errorf("backup %s changed after the email was enqueued: %w", backupKey, asynq.SkipRetry)
+	}
+	return string(content), nil
+}
+
 func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Task) error {
 	if err := contexthelper.CheckCancellation(ctx); err != nil {
 		return err
@@ -166,6 +183,11 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 	if err := json.Unmarshal(t.Payload(), &req); err != nil {
 		s.logger.Errorf("json.Unmarshal failed: %v", err)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+	}
+	attachment, err := s.backupAttachment(req.BackupKey, req.BackupDigest, req.FileContent)
+	if err != nil {
+		s.logger.Errorf("backupAttachment failed: %v", err)
+		return err
 	}
 	s.logger.WithFields(logrus.Fields{
 		"email":    req.Email,
@@ -212,7 +234,7 @@ func (s *WorkerService) HandleEmailVaultBackup(ctx context.Context, t *asynq.Tas
 				{
 					Type:    "application/octet-stream",
 					Name:    req.FileName,
-					Content: base64.StdEncoding.EncodeToString([]byte(req.FileContent)),
+					Content: base64.StdEncoding.EncodeToString([]byte(attachment)),
 				},
 			},
 		},
@@ -258,6 +280,11 @@ func (s *WorkerService) HandleResendVaultShareEmail(ctx context.Context, t *asyn
 		s.logger.Errorf("json.Unmarshal failed: %v", err)
 		return fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 	}
+	attachment, err := s.backupAttachment(req.BackupKey, req.BackupDigest, req.FileContent)
+	if err != nil {
+		s.logger.Errorf("backupAttachment failed: %v", err)
+		return err
+	}
 	s.logger.WithFields(logrus.Fields{
 		"email":    req.Email,
 		"filename": req.FileName,
@@ -295,7 +322,7 @@ func (s *WorkerService) HandleResendVaultShareEmail(ctx context.Context, t *asyn
 				{
 					Type:    "application/octet-stream",
 					Name:    req.FileName,
-					Content: base64.StdEncoding.EncodeToString([]byte(req.FileContent)),
+					Content: base64.StdEncoding.EncodeToString([]byte(attachment)),
 				},
 			},
 		},

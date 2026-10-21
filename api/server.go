@@ -704,7 +704,8 @@ func (s *Server) ResendVaultEmail(c echo.Context) error {
 		s.logger.Errorln("password is required")
 		return c.NoContent(http.StatusBadRequest)
 	}
-	content, err := s.blockStorage.GetFile(publicKeyECDSA + ".bak")
+	backupKey := publicKeyECDSA + ".bak"
+	content, err := s.blockStorage.GetFile(backupKey)
 	if err != nil {
 		s.logger.Errorf("fail to read file, err: %v", err)
 		return c.NoContent(http.StatusBadRequest)
@@ -717,10 +718,11 @@ func (s *Server) ResendVaultEmail(c echo.Context) error {
 	}
 
 	emailRequest := types.ResendVaultShareEmailRequest{
-		Email:       req.Email,
-		FileName:    common.GetVaultName(vault),
-		FileContent: string(content),
-		VaultName:   vault.Name,
+		Email:        req.Email,
+		FileName:     common.GetVaultName(vault),
+		BackupKey:    backupKey,
+		BackupDigest: common.BackupDigest(content),
+		VaultName:    vault.Name,
 	}
 	buf, err := json.Marshal(emailRequest)
 	if err != nil {

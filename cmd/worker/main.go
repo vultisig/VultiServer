@@ -66,6 +66,8 @@ func main() {
 	mux.HandleFunc(tasks.TypeReshareBatch, workerServce.HandleReshareBatch)
 	mux.HandleFunc(tasks.TypeImportBatch, workerServce.HandleImportBatch)
 	mux.HandleFunc(tasks.TypeResendVaultShareEmail, workerServce.HandleResendVaultShareEmail)
+	mux.HandleFunc(tasks.TypeEmailVaultBackupLegacy, workerServce.HandleEmailVaultBackup)
+	mux.HandleFunc(tasks.TypeResendVaultShareEmailLegacy, workerServce.HandleResendVaultShareEmail)
 	if err := srv.Run(mux); err != nil {
 		panic(fmt.Errorf("could not run server: %w", err))
 	}

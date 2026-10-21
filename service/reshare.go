@@ -210,8 +210,12 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 
 	base64VaultContent := base64.StdEncoding.EncodeToString(vaultBackupData)
 	if err := s.blockStorage.UploadFileWithRetry([]byte(base64VaultContent), filePathName, 5); err != nil {
-		if err := os.WriteFile(s.cfg.Server.VaultsFilePath+"/"+filePathName, []byte(base64VaultContent), 0644); err != nil {
+		localPath := s.cfg.Server.VaultsFilePath + "/" + filePathName
+		if err := os.WriteFile(localPath, []byte(base64VaultContent), 0o600); err != nil {
 			s.logger.Errorf("fail to write file: %s", err)
+		} else if err := os.Chmod(localPath, 0o600); err != nil {
+			// WriteFile keeps the mode of a file that already exists.
+			s.logger.Errorf("fail to chmod file: %s", err)
 		}
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
@@ -220,11 +224,12 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 		return fmt.Errorf("failed to create verification code: %w", err)
 	}
 	emailRequest := types.EmailRequest{
-		Email:       email,
-		FileName:    common.GetVaultName(vault),
-		FileContent: base64VaultContent,
-		VaultName:   vault.Name,
-		Code:        code,
+		Email:        email,
+		FileName:     common.GetVaultName(vault),
+		BackupKey:    filePathName,
+		BackupDigest: common.BackupDigest([]byte(base64VaultContent)),
+		VaultName:    vault.Name,
+		Code:         code,
 	}
 	buf, err := json.Marshal(emailRequest)
 	if err != nil {

@@ -167,6 +167,12 @@ func IsSubset(subset, set []string) bool {
 	return true
 }
 
+// BackupDigest returns the hex SHA-256 of a stored vault backup.
+func BackupDigest(backup []byte) string {
+	sum := sha256.Sum256(backup)
+	return hex.EncodeToString(sum[:])
+}
+
 func GetVaultName(vault *vaultType.Vault) string {
 	lastFourCharOfPubKey := vault.PublicKeyEcdsa[len(vault.PublicKeyEcdsa)-4:]
 	partIndex := 0

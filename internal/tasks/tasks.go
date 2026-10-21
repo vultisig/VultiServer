@@ -5,7 +5,7 @@ const EMAIL_QUEUE_NAME = "vultisigner:email"
 const (
 	TypeKeyGeneration     = "key:generation"
 	TypeKeySign           = "key:sign"
-	TypeEmailVaultBackup  = "key:email"
+	TypeEmailVaultBackup  = "key:email:v2"
 	TypeReshare           = "key:reshare"
 	TypeKeyGenerationDKLS = "key:generationDKLS"
 	TypeKeySignDKLS       = "key:signDKLS"
@@ -16,5 +16,11 @@ const (
 	TypeKeygenBatch              = "key:keygenBatch"
 	TypeReshareBatch             = "key:reshareBatch"
 	TypeImportBatch              = "key:importBatch"
-	TypeResendVaultShareEmail    = "key:resendVaultShareEmail"
+	TypeResendVaultShareEmail    = "key:resendVaultShareEmail:v2"
+)
+
+// Pre-v2 email task types carry the backup itself; registered only to drain tasks from older binaries.
+const (
+	TypeEmailVaultBackupLegacy      = "key:email"
+	TypeResendVaultShareEmailLegacy = "key:resendVaultShareEmail"
 )
