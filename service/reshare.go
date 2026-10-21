@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"os"
 	"slices"
@@ -211,11 +213,11 @@ func (s *WorkerService) SaveVaultAndScheduleEmail(vault *vaultType.Vault,
 	base64VaultContent := base64.StdEncoding.EncodeToString(vaultBackupData)
 	if err := s.blockStorage.UploadFileWithRetry([]byte(base64VaultContent), filePathName, 5); err != nil {
 		localPath := s.cfg.Server.VaultsFilePath + "/" + filePathName
-		if err := os.WriteFile(localPath, []byte(base64VaultContent), 0o600); err != nil {
-			s.logger.Errorf("fail to write file: %s", err)
-		} else if err := os.Chmod(localPath, 0o600); err != nil {
-			// WriteFile keeps the mode of a file that already exists.
+		// WriteFile keeps the mode of an existing file, so tighten it before writing.
+		if err := os.Chmod(localPath, 0o600); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			s.logger.Errorf("fail to chmod file: %s", err)
+		} else if err := os.WriteFile(localPath, []byte(base64VaultContent), 0o600); err != nil {
+			s.logger.Errorf("fail to write file: %s", err)
 		}
 		return fmt.Errorf("fail to write file, err: %w", err)
 	}
