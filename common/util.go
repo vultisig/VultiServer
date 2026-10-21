@@ -88,9 +88,7 @@ func EncryptVault(password string, vault []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-// Password-protected vault backup format shared with the apps and the SDK:
-// magic || 16-byte salt || 12-byte GCM nonce || ciphertext+tag, keyed with
-// PBKDF2-HMAC-SHA256. The iteration count is fixed, not on the wire.
+// Vault backup format shared with the apps and the SDK: magic || salt || nonce || AES-GCM, PBKDF2 key; iterations are not on the wire.
 const (
 	vaultBackupMagic            = "VLT\x02"
 	vaultBackupSaltLen          = 16
@@ -104,10 +102,21 @@ const (
 // DecryptVault decrypts a password-protected vault: the PBKDF2 format when the
 // blob starts with the format magic, otherwise the legacy SHA-256(password) format.
 func DecryptVault(password string, vault []byte) ([]byte, error) {
-	if bytes.HasPrefix(vault, []byte(vaultBackupMagic)) {
-		return decryptVaultPBKDF2(password, vault)
+	if !bytes.HasPrefix(vault, []byte(vaultBackupMagic)) {
+		return decryptVaultLegacy(password, vault)
 	}
+	plaintext, err := decryptVaultPBKDF2(password, vault)
+	if err == nil {
+		return plaintext, nil
+	}
+	// A legacy blob's random nonce can start with the magic; GCM still authenticates the result.
+	if legacy, legacyErr := decryptVaultLegacy(password, vault); legacyErr == nil {
+		return legacy, nil
+	}
+	return nil, err
+}
 
+func decryptVaultLegacy(password string, vault []byte) ([]byte, error) {
 	// Hash the password to create a key
 	hash := sha256.Sum256([]byte(password))
 	key := hash[:]

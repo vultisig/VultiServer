@@ -1,6 +1,9 @@
 package common
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -105,5 +108,31 @@ func TestDecryptVaultPBKDF2GoldenVector(t *testing.T) {
 		if _, err := DecryptVault("golden-cross-platform", truncated); err == nil {
 			t.Fatalf("truncated blob of %d bytes decrypted", len(truncated))
 		}
+	}
+}
+
+func TestDecryptVaultLegacyNonceWithMagic(t *testing.T) {
+	password := "legacy-password"
+	key := sha256.Sum256([]byte(password))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce := append([]byte(vaultBackupMagic), 1, 2, 3, 4, 5, 6, 7, 8)
+	blob := gcm.Seal(nonce, nonce, []byte("legacy-share"), nil)
+
+	plaintext, err := DecryptVault(password, blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(plaintext) != "legacy-share" {
+		t.Fatalf("decrypted: %q, expected: %q", plaintext, "legacy-share")
+	}
+	if _, err := DecryptVault("wrong-password", blob); err == nil {
+		t.Fatal("wrong password decrypted")
 	}
 }
