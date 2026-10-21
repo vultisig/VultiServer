@@ -60,32 +60,41 @@ func DecompressData(compressedData []byte) ([]byte, error) {
 	return decompressedData.Bytes(), nil
 }
 
+// EncryptVault encrypts a vault with a password in the PBKDF2 format.
 func EncryptVault(password string, vault []byte) ([]byte, error) {
-	// Hash the password to create a key
-	hash := sha256.Sum256([]byte(password))
-	key := hash[:]
+	salt := make([]byte, vaultBackupSaltLen)
+	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, vaultBackupNonceLen)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+	return sealVaultPBKDF2(password, vault, salt, nonce)
+}
 
-	// Create a new AES cipher using the key
+func sealVaultPBKDF2(password string, vault, salt, nonce []byte) ([]byte, error) {
+	gcm, err := vaultBackupGCM(password, salt)
+	if err != nil {
+		return nil, err
+	}
+	header := make([]byte, 0, vaultBackupHeaderLen+len(vault)+gcm.Overhead())
+	header = append(header, vaultBackupMagic...)
+	header = append(header, salt...)
+	header = append(header, nonce...)
+	return gcm.Seal(header, nonce, vault, nil), nil
+}
+
+func vaultBackupGCM(password string, salt []byte) (cipher.AEAD, error) {
+	key, err := pbkdf2.Key(sha256.New, password, salt, vaultBackupPBKDF2Iterations, vaultBackupKeyLen)
+	if err != nil {
+		return nil, fmt.Errorf("pbkdf2.Key failed: %w", err)
+	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
-
-	// Use GCM (Galois/Counter Mode)
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a nonce. Nonce size is specified by GCM
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, err
-	}
-
-	// Seal encrypts and authenticates plaintext
-	ciphertext := gcm.Seal(nonce, nonce, vault, nil)
-	return ciphertext, nil
+	return cipher.NewGCM(block)
 }
 
 // Vault backup format shared with the apps and the SDK: magic || salt || nonce || AES-GCM, PBKDF2 key; iterations are not on the wire.
@@ -157,15 +166,7 @@ func decryptVaultPBKDF2(password string, vault []byte) ([]byte, error) {
 	}
 	salt := vault[len(vaultBackupMagic) : len(vaultBackupMagic)+vaultBackupSaltLen]
 	nonce := vault[len(vaultBackupMagic)+vaultBackupSaltLen : vaultBackupHeaderLen]
-	key, err := pbkdf2.Key(sha256.New, password, salt, vaultBackupPBKDF2Iterations, vaultBackupKeyLen)
-	if err != nil {
-		return nil, fmt.Errorf("pbkdf2.Key failed: %w", err)
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
+	gcm, err := vaultBackupGCM(password, salt)
 	if err != nil {
 		return nil, err
 	}
