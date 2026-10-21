@@ -1,6 +1,10 @@
 package common
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
@@ -76,5 +80,59 @@ func TestVaultBackupCompatible(t *testing.T) {
 
 	if iosVault.PublicKeyEcdsa != androidVault.PublicKeyEcdsa {
 		t.Fatalf("ios backup is not compatible with android backup")
+	}
+}
+
+// Blob from vultisig-sdk vaultBackup.test.ts "golden vector": password
+// "golden-cross-platform", plaintext "xy", salt 0x03*16, nonce 0x04*12.
+const pbkdf2GoldenVectorHex = "564c5402030303030303030303030303030303030404040404040404040404041b0a21328e42d6527c5ba6f5817300bc2c6f"
+
+func TestDecryptVaultPBKDF2GoldenVector(t *testing.T) {
+	blob, err := hex.DecodeString(pbkdf2GoldenVectorHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plaintext, err := DecryptVault("golden-cross-platform", blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(plaintext) != "xy" {
+		t.Fatalf("decrypted: %q, expected: %q", plaintext, "xy")
+	}
+
+	if _, err := DecryptVault("wrong-password", blob); err == nil {
+		t.Fatal("wrong password decrypted")
+	}
+	for _, truncated := range [][]byte{blob[:len(vaultBackupMagic)], blob[:vaultBackupHeaderLen+vaultBackupTagLen-1]} {
+		if _, err := DecryptVault("golden-cross-platform", truncated); err == nil {
+			t.Fatalf("truncated blob of %d bytes decrypted", len(truncated))
+		}
+	}
+}
+
+func TestDecryptVaultLegacyNonceWithMagic(t *testing.T) {
+	password := "legacy-password"
+	key := sha256.Sum256([]byte(password))
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce := append([]byte(vaultBackupMagic), 1, 2, 3, 4, 5, 6, 7, 8)
+	blob := gcm.Seal(nonce, nonce, []byte("legacy-share"), nil)
+
+	plaintext, err := DecryptVault(password, blob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(plaintext) != "legacy-share" {
+		t.Fatalf("decrypted: %q, expected: %q", plaintext, "legacy-share")
+	}
+	if _, err := DecryptVault("wrong-password", blob); err == nil {
+		t.Fatal("wrong password decrypted")
 	}
 }
